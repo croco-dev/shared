@@ -1,6 +1,6 @@
 {
   "name": "@croco/utils-structure-react",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "commonjs",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -8,7 +8,7 @@
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint **/*.ts*",
-    "deploy": "pnpm run build && pnpm publish"
+    "deploy": "pnpm run build && pnpm publish --no-git-checks"
   },
   "devDependencies": {
     "react": "18.2.0",
