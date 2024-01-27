@@ -1,11 +1,25 @@
 {
   "name": "@croco/utils-next-font-pretendard",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "commonjs",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "files": ["src", "PretendardVariable.woff2"],
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "import": "./src/index.mjs",
+  "module": "./src/index.mjs",
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./src/index.d.ts",
+        "default": "./src/index.js"
+      },
+      "import": {
+        "types": "./src/index.d.mts",
+        "default": "./src/index.mjs"
+      }
+    }
+  },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint **/*.ts*"
   },
