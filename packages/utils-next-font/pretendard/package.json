@@ -1,6 +1,6 @@
 {
   "name": "@croco/utils-next-font-pretendard",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "commonjs",
   "files": ["src", "PretendardVariable.woff2"],
   "main": "./src/index.js",
