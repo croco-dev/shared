@@ -168,6 +168,10 @@ export function getAdminConsoleService(): AdminConsoleService {
 }
 
 export function resetAdminRuntimeForTests(): void {
+  initializeAdminRuntime();
+}
+
+export function initializeAdminRuntime(): void {
   adminRuntime = createAdminRuntime();
   resetCreditOperationsServiceForTests();
 }

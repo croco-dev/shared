@@ -1045,6 +1045,14 @@ describe("E2E: generate()", () => {
         join(testDir, "apps", "api-server", "src", "app.ts"),
         "utf8",
       );
+      const apiNodeHostSource = readFileSync(
+        join(testDir, "apps", "api-server", "src", "index.ts"),
+        "utf8",
+      );
+      const apiLambdaHostSource = readFileSync(
+        join(testDir, "apps", "api-server", "src", "lambda.ts"),
+        "utf8",
+      );
       const clientSource = readFileSync(
         join(testDir, "apps", "console-web", "src", "api", "client.ts"),
         "utf8",
@@ -1103,6 +1111,9 @@ describe("E2E: generate()", () => {
       expect(apiPackageJson.dependencies).toMatchObject({
         "@croco/events-core": externalCrocoRange("@croco/events-core"),
         "@croco/events-inmemory": externalCrocoRange("@croco/events-inmemory"),
+        "@croco/framework-module": externalCrocoRange("@croco/framework-module"),
+        "@croco/preset-lambda": externalCrocoRange("@croco/preset-lambda"),
+        "@croco/preset-node": externalCrocoRange("@croco/preset-node"),
         "@croco/problems-core": externalCrocoRange("@croco/problems-core"),
         "@croco/protocols-rest": externalCrocoRange("@croco/protocols-rest"),
         "@croco/repository-core": externalCrocoRange("@croco/repository-core"),
@@ -1142,6 +1153,12 @@ describe("E2E: generate()", () => {
       expect(apiUsersSource).toContain("Repository");
       expect(apiAppSource).toContain("HttpExceptionFilter");
       expect(apiAppSource).toContain("globalFilters: [HttpExceptionFilter]");
+      expect(apiAppSource).toContain("createApplicationRuntime");
+      expect(apiAppSource).toContain("runtime.bindHostCallback");
+      expect(apiNodeHostSource).toContain("createNodeHost");
+      expect(apiNodeHostSource).toContain("startNodeApplication");
+      expect(apiLambdaHostSource).toContain("createLambdaHost");
+      expect(apiLambdaHostSource).toContain("app.applicationRuntime.bindHostCallback");
       expect(clientSource).toContain("handleJsonResponse");
       expect(clientSource).toContain('const DEFAULT_API_BASE_PATH = "/api/"');
       expect(viteConfig).toContain("path.replace(/^\\/api/, '')");

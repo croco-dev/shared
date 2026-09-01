@@ -1,3 +1,5 @@
+import { createLambdaHost } from "@croco/preset-lambda";
+import type { LambdaHost } from "@croco/preset-lambda";
 import { TelemetryForceFlushUnsupportedProblem, TelemetryRuntime } from "@croco/telemetry-sdk-node";
 import { createCrocoApp } from "./app";
 import { createTelemetryConfig, readEnv } from "./env";
@@ -5,7 +7,8 @@ import { createTelemetryConfig, readEnv } from "./env";
 const telemetry = TelemetryRuntime.getInstance();
 const env = readEnv();
 const telemetryReady = telemetry.init(createTelemetryConfig({ ...env, NODE_ENV: "production" }));
-const crocoHandler = createCrocoApp().lambdaHandler({
+const app = createCrocoApp();
+const lambdaHost = createLambdaHost(app.getHono(), {
   flush: async () => {
     const flush = await telemetry.forceFlush();
     if (flush.outcome === "failed") {
@@ -17,9 +20,10 @@ const crocoHandler = createCrocoApp().lambdaHandler({
   },
 });
 
-export const handler = async (
-  ...args: Parameters<typeof crocoHandler>
-): Promise<Awaited<ReturnType<typeof crocoHandler>>> => {
+const telemetryAwareLambdaHost: LambdaHost = async (event, context) => {
   await telemetryReady;
-  return crocoHandler(...args);
+  return lambdaHost(event, context);
 };
+
+export const handler: LambdaHost =
+  app.applicationRuntime.bindHostCallback(telemetryAwareLambdaHost);

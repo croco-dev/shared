@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Component } from "@croco/framework-context";
+import { Component, Container } from "@croco/framework-context";
 import type { Guard } from "@croco/framework-context";
 import { Controller, Get, UseGuards } from "@croco/protocols-rest";
 import type { ExecutionContext } from "@croco/protocols-rest";
@@ -75,7 +75,7 @@ describe("API server", () => {
     );
     const user = await response.json();
 
-    expect(response.status).toBe(200);
+    expect(response.status, JSON.stringify(user)).toBe(200);
     expect(user).toEqual(
       expect.objectContaining({
         name: "Katherine Johnson",
@@ -120,6 +120,30 @@ describe("API server", () => {
     );
     expect(allowed.status).toBe(200);
     expect(allowedBody).toEqual({ ok: true });
+  });
+
+  it("re-enters the application scope for retained host callbacks and fences disposal", async () => {
+    let observedScopeId: string | undefined;
+    const app = createCrocoApp({
+      extraMiddlewares: [
+        async (_context, next) => {
+          observedScopeId = Container.getActiveScopeId();
+          await next();
+        },
+      ],
+    });
+    const hostCallback = app.getHono().fetch.bind(app.getHono());
+
+    const response = await hostCallback(new Request("http://localhost/users"));
+
+    expect(response.status).toBe(200);
+    expect(observedScopeId).toBe(app.applicationRuntime.scopeId);
+
+    await app.disposeApplicationRuntime();
+
+    expect(() => hostCallback(new Request("http://localhost/users"))).toThrow(
+      "has already been disposed",
+    );
   });
 
   it("reports an unregistered template provider during bootstrap", () => {

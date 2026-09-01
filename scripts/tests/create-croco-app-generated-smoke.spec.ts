@@ -1322,7 +1322,7 @@ describe("create-croco-app generated smoke matrix", () => {
     );
   });
 
-  it("invokes representative Lambda and Workers host artifacts", () => {
+  it("invokes representative Node, Lambda, and Workers host artifacts", () => {
     const cases = new Map(
       getGeneratedSmokeDependencyCaseInputs().map((smokeCase) => [smokeCase.name, smokeCase]),
     );
@@ -1331,6 +1331,12 @@ describe("create-croco-app generated smoke matrix", () => {
       expect.objectContaining({
         label: "protected GraphQL route smoke",
         packagePath: ["apps", "graphql-api"],
+      }),
+    );
+    expect(cases.get("production-app-starter")?.validations).toContainEqual(
+      expect.objectContaining({
+        label: "built Node host smoke",
+        packagePath: ["apps", "api-server"],
       }),
     );
     expect(cases.get("meta-vite-fullstack-workers")?.validations).toContainEqual(

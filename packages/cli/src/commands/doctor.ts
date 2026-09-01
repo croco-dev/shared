@@ -4551,11 +4551,17 @@ function isPresetLambdaHandlerFactory(
     if (Node.isIdentifier(factory)) {
       return declaration.getNamedImports().some((namedImport) => {
         const localName = namedImport.getAliasNode()?.getText() ?? namedImport.getName();
-        return namedImport.getName() === "createLambdaHandler" && localName === factory.getText();
+        return (
+          ["createLambdaHandler", "createLambdaHost"].includes(namedImport.getName()) &&
+          localName === factory.getText()
+        );
       });
     }
 
-    if (!Node.isPropertyAccessExpression(factory) || factory.getName() !== "createLambdaHandler") {
+    if (
+      !Node.isPropertyAccessExpression(factory) ||
+      !["createLambdaHandler", "createLambdaHost"].includes(factory.getName())
+    ) {
       return false;
     }
     const namespace = declaration.getNamespaceImport();
@@ -4711,15 +4717,68 @@ function exportedHandlerDelegatesTo(
     handlerNodes.push(handlerFunction);
   }
 
-  return handlerNodes.some((handlerNode) =>
-    handlerNode.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+  return handlerNodes.some((handlerNode) => {
+    const calls = [
+      ...(Node.isCallExpression(handlerNode) ? [handlerNode] : []),
+      ...handlerNode.getDescendantsOfKind(SyntaxKind.CallExpression),
+    ];
+
+    return calls.some((call) => {
       if (hasNestedFunctionScope(call, handlerNode)) {
         return false;
       }
       const expression = call.getExpression();
-      return Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers);
-    }),
+      return (
+        (Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers)) ||
+        boundHostCallbackDelegatesTo(call, configuredHandlers)
+      );
+    });
+  });
+}
+
+function boundHostCallbackDelegatesTo(
+  call: Morph.CallExpression,
+  configuredHandlers: ReadonlySet<Morph.VariableDeclaration>,
+): boolean {
+  const expression = call.getExpression();
+  if (!Node.isPropertyAccessExpression(expression) || expression.getName() !== "bindHostCallback") {
+    return false;
+  }
+
+  const callback = call.getArguments()[0];
+  if (!Node.isIdentifier(callback)) {
+    return false;
+  }
+
+  return Boolean(
+    callback
+      .getSymbol()
+      ?.getDeclarations()
+      .some((declaration) => declarationInvokesConfiguredHandler(declaration, configuredHandlers)),
   );
+}
+
+function declarationInvokesConfiguredHandler(
+  declaration: Node,
+  configuredHandlers: ReadonlySet<Morph.VariableDeclaration>,
+): boolean {
+  const callable = Node.isVariableDeclaration(declaration)
+    ? declaration.getInitializer()
+    : Node.isFunctionDeclaration(declaration)
+      ? declaration
+      : undefined;
+  if (!callable) {
+    return false;
+  }
+
+  return callable.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+    if (hasNestedFunctionScope(call, callable)) {
+      return false;
+    }
+
+    const expression = call.getExpression();
+    return Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers);
+  });
 }
 
 function exportsConfiguredHandlerAlias(

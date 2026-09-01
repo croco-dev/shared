@@ -686,6 +686,46 @@ describe("doctor", () => {
     );
   });
 
+  it("accepts a canonical Lambda host bound to an application runtime", () => {
+    const repo = createCrocoWorkspace();
+    writePackage(repo, "api", "@croco/api");
+    writeFile(
+      repo,
+      "packages/api/src/lambda.ts",
+      [
+        'import { createLambdaHost } from "@croco/preset-lambda";',
+        'import { TelemetryRuntime } from "@croco/telemetry-sdk-node";',
+        "const telemetry = TelemetryRuntime.getInstance();",
+        "const telemetryReady = telemetry.init({ serviceName: 'api' });",
+        "const app = {",
+        "  applicationRuntime: { bindHostCallback: <T>(callback: T): T => callback },",
+        "};",
+        "const lambdaHost = createLambdaHost(",
+        "  { fetch: async () => new Response('ok') },",
+        "  { flush: async () => telemetry.forceFlush() },",
+        ");",
+        "const telemetryAwareLambdaHost = async (...args: Parameters<typeof lambdaHost>) => {",
+        "  await telemetryReady;",
+        "  return lambdaHost(...args);",
+        "};",
+        "export const handler =",
+        "  app.applicationRuntime.bindHostCallback(telemetryAwareLambdaHost);",
+        "",
+      ].join("\n"),
+    );
+
+    const report = runDoctor({ cwd: repo });
+
+    expect(report.diagnostics).not.toContainEqual(
+      expect.objectContaining({
+        code: CLI_DIAGNOSTIC_CODES.doctorLambdaTelemetryFlushMissing,
+      }),
+    );
+    expect(report.checks.find((check) => check.id === "lambda-telemetry-flush")?.status).toBe(
+      "pass",
+    );
+  });
+
   it.each([
     {
       importStatement:
