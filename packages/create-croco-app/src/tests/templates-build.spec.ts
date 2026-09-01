@@ -119,6 +119,11 @@ function checkSpaBeSplitStructure() {
   );
   checkFileContains(
     "spa-be-split",
+    ["apps", "api-server", "src", "tests", "node-lifecycle.spec.ts"],
+    /preserves a host start failure[\s\S]*preserves a host close failure/,
+  );
+  checkFileContains(
+    "spa-be-split",
     ["apps", "api-server", "src", "lambda.ts"],
     /export const handler/,
   );

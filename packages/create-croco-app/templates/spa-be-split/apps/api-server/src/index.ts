@@ -4,6 +4,8 @@ import type { NodeHost, NodeHostOptions } from "@croco/preset-node";
 import { createCrocoApp } from "./app";
 import type { RuntimeOwnedCrocoApp } from "./app";
 import { createTelemetryConfig, readEnv } from "./env";
+import { ApplicationCleanupProblem, NodeHostLifecycleProblem } from "./problems";
+import type { ApplicationCleanupFailure } from "./problems";
 
 const telemetry = TelemetryRuntime.getInstance();
 
@@ -14,24 +16,46 @@ export type RunningNodeApplication = {
 };
 
 async function shutdownApplication(app: RuntimeOwnedCrocoApp): Promise<void> {
-  let flushFailure: unknown;
+  const cleanupFailures: ApplicationCleanupFailure[] = [];
 
   try {
     const flush = await telemetry.forceFlush();
     if (flush.outcome === "failed") {
-      flushFailure = flush.error;
+      cleanupFailures.push({ phase: "telemetry-force-flush", cause: flush.error });
     }
-  } finally {
-    try {
-      await telemetry.shutdown();
-    } finally {
-      await app.disposeApplicationRuntime();
-    }
+  } catch (cause) {
+    cleanupFailures.push({ phase: "telemetry-force-flush", cause });
   }
 
-  if (flushFailure !== undefined) {
-    throw flushFailure;
+  try {
+    await telemetry.shutdown();
+  } catch (cause) {
+    cleanupFailures.push({ phase: "telemetry-shutdown", cause });
   }
+
+  try {
+    await app.disposeApplicationRuntime();
+  } catch (cause) {
+    cleanupFailures.push({ phase: "application-runtime-dispose", cause });
+  }
+
+  if (cleanupFailures.length > 0) {
+    throw new ApplicationCleanupProblem(cleanupFailures);
+  }
+}
+
+async function rethrowHostFailureAfterCleanup(
+  operation: "start" | "close",
+  hostFailure: unknown,
+  app: RuntimeOwnedCrocoApp,
+): Promise<never> {
+  try {
+    await shutdownApplication(app);
+  } catch (cleanupFailure) {
+    throw new NodeHostLifecycleProblem(operation, hostFailure, cleanupFailure);
+  }
+
+  throw hostFailure;
 }
 
 export async function startNodeApplication(
@@ -45,8 +69,7 @@ export async function startNodeApplication(
   try {
     await host.start();
   } catch (error) {
-    await shutdownApplication(app);
-    throw error;
+    await rethrowHostFailureAfterCleanup("start", error, app);
   }
 
   let closePromise: Promise<void> | undefined;
@@ -58,9 +81,11 @@ export async function startNodeApplication(
       closePromise ??= (async () => {
         try {
           await host.close();
-        } finally {
-          await shutdownApplication(app);
+        } catch (error) {
+          await rethrowHostFailureAfterCleanup("close", error, app);
         }
+
+        await shutdownApplication(app);
       })();
 
       return closePromise;
