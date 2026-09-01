@@ -7,6 +7,7 @@
 "@croco/preset-lambda": minor
 "@croco/preset-node": minor
 "@croco/problems-core": patch
+"@croco/transports-http": minor
 "create-croco-app": patch
 ---
 
