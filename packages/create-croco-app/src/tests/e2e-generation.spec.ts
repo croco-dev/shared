@@ -1802,6 +1802,7 @@ describe("E2E: generate()", () => {
           "plugins": [],
         },
         "deployNotes": [
+          "Keep the generated wrangler.toml nodejs_compat flag because the demo composition imports Node-compatible modules.",
           "Keep generated smoke local; use pnpm profile:smoke:real only after Worker secrets are bound.",
           "Verify Polar and QStash signatures before Worker handlers mutate billing, metering, or task state.",
           "Flush telemetry through the Worker request lifecycle instead of AWS exec-wrapper style boot hooks.",
