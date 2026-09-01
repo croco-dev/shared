@@ -336,6 +336,35 @@ describe("generated test execution evidence", () => {
     expect(existsSync(join(packageDir, ".croco-generated-test-evidence.json"))).toBe(false);
   });
 
+  it("executes an overridden generated test destination exactly once", () => {
+    const projectDir = createTempRoot();
+    const generatedPath = "apps/api-server/src/tests/node-lifecycle.spec.ts";
+    writeFile(join(projectDir, generatedPath), "overridden test source");
+    writeGeneratedPackage(projectDir, "apps/api-server/package.json", {
+      name: "@smoke/api-server",
+      scripts: { test: "vitest run" },
+    });
+    const entries = ["spa-be-split", "saas"].map(
+      (template): TestInventoryEntry => ({
+        path: `packages/create-croco-app/templates/${template}/${generatedPath}`,
+        lane: "generated-app",
+        qualifiers: [],
+        owner: "create-croco-app",
+        generated: {
+          sourcePath: `packages/create-croco-app/templates/${template}/${generatedPath}`,
+          generatedPath,
+          commandId: "create-croco-app",
+        },
+      }),
+    );
+
+    const capture = prepareGeneratedUnitEvidenceCapture(projectDir, entries);
+
+    expect(capture.reports).toHaveLength(1);
+    expect(capture.reports[0]?.generatedPaths).toEqual([generatedPath]);
+    capture.restore();
+  });
+
   it("does not credit aggregate TAP output when the script selects a different file", () => {
     const projectDir = createTempRoot();
     writeFile(
