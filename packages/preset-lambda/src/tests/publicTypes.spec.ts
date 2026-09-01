@@ -4,6 +4,7 @@ import { describe, expectTypeOf, it } from "vitest";
 import type {
   LambdaHandler,
   LambdaHandlerOptions,
+  LambdaFetchApplication,
   LambdaHost,
   createLambdaBuildTarget,
   createLambdaHandler,
@@ -11,7 +12,7 @@ import type {
   createLambdaPreset,
 } from "../index";
 
-type LambdaApp = Hono | { readonly fetch: (req: Request) => Promise<Response> };
+type LambdaApp = Hono | LambdaFetchApplication;
 
 describe("public types", () => {
   it("does not expose no-op Lambda preset options", () => {

@@ -1339,6 +1339,12 @@ describe("create-croco-app generated smoke matrix", () => {
         packagePath: ["apps", "api-server"],
       }),
     );
+    expect(cases.get("admin-console-starter")?.validations).toContainEqual(
+      expect.objectContaining({
+        label: "built Node host smoke",
+        packagePath: ["apps", "api-server"],
+      }),
+    );
     expect(cases.get("meta-vite-fullstack-workers")?.validations).toContainEqual(
       expect.objectContaining({
         label: "api-worker secure fetch smoke",

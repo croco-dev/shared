@@ -812,6 +812,10 @@ describe("E2E: generate()", () => {
       const ssrWorkerPackageJson = readPackageJson(join(ssrWorkerDir, "package.json"));
 
       expect(workerContent).not.toContain('securityValidation: "off"');
+      expect(workerContent).toContain("createApplicationRuntime");
+      expect(workerContent).toContain(
+        "applicationRuntime.bindHostCallback(createCloudflareWorkersHost(app))",
+      );
       expect(workerContent).toContain("securityHeadersMiddleware()");
       expect(workerContent).toContain("WEB_ORIGIN?: string");
       expect(workerContent).toContain("corsMiddleware({ origins: [webOrigin] })");
@@ -834,6 +838,9 @@ describe("E2E: generate()", () => {
       );
       expect(workerPackageJson.dependencies?.["@croco/ratelimit-core"]).toBe(
         externalCrocoRange("@croco/ratelimit-core"),
+      );
+      expect(workerPackageJson.dependencies?.["@croco/framework-module"]).toBe(
+        externalCrocoRange("@croco/framework-module"),
       );
       expect(workspaceConfig).toContain("onlyBuiltDependencies:");
       expect(workspaceConfig).toContain("- workerd");

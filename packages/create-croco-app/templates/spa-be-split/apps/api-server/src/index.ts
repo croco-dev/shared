@@ -4,8 +4,8 @@ import type { NodeHost, NodeHostOptions } from "@croco/preset-node";
 import { createCrocoApp } from "./app";
 import type { RuntimeOwnedCrocoApp } from "./app";
 import { createTelemetryConfig, readEnv } from "./env";
-import { ApplicationCleanupProblem, NodeHostLifecycleProblem } from "./problems";
-import type { ApplicationCleanupFailure } from "./problems";
+import { ApplicationCleanupProblem, NodeHostLifecycleProblem } from "./lifecycle-problems";
+import type { ApplicationCleanupFailure } from "./lifecycle-problems";
 
 const telemetry = TelemetryRuntime.getInstance();
 

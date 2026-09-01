@@ -689,6 +689,23 @@ const nodeApplicationHostSmokeScript = [
   "}",
   "})();",
 ].join(" ");
+const adminNodeApplicationHostSmokeScript = [
+  'process.env.TELEMETRY_ENABLED = "false";',
+  'const { startNodeApplication } = require("./dist/index.js");',
+  "void (async () => {",
+  'const running = await startNodeApplication({ port: 0, hostname: "127.0.0.1" });',
+  "try {",
+  "const address = running.host.server?.address();",
+  'if (!address || typeof address === "string") throw new Error(`Expected a bound Node host address, received ${String(address)}`);',
+  "const response = await fetch(`http://127.0.0.1:${address.port}/admin/users?tenantId=tenant_acme`);",
+  "if (response.status !== 200) throw new Error(`Expected built Node host /admin/users status 200, received ${response.status}`);",
+  "const users = await response.json();",
+  'if (!Array.isArray(users) || users.length === 0 || !users.every((user) => user.tenantId === "tenant_acme")) throw new Error(`Expected tenant-scoped admin users from built Node host, received ${JSON.stringify(users)}`);',
+  "} finally {",
+  "await running.close();",
+  "}",
+  "})();",
+].join(" ");
 const graphqlProtectedRouteSmokeBaseScriptLines = [
   "void (async () => {",
   'await import("reflect-metadata");',
@@ -1621,6 +1638,11 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
       { label: "test", args: ["test"] },
       { label: "typecheck", args: ["typecheck"] },
       { label: "build", args: ["build"] },
+      {
+        label: "built Node host smoke",
+        packagePath: ["apps", "api-server"],
+        args: ["exec", "node", "--eval", adminNodeApplicationHostSmokeScript],
+      },
       {
         label: "browser journeys",
         args: ["test:journey", "tests/journeys/plan-release.spec.ts"],

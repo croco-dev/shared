@@ -1,3 +1,4 @@
+import { createApplicationRuntime } from "@croco/framework-module";
 import { createCloudflareWorkersHost } from "@croco/preset-cloudflare";
 import {
   createSlidingWindowPolicy,
@@ -38,6 +39,7 @@ type ApiWorkerHandler = ReturnType<typeof createCloudflareWorkersHost>;
 
 let cachedWebOrigin: string | undefined;
 let cachedHandler: ApiWorkerHandler | undefined;
+const applicationRuntime = createApplicationRuntime();
 
 function getWebOrigin(env: ApiWorkerEnv): string {
   return typeof env.WEB_ORIGIN === "string" && env.WEB_ORIGIN.length > 0
@@ -52,25 +54,27 @@ function getApiWorkerHandler(env: ApiWorkerEnv): ApiWorkerHandler {
     return cachedHandler;
   }
 
-  const app = createApp({
-    controllers: [],
-    middlewares: [
-      securityHeadersMiddleware(),
-      corsMiddleware({ origins: [webOrigin] }),
-      bodyLimitMiddleware({ limit: mb(1) }),
-      rateLimitHttpMiddleware({
-        rateLimiter,
-        policy: createSlidingWindowPolicy("api", 100, 60_000),
-        clientIdentity: createRuntimeAwareRateLimitClientIdentityPolicy({
-          trustedProxyHeaders: ["x-forwarded-for"],
+  const app = applicationRuntime.run(() =>
+    createApp({
+      controllers: [],
+      middlewares: [
+        securityHeadersMiddleware(),
+        corsMiddleware({ origins: [webOrigin] }),
+        bodyLimitMiddleware({ limit: mb(1) }),
+        rateLimitHttpMiddleware({
+          rateLimiter,
+          policy: createSlidingWindowPolicy("api", 100, 60_000),
+          clientIdentity: createRuntimeAwareRateLimitClientIdentityPolicy({
+            trustedProxyHeaders: ["x-forwarded-for"],
+          }),
+          skip: (ctx) => OPERATIONAL_RATE_LIMIT_BYPASS_PATHS.has(ctx.req.path),
         }),
-        skip: (ctx) => OPERATIONAL_RATE_LIMIT_BYPASS_PATHS.has(ctx.req.path),
-      }),
-    ],
-  });
+      ],
+    }),
+  );
 
   cachedWebOrigin = webOrigin;
-  cachedHandler = createCloudflareWorkersHost(app);
+  cachedHandler = applicationRuntime.bindHostCallback(createCloudflareWorkersHost(app));
   return cachedHandler;
 }
 

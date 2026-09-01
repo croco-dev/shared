@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NodeHostLifecycleProblem } from "../problems";
+import { NodeHostLifecycleProblem } from "../lifecycle-problems";
 
 const lifecycle = vi.hoisted(() => ({
   disposeApplicationRuntime: vi.fn(),

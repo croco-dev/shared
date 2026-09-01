@@ -22,6 +22,7 @@ export const createLambdaPreset = createLambdaBuildTarget;
 export type {
   LambdaContext,
   LambdaEvent,
+  LambdaFetchApplication,
   LambdaHandler,
   LambdaHandlerOptions,
   LambdaHost,
