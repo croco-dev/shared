@@ -1322,6 +1322,25 @@ describe("create-croco-app generated smoke matrix", () => {
     );
   });
 
+  it("invokes representative Lambda and Workers host artifacts", () => {
+    const cases = new Map(
+      getGeneratedSmokeDependencyCaseInputs().map((smokeCase) => [smokeCase.name, smokeCase]),
+    );
+
+    expect(cases.get("graphql-lambda-api")?.validations).toContainEqual(
+      expect.objectContaining({
+        label: "protected GraphQL route smoke",
+        packagePath: ["apps", "graphql-api"],
+      }),
+    );
+    expect(cases.get("meta-vite-fullstack-workers")?.validations).toContainEqual(
+      expect.objectContaining({
+        label: "api-worker secure fetch smoke",
+        packagePath: ["ssr-worker"],
+      }),
+    );
+  });
+
   it("keeps REST SPA contract canaries selectable in the blocking tier", () => {
     expect(
       GENERATED_SMOKE_MATRIX_CASES.find(({ name }) => name === "rest-spa-contracts")?.tier,

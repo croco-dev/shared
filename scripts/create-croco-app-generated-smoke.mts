@@ -3092,7 +3092,7 @@ function runtimeCapabilityManifestValidation(
     "graphql-node-application": {
       platform: "node",
       host: { platform: "node", lifecycle: "process", packageName: "@apollo/server" },
-      transports: [{ protocol: "graphql", packageName: "@croco/protocols-graphql" }],
+      transports: [{ protocol: "graphql", packageName: "@apollo/server" }],
       buildTarget: {
         name: "node-application",
         format: "cjs",
@@ -3101,8 +3101,12 @@ function runtimeCapabilityManifestValidation(
     },
     "graphql-lambda": {
       platform: "lambda",
-      host: { platform: "lambda", lifecycle: "invocation", packageName: "@apollo/server" },
-      transports: [{ protocol: "graphql", packageName: "@croco/protocols-graphql" }],
+      host: {
+        platform: "lambda",
+        lifecycle: "invocation",
+        packageName: "@as-integrations/aws-lambda",
+      },
+      transports: [{ protocol: "graphql", packageName: "@apollo/server" }],
       buildTarget: {
         name: "lambda-function",
         format: "cjs",

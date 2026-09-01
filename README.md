@@ -93,39 +93,52 @@ graph LR
   end
 ```
 
-### 1. framework (기반 계층)
+### Framework
 
-프레임워크의 뿌리가 되는 계층입니다.
+애플리케이션 구성과 공통 런타임 계약을 담당하는 생태계 그룹입니다.
 
 - **framework-context**: 공통 Context 인터페이스, DI 컨테이너, 데코레이터 메타데이터 저장소를 포함합니다.
 
-### 2. Protocols (정의 계층)
+### Protocols
 
-비즈니스 로직의 인터페이스를 정의합니다.
+배포 호스트를 선택하지 않고 애플리케이션 인터페이스를 정의하는 생태계 그룹입니다.
 
 - **protocols-rest**: `@Controller`, `@Get` 등 REST API 정의를 위한 데코레이터를 제공합니다.
-- **protocols-graphql**: **Yoga** 런타임을 활용한 Code-first GraphQL 정의를 지원합니다.
+- **protocols-graphql**: Code-first GraphQL 데코레이터와 메타데이터 계약을 제공합니다.
 - **protocols-trpc**: tRPC 스타일 RPC 계약을 정의하고 타입 안전한 API 표면을 구성할 수 있게 합니다.
 
-### 3. Transports (실행 계층)
+### Transports
 
-정의된 프로토콜을 실제로 실행하는 어댑터입니다.
+정의된 프로토콜을 배포 호스트와 독립적으로 실행하는 생태계 그룹입니다.
 
 - **transports-http**: **Hono** 기반의 고성능 실행 엔진입니다. AWS Lambda (API Gateway v2) 핸들러 생성기를 내장하고 있습니다.
 - **transports-graphql**: GraphQL 프로토콜을 실제 런타임에 연결하는 실행 어댑터를 제공합니다.
 - **transports-cloudflare-workers**: Cloudflare Workers 런타임에서 Croco 핸들러를 실행하는 어댑터를 제공합니다.
 
-### 4. Integrations (통합 계층)
+### Hosts
+
+Transport 콜백을 환경 수명주기에 연결하는 생태계 그룹입니다.
+
+- **preset-node**: Node 프로세스의 server start/close 수명주기를 담당합니다.
+- **preset-lambda**: Lambda invocation 변환과 flush 경계를 담당합니다.
+- **preset-cloudflare**: Workers의 fetch, env, `waitUntil` 바인딩을 담당합니다.
+
+### Build Targets
+
+출력 형식, 출력 디렉터리, 플랫폼 제약을 선언하는 빌드 계약입니다. Host나 Transport를 추론하지 않으며,
+`framework-preset`과 각 환경 preset 패키지의 build-target API로 명시합니다.
+
+### Integrations
 
 외부 시스템과의 연동을 추상화합니다.
 
 - **integrations-posthog**: **PostHog**와 통합되어 제품 분석 이벤트 수집을 지원합니다.
 
-### 5. Presentation (표현 계층)
+### Presentation
 
 백엔드와 프론트엔드/SSR 애플리케이션 표면을 연결합니다.
 
-- **frontend-react / frontend-vite / frontend-cloudflare / meta-vite**: React, Vite, Cloudflare SSR, server actions, RSC 스트리밍 등 Presentation 계층 통합을 제공합니다.
+- **frontend-react / frontend-vite / frontend-cloudflare / meta-vite**: React, Vite, Cloudflare SSR, server actions, RSC 스트리밍 등 Presentation 통합을 제공합니다.
 
 ---
 

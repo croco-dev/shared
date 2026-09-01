@@ -766,7 +766,7 @@ describe("E2E: generate()", () => {
         platform: "node",
         composition: {
           host: { platform: "node", lifecycle: "process", packageName: "@apollo/server" },
-          transports: [{ protocol: "graphql", packageName: "@croco/protocols-graphql" }],
+          transports: [{ protocol: "graphql", packageName: "@apollo/server" }],
           buildTarget: {
             name: "node-application",
             format: "cjs",
@@ -898,6 +898,9 @@ describe("E2E: generate()", () => {
       "utf8",
     );
     const packageJson = readPackageJson(join(testDir, "apps", "graphql-api", "package.json"));
+    const runtimeCapabilityManifest = JSON.parse(
+      readFileSync(join(testDir, "croco-runtime-capability.manifest.json"), "utf8"),
+    );
     const databasePackageJson = readPackageJson(
       join(testDir, "libs", "shared", "provider-database", "package.json"),
     );
@@ -953,6 +956,17 @@ describe("E2E: generate()", () => {
       "pnpm contract:check && tsup src/handler.ts --format cjs --clean",
     );
     expect(packageJson.scripts?.typecheck).toBe("pnpm contract:check && tsc --noEmit");
+    expect(runtimeCapabilityManifest).toMatchObject({
+      platform: "lambda",
+      composition: {
+        host: {
+          platform: "lambda",
+          lifecycle: "invocation",
+          packageName: "@as-integrations/aws-lambda",
+        },
+        transports: [{ protocol: "graphql", packageName: "@apollo/server" }],
+      },
+    });
     expect(schemaContent).toContain('from "./resolvers/health.resolver.js";');
     expect(existsSync(join(testDir, "apps", "graphql-api", "graphql-contract.snapshot.json"))).toBe(
       true,

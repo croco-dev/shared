@@ -703,7 +703,12 @@ function createGeneratedRuntimeComposition(
   }
 
   const apiDirectory = options.api === "graphql" ? "apps/graphql-api" : "apps/api";
-  const hostPackage = options.api === "graphql" ? "@apollo/server" : "@trpc/server";
+  const hostPackage =
+    options.api === "graphql" && platform === "lambda"
+      ? "@as-integrations/aws-lambda"
+      : options.api === "graphql"
+        ? "@apollo/server"
+        : "@trpc/server";
 
   if (platform === "lambda") {
     return {
@@ -746,7 +751,7 @@ function createGeneratedTransportManifest(
   }
 
   if (options.api === "graphql") {
-    return [{ protocol: "graphql", packageName: "@croco/protocols-graphql" }];
+    return [{ protocol: "graphql", packageName: "@apollo/server" }];
   }
 
   return [{ protocol: "rpc", packageName: "@trpc/server" }];
