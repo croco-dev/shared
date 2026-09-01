@@ -11,6 +11,7 @@ import {
 const createExecutionContext = (): ExecutionContext => ({
   waitUntil: vi.fn(),
   passThroughOnException: vi.fn(),
+  props: {},
 });
 
 type PreviousExecutionContext = {
@@ -86,18 +87,8 @@ describe("createWorkerFetchHandler", () => {
         native: {
           executionContext: ctx,
         },
-        capabilities: expect.objectContaining({
-          env: true,
-          filesystem: false,
-          nodeApi: false,
-          requestLifecycle: true,
-          waitUntil: true,
-          flush: false,
-          streamingResponse: true,
-          deadline: false,
-          abortSignal: true,
-          shutdown: false,
-        }),
+        abortSignal: request.signal,
+        waitUntil: expect.any(Function),
       }),
       { env, executionContext: expect.objectContaining({ props: undefined }) },
     );
@@ -148,6 +139,21 @@ describe("createWorkerFetchHandler", () => {
       value: "users-kv",
     });
     expect(ctx.waitUntil).toHaveBeenCalledWith(pending);
+  });
+
+  it("preserves the app receiver when invoking fetch", async () => {
+    const response = new Response("ok");
+    const app = {
+      response,
+      fetch() {
+        return this.response;
+      },
+    };
+    const handler = createCloudflareWorkersHost(app);
+
+    await expect(
+      handler(new Request("https://example.com/health"), {}, createExecutionContext()),
+    ).resolves.toBe(response);
   });
 
   it("keeps raw Hono forwarding behind an explicit compatibility helper", async () => {

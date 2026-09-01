@@ -22,7 +22,8 @@ Auth, billing, metering, tenant management — all included as first-class packa
 `@Controller`, `@UseGuards`, `@Metered` — express SaaS logic declaratively with type-safe decorators powered by typedi.
 
 **Lambda-First, Not Lambda-Only**
-Every API exports as `app.lambdaHandler()`. Also runs on Docker, Cloudflare, and SST v3.
+Bind the same HTTP transport to an explicit Lambda, Node, or Cloudflare Host while keeping build
+artifacts independent from runtime lifecycle ownership.
 
 </div>
 
@@ -34,8 +35,8 @@ Every API exports as `app.lambdaHandler()`. Also runs on Docker, Cloudflare, and
     →](/en/guides/getting-started/)
   </Card>
   <Card title="Architecture" icon="diagram-project">
-    Understand the five-layer structure: Framework → Protocols → Transports → Integrations →
-    Presentation. [Explore →](/en/guides/architecture/)
+    Understand the non-overlapping Host, Transport, Build Target, integration, and presentation
+    boundaries. [Explore →](/en/guides/architecture/)
   </Card>
   <Card title="Runtime Contract" icon="server">
     Read request-scoped runtime metadata across Node, Lambda, and Cloudflare Workers. [Compare

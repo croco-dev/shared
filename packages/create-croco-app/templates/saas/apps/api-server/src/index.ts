@@ -1,3 +1,4 @@
+import { createNodeHost } from "@croco/preset-node";
 import { createCrocoApp } from "./app";
 import { InvalidPortProblem } from "./problems";
 
@@ -13,8 +14,8 @@ function parsePort(value: string | undefined): number {
 async function main(): Promise<void> {
   const port = parsePort(process.env.PORT);
   const app = await createCrocoApp({ profileMode: "production" });
-
-  await app.listen(port);
+  const host = createNodeHost(app.getHono(), { port });
+  await host.start();
 }
 
 void main().catch((error: unknown) => {

@@ -1,3 +1,5 @@
+import type { RuntimeContextInit } from "@croco/transports-http";
+
 export type CloudflareFetchEnv = {
   readonly [key: string]: unknown;
 };
@@ -17,28 +19,7 @@ export type CloudflareFetchHandler = (
   ctx: ExecutionContext,
 ) => Response | Promise<Response>;
 
-export type CloudflareRuntimeContext = {
-  readonly platform: "cloudflare-workers";
-  readonly requestId?: string;
-  readonly abortSignal: AbortSignal;
-  readonly env: Record<string, unknown>;
-  readonly native: {
-    readonly executionContext: ExecutionContext;
-  };
-  readonly waitUntil: (promise: Promise<unknown>) => void;
-  readonly capabilities: {
-    readonly env: true;
-    readonly filesystem: false;
-    readonly nodeApi: false;
-    readonly requestLifecycle: true;
-    readonly waitUntil: true;
-    readonly flush: false;
-    readonly streamingResponse: true;
-    readonly deadline: false;
-    readonly abortSignal: true;
-    readonly shutdown: false;
-  };
-};
+export type CloudflareRuntimeContext = RuntimeContextInit<"cloudflare-workers">;
 
 export type CloudflareAppFetch<TExecutionContext extends ExecutionContext = ExecutionContext> = (
   request: Request,
@@ -126,19 +107,8 @@ function createRuntimeContext(
     native: {
       executionContext: ctx,
     },
+    abortSignal: request.signal,
     waitUntil: (promise) => ctx.waitUntil(promise),
-    capabilities: {
-      env: true,
-      filesystem: false,
-      nodeApi: false,
-      requestLifecycle: true,
-      waitUntil: true,
-      flush: false,
-      streamingResponse: true,
-      deadline: false,
-      abortSignal: true,
-      shutdown: false,
-    },
   };
 }
 

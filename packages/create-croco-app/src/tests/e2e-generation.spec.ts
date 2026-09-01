@@ -54,6 +54,7 @@ type ImportReference = {
 };
 type PackageJson = {
   name?: string;
+  main?: string;
   scripts?: Record<string, string>;
   engines?: Record<string, string>;
 } & Partial<Record<DependencyField, Record<string, string>>>;
@@ -743,6 +744,9 @@ describe("E2E: generate()", () => {
 
       const webDir = join(testDir, "apps", "web");
       const packageJson = readPackageJson(join(webDir, "package.json"));
+      const runtimeCapabilityManifest = JSON.parse(
+        readFileSync(join(testDir, "croco-runtime-capability.manifest.json"), "utf8"),
+      );
 
       expect(packageJson.dependencies?.["@croco/meta-vite"]).toBe(
         externalCrocoRange("@croco/meta-vite"),
@@ -758,6 +762,18 @@ describe("E2E: generate()", () => {
       expect(packageJson.devDependencies?.["happy-dom"]).toBe("^20.10.6");
       expect(packageJson.devDependencies?.tsx).toBe("^4.20.3");
       expect(existsSync(join(webDir, "src", "smoke", "presentationSmoke.ts"))).toBe(true);
+      expect(runtimeCapabilityManifest).toMatchObject({
+        platform: "node",
+        composition: {
+          host: { platform: "node", lifecycle: "process", packageName: "@apollo/server" },
+          transports: [{ protocol: "graphql", packageName: "@croco/protocols-graphql" }],
+          buildTarget: {
+            name: "node-application",
+            format: "cjs",
+            outputDirectory: "apps/graphql-api/dist",
+          },
+        },
+      });
       assertMetaViteBrowserBuildEntrypoint(webDir, "vite build --outDir dist/client");
       assertViteConfigImportsDeclared(webDir);
       assertSourceBareImportsDeclared(webDir);
@@ -934,7 +950,7 @@ describe("E2E: generate()", () => {
     expect(packageJson.scripts?.["contract:check"]).toBe("tsx src/graphql-contract.ts --check");
     expect(packageJson.scripts?.["contract:snapshot"]).toBe("tsx src/graphql-contract.ts --write");
     expect(packageJson.scripts?.build).toBe(
-      "pnpm contract:check && tsup src/index.ts --format cjs --clean",
+      "pnpm contract:check && tsup src/handler.ts --format cjs --clean",
     );
     expect(packageJson.scripts?.typecheck).toBe("pnpm contract:check && tsc --noEmit");
     expect(schemaContent).toContain('from "./resolvers/health.resolver.js";');
@@ -2371,7 +2387,7 @@ describe("E2E: generate()", () => {
         buildTarget: {
           name: "cloudflare-worker",
           format: "esm",
-          outputDirectory: "dist",
+          outputDirectory: "apps/api-server/dist",
           constraints: ["no-node-builtins", "web-standard-apis"],
         },
       },
@@ -2554,6 +2570,102 @@ describe("E2E: generate()", () => {
     assertAllSourceBareImportsDeclared(testDir);
   });
 
+  it.each([
+    {
+      profile: "saas-node-postgres" as const,
+      platform: "node",
+      lifecycle: "process",
+      hostPackage: "@croco/preset-node",
+      entry: "./src/index.ts",
+      build: "tsup src/index.ts --format esm,cjs --clean --dts",
+      buildFormat: "dual",
+      source: "index.ts",
+      canonicalHost: "createNodeHost",
+    },
+    {
+      profile: "saas-lambda" as const,
+      platform: "lambda",
+      lifecycle: "invocation",
+      hostPackage: "@croco/preset-lambda",
+      entry: "./src/lambda.ts",
+      build: "tsup src/lambda.ts --format cjs --clean --dts",
+      buildFormat: "cjs",
+      source: "lambda.ts",
+      canonicalHost: "createLambdaHost",
+    },
+    {
+      profile: "saas-cloudflare" as const,
+      platform: "cloudflare-workers",
+      lifecycle: "fetch",
+      hostPackage: "@croco/preset-cloudflare",
+      entry: "./src/worker.ts",
+      build: "tsup src/worker.ts --format esm --platform browser --clean --dts",
+      buildFormat: "esm",
+      source: "worker.ts",
+      canonicalHost: "createCloudflareWorkersHost",
+    },
+  ])(
+    "emits a deployable $profile host artifact that matches runtime composition metadata",
+    { timeout: 120_000 },
+    async ({
+      profile,
+      platform,
+      lifecycle,
+      hostPackage,
+      entry,
+      build,
+      buildFormat,
+      source,
+      canonicalHost,
+    }) => {
+      const options: GeneratorOptions = {
+        projectName: `my-${profile}`,
+        scope: "@test",
+        preset: "saas",
+        saasProviderProfile: profile,
+        tenantModel: "workspace",
+        webApps: [],
+        apiHosting: "standalone",
+        db: [],
+        agentRules: false,
+        installDeps: false,
+        initGit: false,
+      };
+
+      await generate(testDir, options);
+
+      const apiPackageJson = readPackageJson(join(testDir, "apps", "api-server", "package.json"));
+      const hostSource = readFileSync(join(testDir, "apps", "api-server", "src", source), "utf8");
+      const runtimeCapabilityManifest = JSON.parse(
+        readFileSync(join(testDir, "croco-runtime-capability.manifest.json"), "utf8"),
+      );
+
+      expect(apiPackageJson.main).toBe(entry);
+      expect(apiPackageJson.scripts?.build).toBe(build);
+      expect(apiPackageJson.dependencies?.[hostPackage]).toBeDefined();
+      expect(hostSource).toContain(canonicalHost);
+      for (const candidate of ["index.ts", "lambda.ts", "worker.ts"]) {
+        expect(existsSync(join(testDir, "apps", "api-server", "src", candidate))).toBe(
+          candidate === source,
+        );
+      }
+      expect(existsSync(join(testDir, "apps", "api-server", "src", "telemetry.ts"))).toBe(
+        platform !== "cloudflare-workers",
+      );
+      expect(runtimeCapabilityManifest).toMatchObject({
+        platform,
+        composition: {
+          host: { platform, lifecycle, packageName: hostPackage },
+          transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
+          buildTarget: {
+            format: buildFormat,
+            outputDirectory: "apps/api-server/dist",
+          },
+        },
+      });
+    },
+  );
+
   it("rejects incompatible SaaS provider and tenant model combinations before generation", async () => {
     const options: GeneratorOptions = {
       projectName: "my-incompatible-saas",
@@ -2731,7 +2843,7 @@ describe("E2E: generate()", () => {
           buildTarget: {
             name: "node-application",
             format: "dual",
-            outputDirectory: "dist",
+            outputDirectory: "apps/api-server/dist",
           },
         },
         capabilities: {

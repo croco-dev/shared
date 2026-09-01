@@ -1120,7 +1120,17 @@ describe("create-croco-app-generated-smoke dependency resolution", () => {
     });
     writeFileSync(
       join(projectDir, "pnpm-workspace.yaml"),
-      ["packages:", '  - "apps/**/*"', "", "onlyBuiltDependencies:", "  - esbuild", ""].join("\n"),
+      [
+        "packages:",
+        '  - "apps/**/*"',
+        "",
+        "overrides:",
+        "  sharp: 0.35.4",
+        "",
+        "onlyBuiltDependencies:",
+        "  - esbuild",
+        "",
+      ].join("\n"),
     );
 
     writePnpmWorkspaceOverrides(projectDir, {
@@ -1134,6 +1144,7 @@ describe("create-croco-app-generated-smoke dependency resolution", () => {
 
     expect(workspaceConfig).toContain('packages:\n  - "apps/**/*"');
     expect(workspaceConfig).toContain("onlyBuiltDependencies:\n  - esbuild");
+    expect(workspaceConfig).toContain('"sharp": "0.35.4"');
     expect(workspaceConfig).toContain(
       'overrides:\n  "@croco/template-only": "file:/tmp/template-only.tgz"',
     );

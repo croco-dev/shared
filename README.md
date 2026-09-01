@@ -18,8 +18,8 @@ Croco는 AWS Lambda 지향 TypeScript 애플리케이션에서 HTTP 진입점, D
 
 기존의 Node.js 프레임워크들은 유연하지만, 대규모 프로젝트에서 아키텍처의 일관성을 유지하기 어렵습니다. Croco는 다음과 같은 문제를 해결합니다:
 
-- **정형화된 5계층 구조**: 팀 간 코드 일관성 유지
-- **AWS Lambda 환경에 최적화된 경량 실행 어댑터**
+- **명시적인 역할별 패키지 경계**: 팀 간 코드 일관성 유지
+- **AWS Lambda 환경에 최적화된 명시적 Host 계약**
 - **이벤트 주도 아키텍처(EDA)와 Unit of Work 트랜잭션 관리 기본 제공**
 - **타입 정의만으로 REST/GraphQL API와 문서 자동 생성 지원**
 
@@ -43,10 +43,10 @@ Croco는 런타임에서 추측하게 하지 않고, 빌드타임에 의도를 �
 |                     | Croco                          | NestJS                 | Hono                   | tRPC           |
 | ------------------- | ------------------------------ | ---------------------- | ---------------------- | -------------- |
 | 주 타겟             | AWS Lambda + SaaS 도메인       | 엔터프라이즈 일반 서버 | 초경량 엣지/멀티런타임 | 타입 안전 RPC  |
-| 아키텍처            | 5계층 의견있는 구조            | 모듈 기반 MVC          | 라우터 중심            | 스키마리스 RPC |
+| 아키텍처            | 역할별 계약 경계               | 모듈 기반 MVC          | 라우터 중심            | 스키마리스 RPC |
 | SaaS 빌딩 블록      | 빌링/메트릭/멤버십/미터링 제공 | 별도 통합 필요         | 별도 통합 필요         | 별도 통합 필요 |
 | DDD 이벤트/트랜잭션 | 기본 내장                      | 별도 통합 필요         | ❌                     | ❌             |
-| Lambda 최적화       | ✅ lambdaHandler 내장          | ❌                     | ✅ (별도 어댑터)       | ❌             |
+| Lambda 최적화       | ✅ 명시적 Lambda Host          | ❌                     | ✅ (별도 어댑터)       | ❌             |
 
 > 위 표는 Croco의 설계 중심을 설명하며, 성능 수치나 경쟁사 부정평가는 포함하지 않습니다.
 
@@ -54,7 +54,7 @@ Croco는 런타임에서 추측하게 하지 않고, 빌드타임에 의도를 �
 
 ## 🏗 아키텍처
 
-Croco는 관심사의 분리를 위해 **5계층 구조**를 따릅니다. 최신 세부 설명은 [Architecture Guide](packages/docs/src/content/docs/en/guides/architecture.mdx)를 기준으로 합니다.
+Croco는 관심사의 분리를 위해 **역할별 패키지 경계**를 둡니다. 최신 세부 설명은 [Architecture Guide](packages/docs/src/content/docs/en/guides/architecture.mdx)를 기준으로 합니다.
 
 ```mermaid
 flowchart TD
@@ -265,6 +265,8 @@ pnpm build
 
 ```typescript typecheck
 import { Component } from "@croco/framework-context";
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createLambdaHost } from "@croco/preset-lambda";
 import { Body, Controller, Get, Post } from "@croco/protocols-rest";
 import { createApp } from "@croco/transports-http";
 
@@ -282,13 +284,20 @@ class UserController {
   }
 }
 
-const app = createApp({
-  controllers: [UserController],
-});
+const runtime = createApplicationRuntime();
+const app = runtime.run(() =>
+  createApp({
+    controllers: [UserController],
+  }),
+);
 
-export const handler = app.lambdaHandler(); // AWS Lambda
-// app.listen(3000); // Node.js 서버
+const lambdaHost = createLambdaHost(app);
+export const handler = runtime.bindHostCallback(lambdaHost);
 ```
+
+여기서 `@croco/preset-lambda`는 Lambda invocation 수명주기를 소유하는 Host이고,
+`@croco/transports-http`는 HTTP 요청을 실행하는 Transport입니다. Node에서는
+`@croco/preset-node`의 `createNodeHost()`로 Host만 교체합니다.
 
 ### 핵심 패키지 사용법
 

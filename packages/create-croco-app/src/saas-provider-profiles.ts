@@ -309,6 +309,7 @@ export const SAAS_PROVIDER_PROFILES = {
     description:
       "Node API profile with Postgres-backed domain state, Polar billing, Upstash queues, Cloudinary storage, and OTLP telemetry.",
     packages: [
+      "@croco/preset-node",
       ...new Set(
         SAAS_NODE_POSTGRES_PLUGINS.flatMap((pluginDefinition) => [
           pluginDefinition.packageName,

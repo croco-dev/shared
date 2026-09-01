@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { parse as parseYaml } from "yaml";
 
 export const dependencyFields = [
   "dependencies",
@@ -273,7 +274,11 @@ export function writePnpmWorkspaceOverrides(
     ? readFileSync(workspacePath, "utf8")
     : `packages:\n  - "apps/**/*"\n  - "libs/**/*"\n`;
   const contentWithoutOverrides = removeTopLevelYamlBlock(existingContent, "overrides").trimEnd();
-  const overrideLines = Object.entries(rangeOverrides)
+  const overrides = {
+    ...readPnpmWorkspaceOverrides(existingContent),
+    ...rangeOverrides,
+  };
+  const overrideLines = Object.entries(overrides)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(
       ([packageName, range]) =>
@@ -283,6 +288,19 @@ export function writePnpmWorkspaceOverrides(
   writeFileSync(
     workspacePath,
     `${contentWithoutOverrides}\n\n${["overrides:", ...overrideLines].join("\n")}\n`,
+  );
+}
+
+function readPnpmWorkspaceOverrides(content: string): Readonly<Record<string, string>> {
+  const workspace = parseYaml(content) as unknown;
+  if (!isRecord(workspace) || !isRecord(workspace.overrides)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(workspace.overrides).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
   );
 }
 
@@ -345,6 +363,10 @@ function isDependencyMap(value: unknown): value is Record<string, string> {
   }
 
   return Object.values(value).every((dependencyRange) => typeof dependencyRange === "string");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function removeTopLevelYamlBlock(content: string, key: string): string {

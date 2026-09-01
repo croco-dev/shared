@@ -2,6 +2,7 @@
   "name": "{{scope}}/api-worker",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "build": "wrangler build",
@@ -10,9 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@croco/preset-cloudflare": "workspace:*",
     "@croco/ratelimit-core": "workspace:*",
-    "@croco/transports-http": "workspace:*",
-    "@croco/transports-cloudflare-workers": "workspace:*"
+    "@croco/transports-http": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250214.0",

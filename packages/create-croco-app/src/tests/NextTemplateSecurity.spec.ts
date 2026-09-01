@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 
 const TEMPLATES_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../templates");
 const NEXT_ADDONS = ["graphql-nextjs", "trpc-nextjs", "web-graphql", "web-trpc"] as const;
-const WORKSPACE_TEMPLATES = ["blank", "spa-be-split"] as const;
+const POSTCSS_WORKSPACE_TEMPLATES = ["blank", "spa-be-split"] as const;
+const SHARP_WORKSPACE_TEMPLATES = ["blank", "base-ddd", "spa-be-split", "saas"] as const;
 
 describe("Next.js addon templates", () => {
   it.each(NEXT_ADDONS)("pins %s to a Server Actions and Sharp-safe release", (addon) => {
@@ -30,11 +31,22 @@ describe("Next.js addon templates", () => {
     },
   );
 
-  it.each(WORKSPACE_TEMPLATES)("pins patched PostCSS in the %s workspace", (template) => {
+  it.each(POSTCSS_WORKSPACE_TEMPLATES)("pins patched PostCSS in the %s workspace", (template) => {
     const workspaceName =
       template === "spa-be-split" ? "pnpm-workspace.yaml.hbs" : "pnpm-workspace.yaml";
     const workspace = readFileSync(join(TEMPLATES_DIR, template, workspaceName), "utf8");
 
     expect(workspace).toMatch(/overrides:\n  postcss: 8\.5\.18/);
   });
+
+  it.each(SHARP_WORKSPACE_TEMPLATES)(
+    "overrides transitive sharp with a patched release in %s",
+    (template) => {
+      const workspaceName =
+        template === "blank" ? "pnpm-workspace.yaml" : "pnpm-workspace.yaml.hbs";
+      const workspace = readFileSync(join(TEMPLATES_DIR, template, workspaceName), "utf8");
+
+      expect(workspace).toMatch(/overrides:\n(?:  .*\n)*  sharp: 0\.35\.4/);
+    },
+  );
 });

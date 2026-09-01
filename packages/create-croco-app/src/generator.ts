@@ -10,7 +10,7 @@ import {
   stringifyRuntimeCapabilityManifest,
 } from "@croco/framework-context";
 import type { RuntimeCompositionManifest } from "@croco/framework-context";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { renderEnvironmentTemplate } from "./environment-template.js";
 import { recordStagingCleanupFailure } from "./generation-failure-evidence.js";
@@ -489,6 +489,8 @@ function writeSaasProviderPackageDependencies(
   const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    main?: string;
+    scripts?: Record<string, string>;
   };
   const dependencies = packageJson.dependencies ?? {};
   const devDependencies = packageJson.devDependencies ?? {};
@@ -508,8 +510,41 @@ function writeSaasProviderPackageDependencies(
   }
   packageJson.dependencies = dependencies;
   packageJson.devDependencies = devDependencies;
+  const hostArtifact = SAAS_HOST_ARTIFACTS[manifest.profile.runtimeTarget];
+  packageJson.main = hostArtifact.entry;
+  packageJson.scripts = {
+    ...packageJson.scripts,
+    build: hostArtifact.build,
+  };
   writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+  for (const artifact of Object.values(SAAS_HOST_ARTIFACTS)) {
+    if (artifact.source !== hostArtifact.source) {
+      rmSync(join(targetDir, "apps", "api-server", "src", artifact.source), { force: true });
+    }
+  }
+  if (manifest.profile.runtimeTarget === "cloudflare-workers") {
+    rmSync(join(targetDir, "apps", "api-server", "src", "telemetry.ts"), { force: true });
+  }
 }
+
+const SAAS_HOST_ARTIFACTS = {
+  node: {
+    source: "index.ts",
+    entry: "./src/index.ts",
+    build: "tsup src/index.ts --format esm,cjs --clean --dts",
+  },
+  lambda: {
+    source: "lambda.ts",
+    entry: "./src/lambda.ts",
+    build: "tsup src/lambda.ts --format cjs --clean --dts",
+  },
+  "cloudflare-workers": {
+    source: "worker.ts",
+    entry: "./src/worker.ts",
+    build: "tsup src/worker.ts --format esm --platform browser --clean --dts",
+  },
+} as const;
 
 async function finalize(
   targetDir: string,
@@ -587,41 +622,7 @@ function createGeneratedRuntimeComposition(
   options: GeneratorOptions,
   platform: GenerationRuntimePlatform,
 ): RuntimeCompositionManifest<GenerationRuntimePlatform> {
-  const transports =
-    options.preset === "blank"
-      ? []
-      : [
-          { protocol: "http", packageName: "@croco/transports-http" },
-          ...(options.api === "graphql"
-            ? [{ protocol: "graphql", packageName: "@croco/transports-graphql" }]
-            : []),
-          ...(options.api === "trpc" ? [{ protocol: "rpc" }] : []),
-        ];
-
-  if (platform === "lambda") {
-    return {
-      host: { platform, lifecycle: "invocation" },
-      transports,
-      buildTarget: {
-        name: "lambda-function",
-        format: "cjs",
-        outputDirectory: "dist",
-      },
-    };
-  }
-
-  if (platform === "cloudflare-workers") {
-    return {
-      host: { platform, lifecycle: "fetch" },
-      transports,
-      buildTarget: {
-        name: "cloudflare-worker",
-        format: "esm",
-        outputDirectory: "dist",
-        constraints: ["no-node-builtins", "web-standard-apis"],
-      },
-    };
-  }
+  const transports = createGeneratedTransportManifest(options);
 
   if (options.preset === "blank") {
     return {
@@ -631,15 +632,124 @@ function createGeneratedRuntimeComposition(
     };
   }
 
+  if (isSaasPreset(options.preset)) {
+    const hostPackage =
+      platform === "node"
+        ? "@croco/preset-node"
+        : platform === "lambda"
+          ? "@croco/preset-lambda"
+          : "@croco/preset-cloudflare";
+    const lifecycle =
+      platform === "node" ? "process" : platform === "lambda" ? "invocation" : "fetch";
+    const format = platform === "node" ? "dual" : platform === "lambda" ? "cjs" : "esm";
+    const name =
+      platform === "node"
+        ? "node-application"
+        : platform === "lambda"
+          ? "lambda-function"
+          : "cloudflare-worker";
+
+    return {
+      host: { platform, lifecycle, packageName: hostPackage },
+      transports,
+      buildTarget: {
+        name,
+        format,
+        outputDirectory: "apps/api-server/dist",
+        ...(platform === "cloudflare-workers"
+          ? { constraints: ["no-node-builtins", "web-standard-apis"] }
+          : {}),
+      },
+    };
+  }
+
+  if (options.preset === "ddd-vike-fullstack") {
+    return {
+      host: {
+        platform: "cloudflare-workers",
+        lifecycle: "fetch",
+        packageName: "@croco/preset-cloudflare",
+      },
+      transports,
+      buildTarget: {
+        name: "cloudflare-workers-workspace",
+        format: "esm",
+        constraints: ["no-node-builtins", "web-standard-apis"],
+      },
+    };
+  }
+
+  if (options.preset === "production-app" || options.preset === "admin-console") {
+    return {
+      host: { platform: "node", lifecycle: "process" },
+      transports,
+      buildTarget: {
+        name: "node-application",
+        format: "cjs",
+        outputDirectory: "apps/api-server/dist",
+      },
+    };
+  }
+
+  if (options.apiHosting === "nextjs") {
+    return {
+      host: { platform: "node", lifecycle: "process", packageName: "next" },
+      transports,
+      buildTarget: {
+        name: "nextjs-application",
+        outputDirectory: "apps/web/.next",
+      },
+    };
+  }
+
+  const apiDirectory = options.api === "graphql" ? "apps/graphql-api" : "apps/api";
+  const hostPackage = options.api === "graphql" ? "@apollo/server" : "@trpc/server";
+
+  if (platform === "lambda") {
+    return {
+      host: { platform, lifecycle: "invocation", packageName: hostPackage },
+      transports,
+      buildTarget: {
+        name: "lambda-function",
+        format: "cjs",
+        outputDirectory: `${apiDirectory}/dist`,
+      },
+    };
+  }
+
   return {
-    host: { platform, lifecycle: "process" },
+    host: { platform: "node", lifecycle: "process", packageName: hostPackage },
     transports,
     buildTarget: {
-      name: "node-application",
-      format: isSaasPreset(options.preset) ? "dual" : "cjs",
-      outputDirectory: "dist",
+      name: options.backendDeploy === "docker" ? "node-container" : "node-application",
+      format: "cjs",
+      outputDirectory: `${apiDirectory}/dist`,
+      ...(options.backendDeploy === "docker" ? { constraints: ["container-image"] } : {}),
     },
   };
+}
+
+function createGeneratedTransportManifest(
+  options: GeneratorOptions,
+): RuntimeCompositionManifest["transports"] {
+  if (options.preset === "blank") {
+    return [];
+  }
+
+  if (
+    isSaasPreset(options.preset) ||
+    options.preset === "production-app" ||
+    options.preset === "admin-console" ||
+    options.preset === "ddd-vike-fullstack"
+  ) {
+    return [{ protocol: "http", packageName: "@croco/transports-http" }];
+  }
+
+  if (options.api === "graphql") {
+    return [{ protocol: "graphql", packageName: "@croco/protocols-graphql" }];
+  }
+
+  return [{ protocol: "rpc", packageName: "@trpc/server" }];
 }
 
 function resolveRuntimeCapabilityPlatform(options: GeneratorOptions): GenerationRuntimePlatform {
@@ -651,7 +761,7 @@ function resolveRuntimeCapabilityPlatform(options: GeneratorOptions): Generation
     return "lambda";
   }
 
-  if (options.frontendDeploy === "cloudflare-meta-vite") {
+  if (options.preset === "ddd-vike-fullstack") {
     return "cloudflare-workers";
   }
 

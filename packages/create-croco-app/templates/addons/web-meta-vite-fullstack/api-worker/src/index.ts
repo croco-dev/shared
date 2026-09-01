@@ -1,4 +1,4 @@
-import { toWorkersHandler } from "@croco/transports-cloudflare-workers";
+import { createCloudflareWorkersHost } from "@croco/preset-cloudflare";
 import {
   createSlidingWindowPolicy,
   RateLimiter,
@@ -34,7 +34,7 @@ type ApiWorkerEnv = Record<string, unknown> & {
   WEB_ORIGIN?: string;
 };
 
-type ApiWorkerHandler = ReturnType<typeof toWorkersHandler>;
+type ApiWorkerHandler = ReturnType<typeof createCloudflareWorkersHost>;
 
 let cachedWebOrigin: string | undefined;
 let cachedHandler: ApiWorkerHandler | undefined;
@@ -70,13 +70,13 @@ function getApiWorkerHandler(env: ApiWorkerEnv): ApiWorkerHandler {
   });
 
   cachedWebOrigin = webOrigin;
-  cachedHandler = toWorkersHandler(app);
+  cachedHandler = createCloudflareWorkersHost(app);
   return cachedHandler;
 }
 
 const worker: ExportedHandler<ApiWorkerEnv> = {
   fetch(request, env, ctx) {
-    return getApiWorkerHandler(env).fetch(request, env, ctx);
+    return getApiWorkerHandler(env)(request, env, ctx);
   },
 };
 
