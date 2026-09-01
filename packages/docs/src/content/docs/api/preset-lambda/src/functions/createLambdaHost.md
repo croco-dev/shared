@@ -2,10 +2,10 @@
 editUrl: false
 next: false
 prev: false
-title: "createLambdaHandler"
+title: "createLambdaHost"
 ---
 
-> **createLambdaHandler**(`honoApp`, `options?`): [`LambdaHandler`](/api/preset-lambda/src/type-aliases/lambdahandler/)
+> **createLambdaHost**(`honoApp`, `options?`): [`LambdaHandler`](/api/preset-lambda/src/type-aliases/lambdahandler/)
 
 ## Parameters
 

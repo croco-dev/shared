@@ -947,6 +947,12 @@ function checkSaasStructure() {
     ["apps", "api-server", "src", "tests", "ContractFuzz.spec.ts"],
     /applicationRuntime: nodeApp\.applicationRuntime/,
   );
+  checkFileContains("saas", ["apps", "api-server", "src", "app.ts"], /runtime\.bindHostCallback/);
+  checkFileDoesNotContain(
+    "saas",
+    ["apps", "api-server", "src", "app.ts"],
+    /function bindRuntimeCallback/,
+  );
   checkFileContains(
     "saas",
     ["apps", "api-server", "src", "tests", "ContractFuzz.spec.ts"],

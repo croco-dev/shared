@@ -1,22 +1,31 @@
 # @croco/framework-preset
 
-Typed preset contract for Croco build and runtime adapters.
+Typed build-target contract for Croco packages and tooling.
 
-`@croco/framework-preset` defines the shared preset shape used by environment-specific
-packages. Presets declare their entrypoint, output format, and optional lifecycle hooks
-without binding core framework code to a specific runtime.
+`@croco/framework-preset` describes build-time entrypoints, output directories, module formats,
+and build hooks. It does not own a Node process, Lambda invocation, Workers fetch lifecycle, or
+protocol execution.
+
+A build target may package an entrypoint that starts a host, but the two contracts stay separate:
+
+- a **host** owns the environment lifecycle;
+- a **transport** executes an application protocol such as HTTP;
+- a **build target** describes the artifact produced for deployment.
 
 ## Public API
 
-- `defineCrocoPreset` - creates an immutable preset object.
-- `CrocoPreset`, `CrocoPresetConfig`, `CrocoPresetOverride`, and `HookMap` - preset contract types.
+- `defineCrocoBuildTarget` - creates an immutable build-target object.
+- `CrocoBuildTarget`, `CrocoBuildTargetConfig`, `CrocoBuildTargetOverride`, and `HookMap` - canonical
+  build-target contract types.
+- `defineCrocoPreset`, `CrocoPreset`, `CrocoPresetConfig`, and `CrocoPresetOverride` - deprecated
+  compatibility aliases for the build-target contract.
 
 ## Usage
 
 ```typescript
-import { defineCrocoPreset } from "@croco/framework-preset";
+import { defineCrocoBuildTarget } from "@croco/framework-preset";
 
-export const workerPreset = defineCrocoPreset({
+export const workerBuildTarget = defineCrocoBuildTarget({
   name: "worker",
   entry: "./fetch.js",
   output: {
@@ -25,7 +34,7 @@ export const workerPreset = defineCrocoPreset({
   },
 });
 
-export const commonJsWorkerPreset = workerPreset.extend({
+export const commonJsWorkerBuildTarget = workerBuildTarget.extend({
   output: {
     format: "cjs",
   },

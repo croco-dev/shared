@@ -1,6 +1,13 @@
 # @croco/transports-cloudflare-workers
 
-Croco HTTP 앱을 Cloudflare Workers `fetch` handler로 노출하는 transport adapter입니다.
+Croco HTTP 앱을 Cloudflare Workers `fetch` lifecycle에 연결하는 legacy-named host adapter입니다.
+
+Package 이름은 compatibility surface로 유지됩니다. 이 package는 protocol transport를 정의하지
+않고 Workers `fetch(request, env, ctx)` lifecycle과 runtime context bridge를 소유합니다. HTTP route
+실행은 `@croco/transports-http`가 담당하고 build output은 별도의 build target이 기술합니다. 새
+composition에서 canonical Workers host API는 `@croco/preset-cloudflare`의
+`createCloudflareWorkersHost()`입니다. 이는 package rename이 아니며 `toWorkersHandler()`도 계속
+지원됩니다.
 
 ## 런타임 증거
 
@@ -19,7 +26,7 @@ Croco HTTP 앱을 Cloudflare Workers `fetch` handler로 노출하는 transport a
 ## 설치
 
 ```bash
-pnpm add @croco/transports-cloudflare-workers @croco/transports-http
+pnpm add @croco/framework-module @croco/preset-cloudflare @croco/transports-cloudflare-workers @croco/transports-http
 ```
 
 `WorkersFetchHandler`와 `toWorkersHandler()`의 공개 타입은 Cloudflare Workers
@@ -31,9 +38,10 @@ pnpm add @croco/transports-cloudflare-workers @croco/transports-http
 
 ```typescript
 import "reflect-metadata";
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createCloudflareWorkersHost } from "@croco/preset-cloudflare";
 import { Controller, Get } from "@croco/protocols-rest";
 import { createApp } from "@croco/transports-http";
-import { toWorkersHandler } from "@croco/transports-cloudflare-workers";
 
 @Controller("/api")
 class ApiController {
@@ -43,13 +51,22 @@ class ApiController {
   }
 }
 
-const app = createApp({
-  controllers: [ApiController],
-  securityValidation: "off",
-});
+const runtime = createApplicationRuntime();
+await runtime.initialize();
 
-export default toWorkersHandler(app);
+const app = runtime.run(() =>
+  createApp({
+    controllers: [ApiController],
+    securityValidation: "off",
+  }),
+);
+const fetch = runtime.bindHostCallback(createCloudflareWorkersHost(app));
+
+export default { fetch };
 ```
+
+`bindHostCallback()` ensures every fetch event re-enters the owning application scope and prevents
+the callback from running after `ApplicationRuntime` disposal.
 
 ## Env 주입
 
@@ -69,9 +86,13 @@ console.log(runtime?.env?.MY_BINDING);
 export default toWorkersHandler(app, { injectEnv: true });
 ```
 
+`toWorkersHandler()` remains the compatibility API when a consumer needs the legacy package's
+`injectEnv` option or existing object-shaped handler contract.
+
 ## API
 
-- `toWorkersHandler(app, options?)` - `CrocoApp`을 Workers-compatible handler로 변환합니다.
+- `toWorkersHandler(app, options?)` - `CrocoApp`을 Workers-compatible host handler로 변환하는
+  compatibility API입니다.
 - `WorkersFetchHandler` - `{ fetch(request, env, ctx): Promise<Response> }` handler contract입니다.
 - `CloudflareEnv` - Worker binding object 타입입니다.
 - `WorkersHandlerOptions` - Workers adapter option 타입입니다.

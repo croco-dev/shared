@@ -91,6 +91,56 @@ describe("runtime capabilities", () => {
     );
   });
 
+  it("records host, transport, and build target as independent composition metadata", () => {
+    const manifest = createRuntimeCapabilityManifest("lambda", {
+      composition: {
+        host: {
+          platform: "lambda",
+          lifecycle: "invocation",
+          packageName: "@croco/preset-lambda",
+        },
+        transports: [
+          {
+            protocol: "rpc",
+          },
+          {
+            protocol: "http",
+            packageName: "@croco/transports-http",
+          },
+        ],
+        buildTarget: {
+          name: "lambda-function",
+          format: "esm",
+          packageName: "@croco/preset-lambda",
+          constraints: ["zip-output", "single-entry"],
+        },
+      },
+    });
+
+    expect(manifest.composition).toEqual({
+      host: {
+        platform: "lambda",
+        lifecycle: "invocation",
+        packageName: "@croco/preset-lambda",
+      },
+      transports: [
+        {
+          protocol: "http",
+          packageName: "@croco/transports-http",
+        },
+        {
+          protocol: "rpc",
+        },
+      ],
+      buildTarget: {
+        name: "lambda-function",
+        format: "esm",
+        packageName: "@croco/preset-lambda",
+        constraints: ["single-entry", "zip-output"],
+      },
+    });
+  });
+
   it("reports unsupported runtime requirements with a stable CROCO diagnostic", () => {
     const manifest = createRuntimeCapabilityManifest("cloudflare-workers", {
       requirements: [

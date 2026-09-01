@@ -1100,6 +1100,22 @@ describe("doctor", () => {
     expect(report.diagnostics).toEqual([]);
   });
 
+  it("rejects runtime composition metadata whose host disagrees with the compatibility platform", () => {
+    const repo = createCrocoWorkspace();
+    writeHealthySaasProviderDoctorWorkspace(repo);
+    writeRuntimeCapabilityManifest(repo, "node", "lambda");
+
+    const report = runDoctor({ cwd: repo });
+
+    expect(report.summary).toBe("issues_detected");
+    expect(report.diagnostics).toEqual([
+      expect.objectContaining({
+        code: CLI_DIAGNOSTIC_CODES.doctorRuntimeCapabilityManifestInvalid,
+        location: { file: "croco-runtime-capability.manifest.json" },
+      }),
+    ]);
+  });
+
   it("fails generated app profile consistency when runtime and provider targets differ", () => {
     const repo = createCrocoWorkspace();
     writeHealthySaasProviderDoctorWorkspace(repo);
@@ -3815,10 +3831,26 @@ function writeProviderProfileManifest(repo: string, manifest: Record<string, unk
   });
 }
 
-function writeRuntimeCapabilityManifest(repo: string, platform: string): void {
+function writeRuntimeCapabilityManifest(
+  repo: string,
+  platform: string,
+  compositionHostPlatform?: string,
+): void {
   writeJson(repo, "croco-runtime-capability.manifest.json", {
     version: "croco.runtime-capability.manifest.v1",
     platform,
+    ...(compositionHostPlatform
+      ? {
+          composition: {
+            host: {
+              platform: compositionHostPlatform,
+              lifecycle: compositionHostPlatform === "lambda" ? "invocation" : "process",
+            },
+            transports: [{ protocol: "http" }],
+            buildTarget: { name: "test", format: "esm" },
+          },
+        }
+      : {}),
     capabilities: {},
     diagnostics: [],
   });

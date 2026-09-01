@@ -1,7 +1,12 @@
 import type { LambdaContext, LambdaEvent } from "@croco/transports-http";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import { createLambdaHandler, createLambdaPreset } from "../index";
+import {
+  createLambdaBuildTarget,
+  createLambdaHandler,
+  createLambdaHost,
+  createLambdaPreset,
+} from "../index";
 
 const lambdaContext: LambdaContext = {
   callbackWaitsForEmptyEventLoop: false,
@@ -49,6 +54,11 @@ function createLambdaEvent(overrides: Partial<LambdaEvent> = {}): LambdaEvent {
 }
 
 describe("createLambdaPreset", () => {
+  it("exposes separate canonical host and build-target entry points", () => {
+    expect(createLambdaPreset).toBe(createLambdaBuildTarget);
+    expect(createLambdaHandler).toBe(createLambdaHost);
+  });
+
   it("returns a lambda preset", () => {
     const preset = createLambdaPreset();
 

@@ -1,11 +1,7 @@
-import {
-  type CrocoPreset,
-  type CrocoPresetConfig,
-  defineCrocoPreset,
-} from "@croco/framework-preset";
+import { type CrocoBuildTarget, defineCrocoBuildTarget } from "@croco/framework-preset";
 
-export function createLambdaPreset(): CrocoPreset {
-  return defineCrocoPreset({
+export function createLambdaBuildTarget(): CrocoBuildTarget {
+  return defineCrocoBuildTarget({
     name: "lambda",
     entry: "./handler.js",
     output: {
@@ -14,18 +10,27 @@ export function createLambdaPreset(): CrocoPreset {
     },
     hooks: {
       "build:after": async () => {
-        console.log("[lambda-preset] Build complete");
+        console.log("[lambda-build-target] Build complete");
       },
     },
   });
 }
+
+/** @deprecated Use `createLambdaBuildTarget`. */
+export const createLambdaPreset = createLambdaBuildTarget;
 
 export type {
   LambdaContext,
   LambdaEvent,
   LambdaHandler,
   LambdaHandlerOptions,
+  LambdaHost,
   LambdaResponse,
 } from "./handler";
-export { createLambdaHandler } from "./handler";
-export type { CrocoPreset, CrocoPresetConfig };
+export { createLambdaHandler, createLambdaHost } from "./handler";
+export type {
+  CrocoBuildTarget,
+  CrocoBuildTargetConfig,
+  CrocoPreset,
+  CrocoPresetConfig,
+} from "@croco/framework-preset";

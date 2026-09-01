@@ -1,12 +1,17 @@
-import { type CrocoPreset, defineCrocoPreset } from "@croco/framework-preset";
+import { type CrocoBuildTarget, defineCrocoBuildTarget } from "@croco/framework-preset";
 
-export type CloudflarePresetOptions = {
+export type CloudflareBuildTargetOptions = {
   readonly name?: string;
   readonly entry?: string;
 };
 
-export function createCloudflarePreset(options?: CloudflarePresetOptions): CrocoPreset {
-  return defineCrocoPreset({
+/** @deprecated Use `CloudflareBuildTargetOptions`. */
+export type CloudflarePresetOptions = CloudflareBuildTargetOptions;
+
+export function createCloudflareBuildTarget(
+  options?: CloudflareBuildTargetOptions,
+): CrocoBuildTarget {
+  return defineCrocoBuildTarget({
     name: options?.name ?? "cloudflare",
     entry: options?.entry ?? "./fetch.js",
     output: {
@@ -15,12 +20,15 @@ export function createCloudflarePreset(options?: CloudflarePresetOptions): Croco
     },
     hooks: {
       "build:before": (config) => {
-        console.log("[cloudflare-preset] Building for Cloudflare Workers (1MB limit)");
+        console.log("[cloudflare-build-target] Building for Cloudflare Workers (1MB limit)");
         return config;
       },
     },
   });
 }
+
+/** @deprecated Use `createCloudflareBuildTarget`. */
+export const createCloudflarePreset = createCloudflareBuildTarget;
 
 export type {
   CloudflareAppFetch,
@@ -30,4 +38,8 @@ export type {
   RawHonoFetch,
   WorkerFetchHandlerOptions,
 } from "./fetch";
-export { createRawHonoWorkerFetchHandler, createWorkerFetchHandler } from "./fetch";
+export {
+  createCloudflareWorkersHost,
+  createRawHonoWorkerFetchHandler,
+  createWorkerFetchHandler,
+} from "./fetch";

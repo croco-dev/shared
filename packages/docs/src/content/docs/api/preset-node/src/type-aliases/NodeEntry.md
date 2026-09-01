@@ -5,36 +5,8 @@ prev: false
 title: "NodeEntry"
 ---
 
-> **NodeEntry** = `object`
+> **NodeEntry** = [`NodeHost`](/api/preset-node/src/type-aliases/nodehost/)
 
-## Properties
-
-### close
-
-> `readonly` **close**: (`timeoutMs?`) => `Promise`\<`void`\>
-
-#### Parameters
-
-##### timeoutMs?
-
-`number`
-
-#### Returns
-
-`Promise`\<`void`\>
-
----
-
-### server
-
-> `readonly` **server**: `HTTPServer` \| `null`
-
----
-
-### start
-
-> `readonly` **start**: () => `Promise`\<`void`\>
-
-#### Returns
-
-`Promise`\<`void`\>
+:::caution[Deprecated]
+Use `NodeHost`.
+:::

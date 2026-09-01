@@ -5,16 +5,8 @@ prev: false
 title: "CloudflarePresetOptions"
 ---
 
-> **CloudflarePresetOptions** = `object`
+> **CloudflarePresetOptions** = [`CloudflareBuildTargetOptions`](/api/preset-cloudflare/src/type-aliases/cloudflarebuildtargetoptions/)
 
-## Properties
-
-### entry?
-
-> `readonly` `optional` **entry?**: `string`
-
----
-
-### name?
-
-> `readonly` `optional` **name?**: `string`
+:::caution[Deprecated]
+Use `CloudflareBuildTargetOptions`.
+:::

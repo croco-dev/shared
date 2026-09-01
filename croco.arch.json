@@ -41,7 +41,6 @@
         "@croco/framework-context",
         "@croco/framework-logger",
         "@croco/framework-module",
-        "@croco/framework-preset",
         "@croco/framework-routes",
         "@croco/gid-core",
         "@croco/governance-core",
@@ -93,8 +92,21 @@
       "packages": ["@croco/protocols-desktop"]
     },
     "transports": {
-      "description": "Runtime adapters that execute protocol routes.",
-      "packages": ["@croco/transports-*"]
+      "description": "Protocol transports that execute application surfaces independently from deployment hosts.",
+      "packages": ["@croco/transports-graphql", "@croco/transports-http"]
+    },
+    "hosts": {
+      "description": "Runtime lifecycle adapters for Node processes, Lambda invocations, and Cloudflare Workers fetch events.",
+      "packages": [
+        "@croco/preset-cloudflare",
+        "@croco/preset-lambda",
+        "@croco/preset-node",
+        "@croco/transports-cloudflare-workers"
+      ]
+    },
+    "build-targets": {
+      "description": "Build-time entrypoint, output, format, and bundling contracts without runtime lifecycle ownership.",
+      "packages": ["@croco/framework-preset"]
     },
     "integrations": {
       "description": "Concrete datastore, SaaS provider, and external service adapters.",
@@ -138,7 +150,6 @@
         "@croco/esbuild-plugin",
         "@croco/migration-runner",
         "@croco/oxlint-rules",
-        "@croco/preset-*",
         "@croco/testing",
         "@croco/testing-resources",
         "create-croco-app"
@@ -197,6 +208,7 @@
             "@croco/storage-cloudinary",
             "@croco/storage-r2",
             "@croco/telemetry-sdk-node",
+            "@croco/preset-*",
             "@croco/transports-*",
             "@croco/tx-drizzle"
           ]

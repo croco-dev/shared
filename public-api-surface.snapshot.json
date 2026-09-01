@@ -13446,6 +13446,18 @@
               "compatibilityGroup": "runtime-policy"
             },
             {
+              "name": "RuntimeBuildTargetFormat",
+              "exportKind": "named",
+              "source": "./libs/types",
+              "compatibilityGroup": "runtime-capability"
+            },
+            {
+              "name": "RuntimeBuildTargetManifest",
+              "exportKind": "named",
+              "source": "./libs/types",
+              "compatibilityGroup": "runtime-capability"
+            },
+            {
               "name": "RuntimeCapabilities",
               "exportKind": "named",
               "source": "./libs/types",
@@ -13518,10 +13530,28 @@
               "compatibilityGroup": "runtime-capability"
             },
             {
+              "name": "RuntimeCompositionManifest",
+              "exportKind": "named",
+              "source": "./libs/types",
+              "compatibilityGroup": "runtime-capability"
+            },
+            {
               "name": "RuntimeContext",
               "exportKind": "named",
               "source": "./libs/types",
               "compatibilityGroup": "context"
+            },
+            {
+              "name": "RuntimeHostLifecycle",
+              "exportKind": "named",
+              "source": "./libs/types",
+              "compatibilityGroup": "runtime-capability"
+            },
+            {
+              "name": "RuntimeHostManifest",
+              "exportKind": "named",
+              "source": "./libs/types",
+              "compatibilityGroup": "runtime-capability"
             },
             {
               "name": "RuntimeInspectionOutcome",
@@ -13636,6 +13666,12 @@
               "exportKind": "named",
               "source": "./libs/types",
               "compatibilityGroup": "context"
+            },
+            {
+              "name": "RuntimeTransportManifest",
+              "exportKind": "named",
+              "source": "./libs/types",
+              "compatibilityGroup": "runtime-capability"
             },
             {
               "name": "Scope",
@@ -14181,13 +14217,34 @@
           "sourceEntrypoint": "packages/framework-preset/src/index.ts",
           "runtimeExports": [
             {
-              "name": "defineCrocoPreset",
+              "name": "defineCrocoBuildTarget",
               "exportKind": "declaration",
               "source": null,
               "declarationKind": "function"
+            },
+            {
+              "name": "defineCrocoPreset",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "const"
             }
           ],
           "typeExports": [
+            {
+              "name": "CrocoBuildTarget",
+              "exportKind": "named",
+              "source": "./types"
+            },
+            {
+              "name": "CrocoBuildTargetConfig",
+              "exportKind": "named",
+              "source": "./types"
+            },
+            {
+              "name": "CrocoBuildTargetOverride",
+              "exportKind": "named",
+              "source": "./types"
+            },
             {
               "name": "CrocoPreset",
               "exportKind": "named",
@@ -22586,9 +22643,21 @@
           "sourceEntrypoint": "packages/preset-cloudflare/src/index.ts",
           "runtimeExports": [
             {
+              "name": "createCloudflareBuildTarget",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "function"
+            },
+            {
               "name": "createCloudflarePreset",
               "exportKind": "declaration",
               "source": null,
+              "declarationKind": "const"
+            },
+            {
+              "name": "createCloudflareWorkersHost",
+              "exportKind": "named",
+              "source": "./fetch",
               "declarationKind": "function"
             },
             {
@@ -22601,10 +22670,16 @@
               "name": "createWorkerFetchHandler",
               "exportKind": "named",
               "source": "./fetch",
-              "declarationKind": "function"
+              "declarationKind": "const"
             }
           ],
           "typeExports": [
+            {
+              "name": "CloudflareBuildTargetOptions",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "type"
+            },
             {
               "name": "CloudflarePresetOptions",
               "exportKind": "declaration",
@@ -22659,6 +22734,12 @@
           "sourceEntrypoint": "packages/preset-cloudflare/src/fetch.ts",
           "runtimeExports": [
             {
+              "name": "createCloudflareWorkersHost",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "function"
+            },
+            {
               "name": "createRawHonoWorkerFetchHandler",
               "exportKind": "declaration",
               "source": null,
@@ -22668,7 +22749,7 @@
               "name": "createWorkerFetchHandler",
               "exportKind": "declaration",
               "source": null,
-              "declarationKind": "function"
+              "declarationKind": "const"
             }
           ],
           "typeExports": [
@@ -22742,13 +22823,25 @@
           "sourceEntrypoint": "packages/preset-lambda/src/index.ts",
           "runtimeExports": [
             {
-              "name": "createLambdaPreset",
+              "name": "createLambdaBuildTarget",
               "exportKind": "declaration",
               "source": null,
               "declarationKind": "function"
             },
             {
+              "name": "createLambdaPreset",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "const"
+            },
+            {
               "name": "createLambdaHandler",
+              "exportKind": "named",
+              "source": "./handler",
+              "declarationKind": "const"
+            },
+            {
+              "name": "createLambdaHost",
               "exportKind": "named",
               "source": "./handler",
               "declarationKind": "function"
@@ -22756,14 +22849,24 @@
           ],
           "typeExports": [
             {
+              "name": "CrocoBuildTarget",
+              "exportKind": "named",
+              "source": "@croco/framework-preset"
+            },
+            {
+              "name": "CrocoBuildTargetConfig",
+              "exportKind": "named",
+              "source": "@croco/framework-preset"
+            },
+            {
               "name": "CrocoPreset",
               "exportKind": "named",
-              "source": null
+              "source": "@croco/framework-preset"
             },
             {
               "name": "CrocoPresetConfig",
               "exportKind": "named",
-              "source": null
+              "source": "@croco/framework-preset"
             },
             {
               "name": "LambdaContext",
@@ -22782,6 +22885,11 @@
             },
             {
               "name": "LambdaHandlerOptions",
+              "exportKind": "named",
+              "source": "./handler"
+            },
+            {
+              "name": "LambdaHost",
               "exportKind": "named",
               "source": "./handler"
             },
@@ -22815,12 +22923,24 @@
               "name": "createLambdaHandler",
               "exportKind": "declaration",
               "source": null,
+              "declarationKind": "const"
+            },
+            {
+              "name": "createLambdaHost",
+              "exportKind": "declaration",
+              "source": null,
               "declarationKind": "function"
             }
           ],
           "typeExports": [
             {
               "name": "LambdaHandlerOptions",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "type"
+            },
+            {
+              "name": "LambdaHost",
               "exportKind": "declaration",
               "source": null,
               "declarationKind": "type"
@@ -22870,12 +22990,24 @@
               "name": "createLambdaHandler",
               "exportKind": "declaration",
               "source": null,
+              "declarationKind": "const"
+            },
+            {
+              "name": "createLambdaHost",
+              "exportKind": "declaration",
+              "source": null,
               "declarationKind": "function"
             }
           ],
           "typeExports": [
             {
               "name": "LambdaHandlerOptions",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "type"
+            },
+            {
+              "name": "LambdaHost",
               "exportKind": "declaration",
               "source": null,
               "declarationKind": "type"
@@ -22928,13 +23060,25 @@
           "sourceEntrypoint": "packages/preset-node/src/index.ts",
           "runtimeExports": [
             {
-              "name": "createNodeServerPreset",
+              "name": "createNodeBuildTarget",
               "exportKind": "declaration",
               "source": null,
               "declarationKind": "function"
             },
             {
+              "name": "createNodeServerPreset",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "const"
+            },
+            {
               "name": "createNodeEntry",
+              "exportKind": "named",
+              "source": "./entry",
+              "declarationKind": "const"
+            },
+            {
+              "name": "createNodeHost",
               "exportKind": "named",
               "source": "./entry",
               "declarationKind": "function"
@@ -22960,14 +23104,24 @@
           ],
           "typeExports": [
             {
+              "name": "CrocoBuildTarget",
+              "exportKind": "named",
+              "source": "@croco/framework-preset"
+            },
+            {
+              "name": "CrocoBuildTargetConfig",
+              "exportKind": "named",
+              "source": "@croco/framework-preset"
+            },
+            {
               "name": "CrocoPreset",
               "exportKind": "named",
-              "source": null
+              "source": "@croco/framework-preset"
             },
             {
               "name": "CrocoPresetConfig",
               "exportKind": "named",
-              "source": null
+              "source": "@croco/framework-preset"
             },
             {
               "name": "NodeEntry",
@@ -22976,6 +23130,16 @@
             },
             {
               "name": "NodeEntryOptions",
+              "exportKind": "named",
+              "source": "./entry"
+            },
+            {
+              "name": "NodeHost",
+              "exportKind": "named",
+              "source": "./entry"
+            },
+            {
+              "name": "NodeHostOptions",
               "exportKind": "named",
               "source": "./entry"
             }
@@ -23004,6 +23168,12 @@
               "name": "createNodeEntry",
               "exportKind": "declaration",
               "source": null,
+              "declarationKind": "const"
+            },
+            {
+              "name": "createNodeHost",
+              "exportKind": "declaration",
+              "source": null,
               "declarationKind": "function"
             }
           ],
@@ -23016,6 +23186,18 @@
             },
             {
               "name": "NodeEntryOptions",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "type"
+            },
+            {
+              "name": "NodeHost",
+              "exportKind": "declaration",
+              "source": null,
+              "declarationKind": "type"
+            },
+            {
+              "name": "NodeHostOptions",
               "exportKind": "declaration",
               "source": null,
               "declarationKind": "type"

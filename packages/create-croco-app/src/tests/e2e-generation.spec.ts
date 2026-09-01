@@ -533,6 +533,16 @@ describe("E2E: generate()", () => {
       "browser and Cloudflare Workers outputs still deploy without a Node.js runtime",
     );
     expect(readme).toContain("nvm install 22");
+    expect(
+      JSON.parse(readFileSync(join(testDir, "croco-runtime-capability.manifest.json"), "utf8")),
+    ).toMatchObject({
+      platform: "node",
+      composition: {
+        host: { platform: "node", lifecycle: "process" },
+        transports: [],
+        buildTarget: { name: "workspace" },
+      },
+    });
   });
 
   it("rejects mismatched goal generator options before creating the target directory", async () => {
@@ -2347,6 +2357,24 @@ describe("E2E: generate()", () => {
     expect(runtimeCapabilityManifest).toMatchObject({
       version: "croco.runtime-capability.manifest.v1",
       platform: "cloudflare-workers",
+      composition: {
+        host: {
+          platform: "cloudflare-workers",
+          lifecycle: "fetch",
+        },
+        transports: [
+          {
+            protocol: "http",
+            packageName: "@croco/transports-http",
+          },
+        ],
+        buildTarget: {
+          name: "cloudflare-worker",
+          format: "esm",
+          outputDirectory: "dist",
+          constraints: ["no-node-builtins", "web-standard-apis"],
+        },
+      },
       capabilities: {
         env: true,
         filesystem: false,
@@ -2689,6 +2717,23 @@ describe("E2E: generate()", () => {
       expect(runtimeCapabilityManifest).toMatchObject({
         version: "croco.runtime-capability.manifest.v1",
         platform: "node",
+        composition: {
+          host: {
+            platform: "node",
+            lifecycle: "process",
+          },
+          transports: [
+            {
+              protocol: "http",
+              packageName: "@croco/transports-http",
+            },
+          ],
+          buildTarget: {
+            name: "node-application",
+            format: "dual",
+            outputDirectory: "dist",
+          },
+        },
         capabilities: {
           env: true,
           filesystem: true,
@@ -2879,6 +2924,7 @@ describe("E2E: generate()", () => {
       expect(aiRuntimeSource).toContain('new Token<AiSaasRuntime>("AiSaasRuntime")');
       expect(appSource).toContain("registerRuntimeScopedProviders(runtimeState.current)");
       expect(appSource).toContain("createAiSaasRuntime(runtime)");
+      expect(appSource).toContain("runtime.bindHostCallback");
       expect(appSource).not.toContain("Container.has(LOGGER_TOKEN)");
       expect(aiControllerSource).toContain("getAiSaasRuntime()");
       expect(aiControllerSource).not.toMatch(/defaultAiSaasRuntime|defaultSaasRuntime/);

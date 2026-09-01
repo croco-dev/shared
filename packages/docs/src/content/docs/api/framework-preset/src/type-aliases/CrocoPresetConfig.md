@@ -5,36 +5,8 @@ prev: false
 title: "CrocoPresetConfig"
 ---
 
-> **CrocoPresetConfig** = `object`
+> **CrocoPresetConfig** = [`CrocoBuildTargetConfig`](/api/framework-preset/src/type-aliases/crocobuildtargetconfig/)
 
-## Properties
-
-### entry
-
-> `readonly` **entry**: `string`
-
----
-
-### hooks?
-
-> `readonly` `optional` **hooks?**: [`HookMap`](/api/framework-preset/src/type-aliases/hookmap/)
-
----
-
-### name
-
-> `readonly` **name**: `string`
-
----
-
-### output
-
-> `readonly` **output**: `object`
-
-#### dir
-
-> `readonly` **dir**: `string`
-
-#### format
-
-> `readonly` **format**: `"esm"` \| `"cjs"` \| `"dual"`
+:::caution[Deprecated]
+Use `CrocoBuildTargetConfig`.
+:::

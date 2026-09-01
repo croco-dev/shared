@@ -7,6 +7,7 @@ import type {
   RuntimeCapabilityManifestVersion,
   RuntimeCapabilityName,
   RuntimeCapabilityRequirement,
+  RuntimeCompositionManifest,
   RuntimePlatform,
 } from "./types";
 
@@ -132,6 +133,7 @@ export function getRuntimeCapabilitySupport<TPlatform extends KnownRuntimePlatfo
 export function createRuntimeCapabilityManifest<TPlatform extends KnownRuntimePlatform>(
   platform: TPlatform,
   options: {
+    readonly composition?: RuntimeCompositionManifest<TPlatform>;
     readonly requirements?: readonly RuntimeCapabilityRequirement[];
   } = {},
 ): RuntimeCapabilityManifest {
@@ -139,7 +141,8 @@ export function createRuntimeCapabilityManifest<TPlatform extends KnownRuntimePl
     platform,
     getRuntimeCapabilitySupport(platform),
     {
-      requirements: options.requirements,
+      ...(options.composition ? { composition: options.composition } : {}),
+      ...(options.requirements ? { requirements: options.requirements } : {}),
     },
   );
 }
@@ -148,6 +151,7 @@ export function createRuntimeCapabilityManifestFromSupport(
   platform: RuntimePlatform,
   capabilities: RuntimeCapabilitySupport,
   options: {
+    readonly composition?: RuntimeCompositionManifest;
     readonly requirements?: readonly RuntimeCapabilityRequirement[];
   } = {},
 ): RuntimeCapabilityManifest {
@@ -156,6 +160,9 @@ export function createRuntimeCapabilityManifestFromSupport(
     platform,
     capabilities: normalizeRuntimeCapabilities(capabilities),
     diagnostics: [],
+    ...(options.composition
+      ? { composition: normalizeRuntimeCompositionManifest(options.composition) }
+      : {}),
   };
 
   return {
@@ -191,7 +198,7 @@ export function createRuntimeCapabilityDiagnostic(
     platform,
     capability,
     message: `Runtime platform '${platform}' does not support capability '${capability}'.`,
-    source,
+    ...(source ? { source } : {}),
   };
 }
 
@@ -219,6 +226,30 @@ function normalizeRuntimeCapabilityManifest(
     platform: manifest.platform,
     capabilities: normalizeRuntimeCapabilities(manifest.capabilities),
     diagnostics: [...manifest.diagnostics].sort(compareRuntimeCapabilityDiagnostics),
+    ...(manifest.composition
+      ? { composition: normalizeRuntimeCompositionManifest(manifest.composition) }
+      : {}),
+  };
+}
+
+function normalizeRuntimeCompositionManifest(
+  composition: RuntimeCompositionManifest,
+): RuntimeCompositionManifest {
+  return {
+    host: { ...composition.host },
+    transports: [...composition.transports]
+      .map((transport) => ({ ...transport }))
+      .sort(
+        (left, right) =>
+          left.protocol.localeCompare(right.protocol) ||
+          (left.packageName ?? "").localeCompare(right.packageName ?? ""),
+      ),
+    buildTarget: {
+      ...composition.buildTarget,
+      ...(composition.buildTarget.constraints
+        ? { constraints: [...composition.buildTarget.constraints].sort() }
+        : {}),
+    },
   };
 }
 

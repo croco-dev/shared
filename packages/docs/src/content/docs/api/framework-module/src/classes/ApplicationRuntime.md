@@ -49,6 +49,32 @@ Owns one isolated DI scope and one module lifecycle for a Croco application.
 
 ---
 
+### bindHostCallback()
+
+> **bindHostCallback**\<`TArgs`, `TResult`\>(`callback`): (...`args`) => `TResult`
+
+#### Type Parameters
+
+##### TArgs
+
+`TArgs` _extends_ `unknown`[]
+
+##### TResult
+
+`TResult`
+
+#### Parameters
+
+##### callback
+
+(...`args`) => `TResult`
+
+#### Returns
+
+(...`args`) => `TResult`
+
+---
+
 ### createGraphManifest()
 
 > **createGraphManifest**(`options?`): [`ApplicationRuntimeGraphManifest`](/api/framework-module/src/type-aliases/applicationruntimegraphmanifest/)

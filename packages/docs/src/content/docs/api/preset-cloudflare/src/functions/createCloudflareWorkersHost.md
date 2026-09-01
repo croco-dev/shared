@@ -2,12 +2,12 @@
 editUrl: false
 next: false
 prev: false
-title: "createWorkerFetchHandler"
+title: "createCloudflareWorkersHost"
 ---
 
 ## Call Signature
 
-> **createWorkerFetchHandler**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
+> **createCloudflareWorkersHost**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
 
 ### Parameters
 
@@ -27,7 +27,7 @@ title: "createWorkerFetchHandler"
 
 ## Call Signature
 
-> **createWorkerFetchHandler**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
+> **createCloudflareWorkersHost**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
 
 ### Parameters
 

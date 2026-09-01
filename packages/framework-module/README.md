@@ -119,6 +119,7 @@ await runtime.initialize();
 
 const appName = runtime.get("app.name");
 const response = await runtime.run(() => handleRequest());
+const hostCallback = runtime.bindHostCallback(() => handleRequest());
 const graph = runtime.createGraphManifest();
 
 await runtime.dispose();
@@ -128,6 +129,13 @@ Two application runtimes can reuse module names and provider tokens without shar
 instances. `createGraphManifest()` returns one deterministic envelope containing the module graph and
 the DI graph derived from that runtime's module provider and controller roots. It never uses the
 process-global component inventory as an implicit graph source.
+
+Use `bindHostCallback()` at host boundaries that retain a callback, such as a Lambda handler,
+Workers `fetch`, or Node request callback. The returned function re-enters the same application-owned
+scope before invoking the callback. It also observes the runtime lifecycle: creating or calling the
+binding after disposal fails through the runtime or disposed container-scope contract instead of
+executing against stale DI state. `run()` remains the direct re-entry API for bootstrap work that is
+invoked immediately.
 
 Initialization is transactional. A failed attempt compensates entered modules, restores the exact
 pre-attempt DI baseline, invalidates captured module contexts, and permits an explicit retry. If
@@ -253,7 +261,7 @@ initialization, after initialization, or while shutdown is running fail with
 `ModuleRegistrationConflictProblem` before changing the registered graph. Call
 `CrocoModule.shutdown()` or `CrocoModule.reset()` before registering a new graph.
 
-## Dynamic Modules And Presets
+## Dynamic Modules, Hosts, And Build Targets
 
 Dynamic modules should return `ModuleOptions` from a factory and can be wrapped
 with `defineCrocoModule` for a stable, frozen public contract:
@@ -268,13 +276,16 @@ export function createCacheModule(options: CacheOptions) {
 }
 ```
 
-`@croco/preset-lambda`, `@croco/preset-node`, and
-`@croco/preset-cloudflare` are build/runtime entrypoint presets from
-`@croco/framework-preset`. They are compatible with module contracts by design:
-presets choose the deployment entrypoint while modules own provider visibility
-and lifecycle boundaries inside that entrypoint. Preset packages do not need a
-runtime dependency on `@croco/framework-module` unless they start registering
-application modules directly.
+`@croco/preset-lambda`, `@croco/preset-node`, and `@croco/preset-cloudflare` are host-primary
+compatibility facades. Their canonical `create*Host` APIs own the environment lifecycle, while their
+`create*BuildTarget` APIs describe build output through `@croco/framework-preset`. These packages
+retain deprecated preset and entry/handler aliases for compatibility; those aliases do not combine
+host lifecycle with build-time configuration.
+
+Modules own provider visibility and application lifecycle inside a host. Protocol transports such
+as `@croco/transports-http` execute routes inside that application scope. Bind the host's callback
+with `ApplicationRuntime.bindHostCallback()` so each invocation re-enters the owning scope and cannot
+outlive runtime disposal.
 
 ## Plugin module factories
 

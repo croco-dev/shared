@@ -1,24 +1,26 @@
 # @croco/preset-lambda
 
-AWS Lambda preset for Croco builds.
+AWS Lambda host and build-target compatibility facade.
 
-`@croco/preset-lambda` defines the Lambda build preset and handler adapter types used
-to run Croco applications as Lambda functions. It composes with HTTP transport support
-without adding Lambda assumptions to core packages.
+`@croco/preset-lambda` is host-primary: it adapts an HTTP application to the Lambda invocation
+lifecycle. It also exposes a Lambda build target for compatibility with existing `preset-*`
+configuration. HTTP route execution remains owned by `@croco/transports-http`.
 
 ## Public API
 
-- `createLambdaPreset` - creates the Lambda build preset.
-- `createLambdaHandler` - adapts an application handler to Lambda events and accepts transport
+- `createLambdaHost` - creates the Lambda invocation host and accepts transport
   `LambdaHandlerOptions`, including the invocation-end `flush` boundary.
+- `createLambdaBuildTarget` - creates the Lambda build target.
+- `createLambdaHandler` - deprecated compatibility alias for `createLambdaHost`.
+- `createLambdaPreset` - deprecated compatibility alias for `createLambdaBuildTarget`.
 - Lambda event, context, handler, options, and response types.
 
 ## Usage
 
 ```typescript
-import { createLambdaPreset } from "@croco/preset-lambda";
+import { createLambdaBuildTarget } from "@croco/preset-lambda";
 
-export default createLambdaPreset();
+export default createLambdaBuildTarget();
 ```
 
 Connect `TelemetryRuntime.forceFlush()` through the handler options so queued telemetry is exported
@@ -26,12 +28,18 @@ before the Lambda invocation returns. A rejected `flush` callback rejects the ha
 hiding an observability failure behind a successful response.
 
 ```typescript
-import { createLambdaHandler } from "@croco/preset-lambda";
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createLambdaHost } from "@croco/preset-lambda";
 import { TelemetryForceFlushUnsupportedProblem, TelemetryRuntime } from "@croco/telemetry-sdk-node";
+import { createApp } from "@croco/transports-http";
 
 const telemetry = TelemetryRuntime.getInstance();
+const runtime = createApplicationRuntime();
+await runtime.initialize();
 
-export const handler = createLambdaHandler(app, {
+const app = runtime.run(() => createApp({ controllers: [] }));
+
+const lambdaHost = createLambdaHost(app, {
   flush: async () => {
     const result = await telemetry.forceFlush();
     if (result.outcome === "failed") {
@@ -42,9 +50,15 @@ export const handler = createLambdaHandler(app, {
     }
   },
 });
+
+export const handler = runtime.bindHostCallback(lambdaHost);
 ```
 
-See [`@croco/transports-http`](../transports-http/README.md#앱-생성과-lambda-핸들러-노출) for the
+`bindHostCallback()` re-enters the application-owned DI scope for every invocation and rejects access
+after the runtime is disposed. The Lambda host owns invocation conversion and flushing; the HTTP app
+continues to own protocol execution.
+
+See [`@croco/transports-http`](../transports-http/README.md#앱-생성과-lambda-host-연결) for the
 complete telemetry initialization and flush pattern.
 
 ## Verification

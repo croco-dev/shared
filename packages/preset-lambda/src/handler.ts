@@ -10,8 +10,9 @@ import { Hono } from "hono";
 
 export type LambdaHandlerOptions = TransportLambdaHandlerOptions;
 export type { LambdaContext, LambdaEvent, LambdaHandler, LambdaResponse };
+export type LambdaHost = LambdaHandler;
 
-export function createLambdaHandler(
+export function createLambdaHost(
   honoApp: Hono | { readonly fetch: (req: Request) => Promise<Response> },
   options: LambdaHandlerOptions = {},
 ): LambdaHandler {
@@ -24,3 +25,6 @@ export function createLambdaHandler(
 
   return new CrocoLambdaAdapter(hono).createHandler(options);
 }
+
+/** @deprecated Use `createLambdaHost`. */
+export const createLambdaHandler = createLambdaHost;

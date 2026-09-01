@@ -424,16 +424,18 @@ Current 1.0 spine status: 18 spine packages; 10 production-ready, 8 beta, 0 alph
 
 ### Package Groups
 
-| 그룹         | 역할                                                                                       | 패키지 수 |
-| ------------ | ------------------------------------------------------------------------------------------ | --------: |
-| Core         | Framework primitives, context, reliability, transactions, and cross-cutting core utilities |        24 |
-| Domain       | Business-domain APIs and package-level abstractions                                        |        31 |
-| Provider     | Concrete datastore, SaaS provider, and external service adapters                           |        28 |
-| Integration  | Analytics, feature-flag, and observability integrations                                    |         5 |
-| Protocol     | API protocol definitions and code generation                                               |        10 |
-| Transport    | Runtime adapters that execute protocol routes                                              |         3 |
-| Presentation | Frontend, SSR, and presentation-layer adapters                                             |         9 |
-| Tooling      | CLIs, scaffolds, presets, migration tools, and build-time helpers                          |        10 |
+| 그룹         | 역할                                                                                                   | 패키지 수 |
+| ------------ | ------------------------------------------------------------------------------------------------------ | --------: |
+| Core         | Framework primitives, context, reliability, transactions, and cross-cutting core utilities             |        23 |
+| Domain       | Business-domain APIs and package-level abstractions                                                    |        31 |
+| Provider     | Concrete datastore, SaaS provider, and external service adapters                                       |        28 |
+| Integration  | Analytics, feature-flag, and observability integrations                                                |         5 |
+| Protocol     | API protocol definitions and code generation                                                           |        10 |
+| Transport    | Protocol transports that execute application surfaces independently from deployment hosts              |         2 |
+| Host         | Runtime lifecycle adapters for Node processes, Lambda invocations, and Cloudflare Workers fetch events |         4 |
+| Build Target | Build-time entrypoint, output, format, and bundling contracts without runtime lifecycle ownership      |         1 |
+| Presentation | Frontend, SSR, and presentation-layer adapters                                                         |         9 |
+| Tooling      | CLIs, scaffolds, migration tools, and repository build-time helpers                                    |         7 |
 
 ### Maturity Guide
 
@@ -452,7 +454,7 @@ Adapter 경계와 공식 우선순위, compatibility certification checklist는 
 
 Adapter category definitions, official priorities, package naming rules, minimum compatibility criteria, and the certification checklist live in [Adapter Ecosystem](packages/docs/src/content/docs/en/reference/adapter-ecosystem.md). Certification state is rendered from `docs/package-catalog.json` `certification.records` and is scoped to package, contract, runtime, package version, and evidence status.
 
-Certification policy: extension packages in Provider, Integration, Transport, Presentation require a certified record when maturity is `production` or when public docs make a Croco compatibility claim; candidate records require present liveSmoke evidence, and extension packages without those triggers render as not-applicable until candidate evidence is recorded.
+Certification policy: extension packages in Provider, Integration, Transport, Host, Presentation require a certified record when maturity is `production` or when public docs make a Croco compatibility claim; candidate records require present liveSmoke evidence, and extension packages without those triggers render as not-applicable until candidate evidence is recorded.
 
 Runtime columns: Node는 장기 실행 서버/CLI, Lambda는 서버리스 함수, Workers는 Cloudflare Workers, Frontend는 browser/SSR frontend integration을 의미합니다.
 
@@ -501,11 +503,19 @@ Runtime columns: Node는 장기 실행 서버/CLI, Lambda는 서버리스 함수
 
 #### Transport
 
-| Package                                | Domain            | Adapter                    | Node | Lambda | Workers | Frontend | Required env/config                                                                                              | Peer deps | Features                                                                       | Maturity            | Package tests     | Certification                                                                                    |
-| -------------------------------------- | ----------------- | -------------------------- | ---- | ------ | ------- | -------- | ---------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------ | ------------------- | ----------------- | ------------------------------------------------------------------------------------------------ |
-| `@croco/transports-graphql`            | GraphQL transport | GraphQL Yoga transport     | yes  | yes    | -       | -        | none                                                                                                             | -         | GraphQL server<br>resolver execution<br>Problem mapping                        | 🟡 beta             | has package tests | not-applicable<br>not required until production-ready or compatibility claim                     |
-| `@croco/transports-cloudflare-workers` | HTTP transport    | Cloudflare Workers adapter | -    | -      | yes     | -        | Cloudflare Worker env object supplied by platform                                                                | -         | Worker fetch adapter<br>request context bridge                                 | 🟡 beta             | has package tests | not-applicable<br>not required until production-ready or compatibility claim                     |
-| `@croco/transports-http`               | HTTP transport    | Hono HTTP/Lambda transport | yes  | yes    | -       | -        | CROCO_DIAGNOSTICS_TOKEN optional<br>CROCO_HTTP_DI_VALIDATION optional<br>CROCO_HTTP_SECURITY_VALIDATION optional | -         | REST route execution<br>Lambda adapter<br>operational endpoints<br>diagnostics | 🟢 production-ready | has package tests | certified (0.0.4)<br>@croco/transports-http/HttpTransport<br>node<br>lambda<br>evidence complete |
+| Package                     | Domain            | Adapter                    | Node | Lambda | Workers | Frontend | Required env/config                                                                                              | Peer deps | Features                                                                       | Maturity            | Package tests     | Certification                                                                                    |
+| --------------------------- | ----------------- | -------------------------- | ---- | ------ | ------- | -------- | ---------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------ | ------------------- | ----------------- | ------------------------------------------------------------------------------------------------ |
+| `@croco/transports-graphql` | GraphQL transport | GraphQL Yoga transport     | yes  | yes    | -       | -        | none                                                                                                             | -         | GraphQL server<br>resolver execution<br>Problem mapping                        | 🟡 beta             | has package tests | not-applicable<br>not required until production-ready or compatibility claim                     |
+| `@croco/transports-http`    | HTTP transport    | Hono HTTP/Lambda transport | yes  | yes    | -       | -        | CROCO_DIAGNOSTICS_TOKEN optional<br>CROCO_HTTP_DI_VALIDATION optional<br>CROCO_HTTP_SECURITY_VALIDATION optional | -         | REST route execution<br>Lambda adapter<br>operational endpoints<br>diagnostics | 🟢 production-ready | has package tests | certified (0.0.4)<br>@croco/transports-http/HttpTransport<br>node<br>lambda<br>evidence complete |
+
+#### Host
+
+| Package                                | Domain                  | Adapter                                                             | Node | Lambda | Workers | Frontend | Required env/config                                | Peer deps | Features                                                           | Maturity | Package tests     | Certification                                                                |
+| -------------------------------------- | ----------------------- | ------------------------------------------------------------------- | ---- | ------ | ------- | -------- | -------------------------------------------------- | --------- | ------------------------------------------------------------------ | -------- | ----------------- | ---------------------------------------------------------------------------- |
+| `@croco/preset-lambda`                 | AWS Lambda host         | Lambda invocation lifecycle and build-target compatibility facade   | -    | yes    | -       | -        | AWS Lambda invocation context supplied by platform | -         | invocation host<br>flush boundary<br>ESM build target              | 🟡 beta  | has package tests | not-applicable<br>not required until production-ready or compatibility claim |
+| `@croco/preset-cloudflare`             | Cloudflare Workers host | Workers fetch lifecycle and build-target compatibility facade       | -    | -      | yes     | -        | Cloudflare Worker env object supplied by platform  | -         | fetch lifecycle host<br>runtime context bridge<br>ESM build target | 🟡 beta  | has package tests | not-applicable<br>not required until production-ready or compatibility claim |
+| `@croco/transports-cloudflare-workers` | Cloudflare Workers host | Legacy-named Workers fetch lifecycle adapter                        | -    | -      | yes     | -        | Cloudflare Worker env object supplied by platform  | -         | Worker fetch adapter<br>request context bridge                     | 🟡 beta  | has package tests | not-applicable<br>not required until production-ready or compatibility claim |
+| `@croco/preset-node`                   | Node host               | Node process/server lifecycle and build-target compatibility facade | yes  | -      | -       | -        | PORT optional<br>HOST optional                     | -         | server start<br>graceful close<br>dual-format build target         | 🟡 beta  | has package tests | not-applicable<br>not required until production-ready or compatibility claim |
 
 #### Presentation
 
@@ -554,6 +564,7 @@ Runtime columns: Node는 장기 실행 서버/CLI, Lambda는 서버리스 함수
 
 | 패키지                                 | 그룹         | 디렉터리                                 | 문서               |
 | -------------------------------------- | ------------ | ---------------------------------------- | ------------------ |
+| `@croco/framework-preset`              | Build Target | `packages/framework-preset`              | README, API, tests |
 | `@croco/cache-core`                    | Core         | `packages/cache-core`                    | README, API, tests |
 | `@croco/diagnostics-core`              | Core         | `packages/diagnostics-core`              | README, API, tests |
 | `@croco/events-inmemory`               | Core         | `packages/events-inmemory`               | README, API, tests |
@@ -561,7 +572,6 @@ Runtime columns: Node는 장기 실행 서버/CLI, Lambda는 서버리스 함수
 | `@croco/framework-config`              | Core         | `packages/framework-config`              | README, API, tests |
 | `@croco/framework-logger`              | Core         | `packages/framework-logger`              | README, API, tests |
 | `@croco/framework-module`              | Core         | `packages/framework-module`              | README, API, tests |
-| `@croco/framework-preset`              | Core         | `packages/framework-preset`              | README, API, tests |
 | `@croco/framework-routes`              | Core         | `packages/framework-routes`              | README, API, tests |
 | `@croco/gid-core`                      | Core         | `packages/gid-core`                      | README, API, tests |
 | `@croco/health-core`                   | Core         | `packages/health-core`                   | README, API, tests |
@@ -589,6 +599,10 @@ Runtime columns: Node는 장기 실행 서버/CLI, Lambda는 서버리스 함수
 | `@croco/tasks-core`                    | Domain       | `packages/tasks-core`                    | README, API, tests |
 | `@croco/triggers-core`                 | Domain       | `packages/triggers-core`                 | README, API, tests |
 | `@croco/workflow-core`                 | Domain       | `packages/workflow-core`                 | README, API, tests |
+| `@croco/preset-cloudflare`             | Host         | `packages/preset-cloudflare`             | README, API, tests |
+| `@croco/preset-lambda`                 | Host         | `packages/preset-lambda`                 | README, API, tests |
+| `@croco/preset-node`                   | Host         | `packages/preset-node`                   | README, API, tests |
+| `@croco/transports-cloudflare-workers` | Host         | `packages/transports-cloudflare-workers` | README, API, tests |
 | `@croco/analytics-posthog`             | Integration  | `packages/analytics-posthog`             | README, API, tests |
 | `@croco/features-posthog`              | Integration  | `packages/features-posthog`              | README, API, tests |
 | `@croco/integrations-posthog`          | Integration  | `packages/integrations-posthog`          | README, API, tests |
@@ -625,12 +639,8 @@ Runtime columns: Node는 장기 실행 서버/CLI, Lambda는 서버리스 함수
 | `@croco/cli`                           | Tooling      | `packages/cli`                           | README, API, tests |
 | `create-croco-app`                     | Tooling      | `packages/create-croco-app`              | README, API, tests |
 | `@croco/esbuild-plugin`                | Tooling      | `packages/esbuild-plugin`                | README, API, tests |
-| `@croco/preset-cloudflare`             | Tooling      | `packages/preset-cloudflare`             | README, API, tests |
-| `@croco/preset-lambda`                 | Tooling      | `packages/preset-lambda`                 | README, API, tests |
-| `@croco/preset-node`                   | Tooling      | `packages/preset-node`                   | README, API, tests |
 | `@croco/testing`                       | Tooling      | `packages/testing`                       | README, API, tests |
 | `@croco/testing-resources`             | Tooling      | `packages/testing-resources`             | README, API, tests |
-| `@croco/transports-cloudflare-workers` | Transport    | `packages/transports-cloudflare-workers` | README, API, tests |
 | `@croco/transports-graphql`            | Transport    | `packages/transports-graphql`            | README, API, tests |
 
 ### 🔴 alpha/WIP

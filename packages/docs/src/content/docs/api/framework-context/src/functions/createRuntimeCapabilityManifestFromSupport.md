@@ -19,6 +19,10 @@ title: "createRuntimeCapabilityManifestFromSupport"
 
 ### options?
 
+#### composition?
+
+[`RuntimeCompositionManifest`](/api/framework-context/src/type-aliases/runtimecompositionmanifest/)
+
 #### requirements?
 
 readonly [`RuntimeCapabilityRequirement`](/api/framework-context/src/type-aliases/runtimecapabilityrequirement/)[]

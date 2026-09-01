@@ -212,10 +212,10 @@ function bindApplicationRuntime(
 
 function bindHostCallbacks(app: CrocoApp, runtime: ApplicationRuntime): void {
   const createNodeHandler = app.nodeHandler.bind(app);
-  app.nodeHandler = () => bindRuntimeCallback(createNodeHandler(), runtime);
+  app.nodeHandler = () => runtime.bindHostCallback(createNodeHandler());
 
   const createLambdaHandler = app.lambdaHandler.bind(app);
-  app.lambdaHandler = (options) => bindRuntimeCallback(createLambdaHandler(options), runtime);
+  app.lambdaHandler = (options) => runtime.bindHostCallback(createLambdaHandler(options));
 
   const getHono = app.getHono.bind(app);
   let runtimeBoundHono: ReturnType<CrocoApp["getHono"]> | undefined;
@@ -225,17 +225,10 @@ function bindHostCallbacks(app: CrocoApp, runtime: ApplicationRuntime): void {
     }
 
     const hono = getHono();
-    hono.fetch = bindRuntimeCallback(hono.fetch.bind(hono), runtime);
+    hono.fetch = runtime.bindHostCallback(hono.fetch.bind(hono));
     runtimeBoundHono = hono;
     return hono;
   };
-}
-
-function bindRuntimeCallback<TArgs extends unknown[], TResult>(
-  callback: (...args: TArgs) => TResult,
-  runtime: ApplicationRuntime,
-): (...args: TArgs) => TResult {
-  return (...args) => runtime.run(() => callback(...args));
 }
 
 class BootstrapLogger implements ILogger {

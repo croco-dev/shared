@@ -4152,7 +4152,7 @@ function isRuntimeCapabilityManifestRecord(value: Record<string, unknown>): bool
   if (value.version === "croco.runtime-capability.manifest.v1") {
     return (
       typeof value.platform === "string" &&
-      isRecord(value.capabilities) &&
+      hasRuntimeCapabilitiesAndComposition(value) &&
       Array.isArray(value.diagnostics)
     );
   }
@@ -4750,4 +4750,69 @@ function exportsConfiguredHandlerAlias(
     const expression = assignment.getExpression();
     return Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers);
   });
+}
+
+function hasRuntimeCapabilitiesAndComposition(value: Record<string, unknown>): boolean {
+  if (!isRecord(value["capabilities"])) {
+    return false;
+  }
+
+  const composition = value["composition"];
+  if (composition === undefined) {
+    return true;
+  }
+  if (!isRecord(composition)) {
+    return false;
+  }
+
+  const host = isRecord(composition["host"]) ? composition["host"] : null;
+  const buildTarget = isRecord(composition["buildTarget"]) ? composition["buildTarget"] : null;
+  const transports = composition["transports"];
+  if (
+    typeof host?.["platform"] !== "string" ||
+    host["platform"].length === 0 ||
+    host["platform"] !== value["platform"] ||
+    typeof host["lifecycle"] !== "string" ||
+    !["process", "invocation", "fetch"].includes(host["lifecycle"]) ||
+    !hasOptionalNonEmptyString(host, "packageName") ||
+    !Array.isArray(transports) ||
+    typeof buildTarget?.["name"] !== "string" ||
+    buildTarget["name"].length === 0 ||
+    !hasOptionalNonEmptyString(buildTarget, "outputDirectory") ||
+    !hasOptionalNonEmptyString(buildTarget, "packageName")
+  ) {
+    return false;
+  }
+
+  if (
+    transports.some(
+      (transport) =>
+        !isRecord(transport) ||
+        typeof transport["protocol"] !== "string" ||
+        transport["protocol"].length === 0 ||
+        !hasOptionalNonEmptyString(transport, "packageName"),
+    )
+  ) {
+    return false;
+  }
+
+  const format = buildTarget["format"];
+  if (
+    format !== undefined &&
+    (typeof format !== "string" || !["esm", "cjs", "dual"].includes(format))
+  ) {
+    return false;
+  }
+
+  const constraints = buildTarget["constraints"];
+  return (
+    constraints === undefined ||
+    (Array.isArray(constraints) &&
+      constraints.every((constraint) => typeof constraint === "string" && constraint.length > 0))
+  );
+}
+
+function hasOptionalNonEmptyString(record: Record<string, unknown>, key: string): boolean {
+  const value = record[key];
+  return value === undefined || (typeof value === "string" && value.length > 0);
 }

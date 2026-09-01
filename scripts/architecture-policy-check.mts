@@ -58,6 +58,8 @@ const packageCatalogGroupToPolicyGroup = new Map<string, string>([
   ["Integration", "integrations"],
   ["Protocol", "protocols"],
   ["Transport", "transports"],
+  ["Host", "hosts"],
+  ["Build Target", "build-targets"],
   ["Presentation", "presentation"],
   ["Tooling", "app"],
 ]);

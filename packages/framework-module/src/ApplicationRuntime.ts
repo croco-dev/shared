@@ -235,6 +235,13 @@ export class ApplicationRuntime implements AsyncDisposable {
     return this.containerScope.run(fn);
   }
 
+  bindHostCallback<TArgs extends unknown[], TResult>(
+    callback: (...args: TArgs) => TResult,
+  ): (...args: TArgs) => TResult {
+    this.assertAccessible();
+    return (...args) => this.run(() => callback(...args));
+  }
+
   get<T>(token: TokenIdentifier<T>): T {
     this.assertAccessible();
     return this.containerScope.run(() => Container.get(token));

@@ -348,7 +348,6 @@
         "framework-context",
         "framework-logger",
         "framework-module",
-        "framework-preset",
         "framework-routes",
         "gid-core",
         "health-core",
@@ -459,8 +458,21 @@
       ]
     },
     "Transport": {
-      "description": "Runtime adapters that execute protocol routes",
-      "packages": ["transports-cloudflare-workers", "transports-graphql", "transports-http"]
+      "description": "Protocol transports that execute application surfaces independently from deployment hosts",
+      "packages": ["transports-graphql", "transports-http"]
+    },
+    "Host": {
+      "description": "Runtime lifecycle adapters for Node processes, Lambda invocations, and Cloudflare Workers fetch events",
+      "packages": [
+        "preset-cloudflare",
+        "preset-lambda",
+        "preset-node",
+        "transports-cloudflare-workers"
+      ]
+    },
+    "Build Target": {
+      "description": "Build-time entrypoint, output, format, and bundling contracts without runtime lifecycle ownership",
+      "packages": ["framework-preset"]
     },
     "Presentation": {
       "description": "Frontend, SSR, and presentation-layer adapters",
@@ -477,16 +489,13 @@
       ]
     },
     "Tooling": {
-      "description": "CLIs, scaffolds, presets, migration tools, and build-time helpers",
+      "description": "CLIs, scaffolds, migration tools, and repository build-time helpers",
       "packages": [
         "architecture-policy",
         "cli",
         "create-croco-app",
         "esbuild-plugin",
         "migration-runner",
-        "preset-cloudflare",
-        "preset-lambda",
-        "preset-node",
         "testing",
         "testing-resources"
       ]
@@ -634,7 +643,7 @@
     }
   },
   "extensionMatrix": {
-    "groups": ["Provider", "Integration", "Transport", "Presentation"],
+    "groups": ["Provider", "Integration", "Transport", "Host", "Presentation"],
     "packages": {
       "admin-react": {
         "domain": "Admin React",
@@ -1140,11 +1149,32 @@
         "features": ["SDK init", "Lambda preset", "OTLP export", "forceFlush"]
       },
       "transports-cloudflare-workers": {
-        "domain": "HTTP transport",
-        "adapter": "Cloudflare Workers adapter",
+        "domain": "Cloudflare Workers host",
+        "adapter": "Legacy-named Workers fetch lifecycle adapter",
         "runtimes": ["cloudflare-workers"],
         "requiredEnv": ["Cloudflare Worker env object supplied by platform"],
         "features": ["Worker fetch adapter", "request context bridge"]
+      },
+      "preset-cloudflare": {
+        "domain": "Cloudflare Workers host",
+        "adapter": "Workers fetch lifecycle and build-target compatibility facade",
+        "runtimes": ["cloudflare-workers"],
+        "requiredEnv": ["Cloudflare Worker env object supplied by platform"],
+        "features": ["fetch lifecycle host", "runtime context bridge", "ESM build target"]
+      },
+      "preset-lambda": {
+        "domain": "AWS Lambda host",
+        "adapter": "Lambda invocation lifecycle and build-target compatibility facade",
+        "runtimes": ["lambda"],
+        "requiredEnv": ["AWS Lambda invocation context supplied by platform"],
+        "features": ["invocation host", "flush boundary", "ESM build target"]
+      },
+      "preset-node": {
+        "domain": "Node host",
+        "adapter": "Node process/server lifecycle and build-target compatibility facade",
+        "runtimes": ["node"],
+        "requiredEnv": ["PORT optional", "HOST optional"],
+        "features": ["server start", "graceful close", "dual-format build target"]
       },
       "transports-graphql": {
         "domain": "GraphQL transport",
@@ -1189,7 +1219,7 @@
     "schemaVersion": 1,
     "policy": {
       "scope": {
-        "extensionGroups": ["Provider", "Integration", "Transport", "Presentation"],
+        "extensionGroups": ["Provider", "Integration", "Transport", "Host", "Presentation"],
         "requiredMaturity": "production",
         "claimRequiresCertified": true,
         "states": {

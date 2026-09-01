@@ -7,9 +7,16 @@ Croco exposes adapter runtime details through `Context.getRuntimeContext()` from
 `@croco/framework-context`. Application code can read one request-scoped contract without depending on
 Node, API Gateway, or Workers-specific objects.
 
-The contract is provided by Croco-owned entry points such as `createApp().fetch()`, `lambdaHandler()`,
-`toWorkersHandler()`, and the default `createWorkerFetchHandler()` path in the Cloudflare preset.
-Explicit raw Hono forwarding remains a compatibility path and does not provide this runtime contract.
+Runtime context describes the active host request; it does not combine runtime composition into one
+concept. A **Host** owns the environment lifecycle, a **Transport** executes a protocol surface, and
+a **Build Target** describes the deployable artifact. Generated manifests record those axes
+independently.
+
+The contract is provided by Croco-owned host paths such as `createLambdaHost()` and
+`createCloudflareWorkersHost()`. `createApp().fetch()` is the HTTP transport callback those hosts
+invoke. `lambdaHandler()`, `listen()`, `toWorkersHandler()`, and `createWorkerFetchHandler()` remain
+compatibility surfaces that also establish their documented runtime context. Explicit raw Hono
+forwarding is another compatibility path and does not provide the Croco runtime contract.
 
 ```typescript typecheck
 import { Context } from "@croco/framework-context";
@@ -56,6 +63,63 @@ cannot declare `flush: true` or provide a `flush` hook, while `RuntimeContextIni
 Custom adapter platforms can still use a custom `platform` string, but they must pass an explicit
 capability support config when creating a runtime context so unsupported hooks are rejected instead of
 falling back silently.
+
+## Runtime Composition Metadata
+
+`RuntimeCapabilityManifest.composition` records host, transports, and build target separately. The
+host uses one `platform` and lifecycle, each transport records a protocol and optional package, and
+the build target records artifact metadata without claiming lifecycle ownership.
+
+```typescript typecheck
+import { createRuntimeCapabilityManifest } from "@croco/framework-context";
+
+const manifest = createRuntimeCapabilityManifest("lambda", {
+  composition: {
+    host: {
+      platform: "lambda",
+      lifecycle: "invocation",
+      packageName: "@croco/preset-lambda",
+    },
+    transports: [
+      {
+        protocol: "http",
+        packageName: "@croco/transports-http",
+      },
+    ],
+    buildTarget: {
+      name: "lambda-function",
+      format: "cjs",
+      outputDirectory: "dist",
+    },
+  },
+});
+```
+
+This metadata does not create the host or transport. Build tools and policy checks consume it to
+detect drift without inferring composition from a preset name.
+
+## Binding Host Callbacks
+
+Create application objects inside an `ApplicationRuntime` scope and wrap retained host callbacks
+with `bindHostCallback()`:
+
+```typescript no-check
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createLambdaHost } from "@croco/preset-lambda";
+import { createApp } from "@croco/transports-http";
+
+const runtime = createApplicationRuntime();
+await runtime.initialize();
+
+const app = runtime.run(() => createApp({ controllers: [] }));
+const lambdaHost = createLambdaHost(app);
+
+export const handler = runtime.bindHostCallback(lambdaHost);
+```
+
+Every invocation re-enters the owning application scope. After `runtime.dispose()`, the bound
+callback rejects access through the runtime's disposed-state failure instead of running with stale
+providers.
 
 ## Declaring Requirements
 
@@ -106,7 +170,7 @@ capability without a hook implementation.
 
 `runtime.flush()` drains Croco runtime work queued through `runtime.waitUntil()`. OpenTelemetry export stays
 owned by `@croco/telemetry-sdk-node`, so Lambda apps should connect `TelemetryRuntime.forceFlush()` at the
-transport boundary:
+Lambda host boundary:
 
 ```typescript no-check
 import {
@@ -114,11 +178,12 @@ import {
   TelemetryRuntime,
   lambdaPreset,
 } from "@croco/telemetry-sdk-node";
+import { createLambdaHost } from "@croco/preset-lambda";
 
 const telemetry = TelemetryRuntime.getInstance();
 await telemetry.init(lambdaPreset({ serviceName: "orders" }));
 
-export const handler = app.lambdaHandler({
+const lambdaHost = createLambdaHost(app, {
   flush: async () => {
     const result = await telemetry.forceFlush(5000);
     if (result.outcome === "failed") {
@@ -129,6 +194,8 @@ export const handler = app.lambdaHandler({
     }
   },
 });
+
+export const handler = runtime.bindHostCallback(lambdaHost);
 ```
 
 The callback runs after the request and queued runtime work complete. If it rejects, the Lambda handler rejects

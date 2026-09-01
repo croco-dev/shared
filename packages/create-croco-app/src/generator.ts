@@ -9,6 +9,7 @@ import {
   createRuntimeCapabilityManifest,
   stringifyRuntimeCapabilityManifest,
 } from "@croco/framework-context";
+import type { RuntimeCompositionManifest } from "@croco/framework-context";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { renderEnvironmentTemplate } from "./environment-template.js";
@@ -572,12 +573,73 @@ async function finalize(
 
 function writeRuntimeCapabilityManifest(targetDir: string, options: GeneratorOptions): void {
   const platform = resolveRuntimeCapabilityPlatform(options);
-  const manifest = createRuntimeCapabilityManifest(platform);
+  const manifest = createRuntimeCapabilityManifest(platform, {
+    composition: createGeneratedRuntimeComposition(options, platform),
+  });
 
   writeFileSync(
     join(targetDir, "croco-runtime-capability.manifest.json"),
     stringifyRuntimeCapabilityManifest(manifest),
   );
+}
+
+function createGeneratedRuntimeComposition(
+  options: GeneratorOptions,
+  platform: GenerationRuntimePlatform,
+): RuntimeCompositionManifest<GenerationRuntimePlatform> {
+  const transports =
+    options.preset === "blank"
+      ? []
+      : [
+          { protocol: "http", packageName: "@croco/transports-http" },
+          ...(options.api === "graphql"
+            ? [{ protocol: "graphql", packageName: "@croco/transports-graphql" }]
+            : []),
+          ...(options.api === "trpc" ? [{ protocol: "rpc" }] : []),
+        ];
+
+  if (platform === "lambda") {
+    return {
+      host: { platform, lifecycle: "invocation" },
+      transports,
+      buildTarget: {
+        name: "lambda-function",
+        format: "cjs",
+        outputDirectory: "dist",
+      },
+    };
+  }
+
+  if (platform === "cloudflare-workers") {
+    return {
+      host: { platform, lifecycle: "fetch" },
+      transports,
+      buildTarget: {
+        name: "cloudflare-worker",
+        format: "esm",
+        outputDirectory: "dist",
+        constraints: ["no-node-builtins", "web-standard-apis"],
+      },
+    };
+  }
+
+  if (options.preset === "blank") {
+    return {
+      host: { platform, lifecycle: "process" },
+      transports,
+      buildTarget: { name: "workspace" },
+    };
+  }
+
+  return {
+    host: { platform, lifecycle: "process" },
+    transports,
+    buildTarget: {
+      name: "node-application",
+      format: isSaasPreset(options.preset) ? "dual" : "cjs",
+      outputDirectory: "dist",
+    },
+  };
 }
 
 function resolveRuntimeCapabilityPlatform(options: GeneratorOptions): GenerationRuntimePlatform {

@@ -8,16 +8,22 @@ import {
   NodeEntryLifecycleProblem,
 } from "./problems";
 
-export type NodeEntryOptions = {
+export type NodeHostOptions = {
   readonly port?: number;
   readonly hostname?: string;
 };
 
-export type NodeEntry = {
+export type NodeHost = {
   readonly server: HTTPServer | null;
   readonly start: () => Promise<void>;
   readonly close: (timeoutMs?: number) => Promise<void>;
 };
+
+/** @deprecated Use `NodeHostOptions`. */
+export type NodeEntryOptions = NodeHostOptions;
+
+/** @deprecated Use `NodeHost`. */
+export type NodeEntry = NodeHost;
 
 type NodeEntryState = "idle" | "starting" | "started" | "closing" | "closed";
 
@@ -27,10 +33,10 @@ function asError(cause: unknown): Error {
   return cause instanceof Error ? cause : new Error(String(cause));
 }
 
-export function createNodeEntry(
+export function createNodeHost(
   honoApp: { readonly fetch: Hono["fetch"] },
-  options?: NodeEntryOptions,
-): NodeEntry {
+  options?: NodeHostOptions,
+): NodeHost {
   const port = options?.port ?? 3000;
   const hostname = options?.hostname ?? "0.0.0.0";
   let server: HTTPServer | null = null;
@@ -241,3 +247,6 @@ export function createNodeEntry(
     close,
   };
 }
+
+/** @deprecated Use `createNodeHost`. */
+export const createNodeEntry = createNodeHost;

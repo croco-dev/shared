@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CloudflareFetchEnv, ExecutionContext } from "../fetch";
 import {
+  createCloudflareBuildTarget,
+  createCloudflareWorkersHost,
   createCloudflarePreset,
   createRawHonoWorkerFetchHandler,
   createWorkerFetchHandler,
@@ -23,6 +25,11 @@ type PreviousCloudflareFetchHandler = (
 ) => Response | Promise<Response>;
 
 describe("createCloudflarePreset", () => {
+  it("exposes separate canonical host and build-target entry points", () => {
+    expect(createCloudflarePreset).toBe(createCloudflareBuildTarget);
+    expect(createWorkerFetchHandler).toBe(createCloudflareWorkersHost);
+  });
+
   it("returns a cloudflare preset", () => {
     const preset = createCloudflarePreset();
 

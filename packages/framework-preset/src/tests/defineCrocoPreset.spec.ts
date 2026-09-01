@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type { CrocoPresetConfig, CrocoPresetOverride } from "../index";
-import { defineCrocoPreset } from "../index";
+import { defineCrocoBuildTarget, defineCrocoPreset } from "../index";
 
 describe("defineCrocoPreset", () => {
+  it("defines the canonical build-target contract", () => {
+    const target = defineCrocoBuildTarget({
+      name: "worker",
+      entry: "./src/worker.ts",
+      output: { dir: "dist", format: "esm" },
+    });
+
+    expect(target.config).toMatchObject({
+      name: "worker",
+      entry: "./src/worker.ts",
+      output: { dir: "dist", format: "esm" },
+    });
+  });
+
   it("returns a preset with the configured name", () => {
     const preset = defineCrocoPreset({
       name: "node",
