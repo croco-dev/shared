@@ -1118,6 +1118,17 @@
       }
     },
     {
+      "path": "packages/create-croco-app/templates/spa-be-split/apps/api-server/src/tests/node-lifecycle.spec.ts",
+      "lane": "generated-app",
+      "qualifiers": [],
+      "owner": "create-croco-app",
+      "generated": {
+        "sourcePath": "packages/create-croco-app/templates/spa-be-split/apps/api-server/src/tests/node-lifecycle.spec.ts",
+        "generatedPath": "apps/api-server/src/tests/node-lifecycle.spec.ts",
+        "commandId": "create-croco-app"
+      }
+    },
+    {
       "path": "packages/create-croco-app/templates/spa-be-split/apps/console-web/src/tests/ProblemNotice.spec.tsx",
       "lane": "generated-app",
       "qualifiers": [],

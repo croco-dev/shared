@@ -613,7 +613,9 @@ This cookbook documents 763 public Croco Problem codes. The deterministic JSON r
 | [`search-meilisearch/terminal-upstream`](#search-meilisearch-terminal-upstream)                                                       | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
 | [`SEAT_LIMIT_EXCEEDED`](#seat-limit-exceeded)                                                                                         | Forbidden             |    403 | not-retryable | safe-message  | active    |       1 |
 | [`SELF_IMPERSONATION_NOT_ALLOWED`](#self-impersonation-not-allowed)                                                                   | Forbidden             |    403 | not-retryable | safe-message  | active    |       1 |
+| [`starter/application-cleanup-failed`](#starter-application-cleanup-failed)                                                           | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
 | [`starter/invalid-environment`](#starter-invalid-environment)                                                                         | ValidationError       |    422 | not-retryable | public        | active    |       1 |
+| [`starter/node-host-lifecycle-failed`](#starter-node-host-lifecycle-failed)                                                           | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
 | [`starter/unhandled-api-request`](#starter-unhandled-api-request)                                                                     | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
 | [`starter/user-not-found`](#starter-user-not-found)                                                                                   | NotFound              |    404 | not-retryable | public        | active    |       1 |
 | [`STORAGE_DELETE_FAILED`](#storage-delete-failed)                                                                                     | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
@@ -11579,6 +11581,24 @@ Sources:
 
 - `packages/impersonation-core/src/libs/problems/ImpersonationProblems.ts:49:1` (problem-class)
 
+<a id="starter-application-cleanup-failed"></a>
+
+## `starter/application-cleanup-failed`
+
+- Category: `InternalServerError`
+- HTTP status: `500` Internal Server Error
+- Retryability: `conditional`
+- Redaction policy: `operator-only`
+- Lifecycle: `active`
+- Cause: Croco or an upstream dependency failed after accepting the request.
+- User action: Retry later only when the operation is idempotent or the caller owns retry safety.
+- Operator action: Use traces, logs, and upstream diagnostics to isolate the failing boundary.
+- Telemetry: `croco.problem.error` (error) with `problem.code`, `problem.category`, `problem.status`
+
+Sources:
+
+- `packages/create-croco-app/templates/spa-be-split/apps/api-server/src/lifecycle-problems.ts:13:1` (problem-class)
+
 <a id="starter-invalid-environment"></a>
 
 ## `starter/invalid-environment`
@@ -11596,6 +11616,24 @@ Sources:
 Sources:
 
 - `packages/create-croco-app/templates/spa-be-split/apps/api-server/src/problems.ts:3:1` (problem-class)
+
+<a id="starter-node-host-lifecycle-failed"></a>
+
+## `starter/node-host-lifecycle-failed`
+
+- Category: `InternalServerError`
+- HTTP status: `500` Internal Server Error
+- Retryability: `conditional`
+- Redaction policy: `operator-only`
+- Lifecycle: `active`
+- Cause: Croco or an upstream dependency failed after accepting the request.
+- User action: Retry later only when the operation is idempotent or the caller owns retry safety.
+- Operator action: Use traces, logs, and upstream diagnostics to isolate the failing boundary.
+- Telemetry: `croco.problem.error` (error) with `problem.code`, `problem.category`, `problem.status`
+
+Sources:
+
+- `packages/create-croco-app/templates/spa-be-split/apps/api-server/src/lifecycle-problems.ts:33:1` (problem-class)
 
 <a id="starter-unhandled-api-request"></a>
 
