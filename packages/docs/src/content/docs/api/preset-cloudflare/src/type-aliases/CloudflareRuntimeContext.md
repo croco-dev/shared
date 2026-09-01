@@ -63,13 +63,13 @@ Runtime callbacks should accept `CloudflareHostRuntimeContext`.
 
 > `readonly` **waitUntil**: `true`
 
-***
+---
 
 ### ~~env~~
 
 > `readonly` **env**: `Record`\<`string`, `unknown`\>
 
-***
+---
 
 ### ~~native~~
 
@@ -79,19 +79,19 @@ Runtime callbacks should accept `CloudflareHostRuntimeContext`.
 
 > `readonly` **executionContext**: `ExecutionContext`
 
-***
+---
 
 ### ~~platform~~
 
 > `readonly` **platform**: `"cloudflare-workers"`
 
-***
+---
 
 ### ~~requestId?~~
 
 > `readonly` `optional` **requestId?**: `string`
 
-***
+---
 
 ### ~~waitUntil~~
 

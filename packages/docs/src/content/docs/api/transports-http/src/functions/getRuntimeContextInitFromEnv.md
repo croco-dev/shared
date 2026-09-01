@@ -5,7 +5,7 @@ prev: false
 title: "getRuntimeContextInitFromEnv"
 ---
 
-> **getRuntimeContextInitFromEnv**(`env`): `RuntimeContextInitForPlatform`\<`"cloudflare-workers"`\> \| `RuntimeContextInitForPlatform`\<`string` & `object`\> \| `RuntimeContextInitForPlatform`\<`"node"`\> \| `RuntimeContextInitForPlatform`\<`"lambda"`\> \| `undefined`
+> **getRuntimeContextInitFromEnv**(`env`): `RuntimeContextInitForPlatform`\<`"node"`\> \| `RuntimeContextInitForPlatform`\<`"lambda"`\> \| `RuntimeContextInitForPlatform`\<`"cloudflare-workers"`\> \| `RuntimeContextInitForPlatform`\<`string` & `object`\> \| `undefined`
 
 ## Parameters
 
@@ -15,4 +15,4 @@ title: "getRuntimeContextInitFromEnv"
 
 ## Returns
 
-`RuntimeContextInitForPlatform`\<`"cloudflare-workers"`\> \| `RuntimeContextInitForPlatform`\<`string` & `object`\> \| `RuntimeContextInitForPlatform`\<`"node"`\> \| `RuntimeContextInitForPlatform`\<`"lambda"`\> \| `undefined`
+`RuntimeContextInitForPlatform`\<`"node"`\> \| `RuntimeContextInitForPlatform`\<`"lambda"`\> \| `RuntimeContextInitForPlatform`\<`"cloudflare-workers"`\> \| `RuntimeContextInitForPlatform`\<`string` & `object`\> \| `undefined`
