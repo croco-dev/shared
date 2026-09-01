@@ -18,6 +18,7 @@ import {
   assertGeneratedVerificationValidationsAreReadOnly,
   collectDisallowedGeneratedDotenvFiles,
   markWorkspacePackageClosureBuilt,
+  materializeGeneratedTestEvidence,
   assertGeneratedPresentationProfileMatchesCatalog,
   createSaasMonetizationCanarySource,
   getGeneratedGoalSmokeCaseInputs,
@@ -36,7 +37,13 @@ import {
   turboBuildArguments,
   turboConcurrencyArguments,
 } from "../create-croco-app-generated-smoke.mts";
-import type { TestInventoryEntry } from "../test-inventory.mts";
+import {
+  fileDigest,
+  inventoryDigest,
+  parseMaterializationEvidence,
+  validateGeneratedMaterialization,
+} from "../test-inventory.mts";
+import type { TestInventory, TestInventoryEntry } from "../test-inventory.mts";
 import { readCompletedPlaywrightPaths, readCompletedVitestPaths } from "../test-lane-runner.mts";
 import {
   classifySmokeCommandFailure,
@@ -363,6 +370,58 @@ describe("generated test execution evidence", () => {
     expect(capture.reports).toHaveLength(1);
     expect(capture.reports[0]?.generatedPaths).toEqual([generatedPath]);
     capture.restore();
+  });
+
+  it("reconciles distinct template sources that override the same generated destination", () => {
+    const sourceRoot = createTempRoot();
+    const materializedRoot = join(createTempRoot(), "materialized-tests");
+    const generatedPath = "apps/api-server/src/tests/node-lifecycle.spec.ts";
+    const templates = [
+      { name: "spa-be-split", contents: "spa lifecycle\n" },
+      { name: "saas", contents: "saas lifecycle\n" },
+    ] as const;
+    const entries = templates.map(({ name }): TestInventoryEntry => {
+      const sourcePath = `packages/create-croco-app/templates/${name}/${generatedPath}`;
+      return {
+        path: sourcePath,
+        lane: "generated-app",
+        qualifiers: [],
+        owner: "create-croco-app",
+        generated: { sourcePath, generatedPath, commandId: "create-croco-app" },
+      };
+    });
+    const testInventory: TestInventory = { version: 1, tests: entries, exceptions: [] };
+    for (const [index, entry] of entries.entries()) {
+      writeFile(join(sourceRoot, entry.path), templates[index]?.contents ?? "");
+    }
+
+    const evidence = entries.flatMap((entry, index) => {
+      const projectDir = createTempRoot();
+      writeFile(join(projectDir, generatedPath), templates[index]?.contents ?? "");
+      return materializeGeneratedTestEvidence(
+        sourceRoot,
+        projectDir,
+        materializedRoot,
+        [entry],
+        new Set([generatedPath]),
+        inventoryDigest(testInventory),
+      );
+    });
+
+    expect(evidence.map(({ generatedPath: path }) => path)).toEqual([generatedPath, generatedPath]);
+    expect(evidence.map(({ materializedPath }) => materializedPath)).toEqual(
+      entries.map(({ path }) => path),
+    );
+    const parsedEvidence = parseMaterializationEvidence(
+      JSON.parse(JSON.stringify(evidence)) as unknown,
+      inventoryDigest(testInventory),
+    );
+    expect(
+      validateGeneratedMaterialization(sourceRoot, testInventory, materializedRoot, parsedEvidence),
+    ).toEqual([]);
+    for (const item of evidence) {
+      expect(fileDigest(join(materializedRoot, item.materializedPath))).toBe(item.generatedDigest);
+    }
   });
 
   it("does not credit aggregate TAP output when the script selects a different file", () => {

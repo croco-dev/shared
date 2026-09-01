@@ -333,34 +333,57 @@ export function selectCompletedGeneratedTestEntries(
   });
 }
 
+export function materializeGeneratedTestEvidence(
+  sourceRoot: string,
+  projectDir: string,
+  materializedRoot: string,
+  entries: readonly TestInventoryEntry[],
+  executedPaths: ReadonlySet<string>,
+  inventoryDigest: string,
+): readonly MaterializationEvidence[] {
+  return selectCompletedGeneratedTestEntries(projectDir, entries, executedPaths).flatMap(
+    (entry) => {
+      if (!entry.generated) return [];
+      const generatedPath = join(projectDir, entry.generated.generatedPath);
+      const sourceDigest = fileSha256(join(sourceRoot, entry.path));
+      const generatedDigest = fileSha256(generatedPath);
+      if (sourceDigest !== generatedDigest) return [];
+      const materializedPath = entry.path;
+      const reportPath = join(materializedRoot, materializedPath);
+      mkdirSync(dirname(reportPath), { recursive: true });
+      copyFileSync(generatedPath, reportPath);
+      return [
+        {
+          sourcePath: entry.path,
+          sourceDigest,
+          generatedPath: entry.generated.generatedPath,
+          materializedPath,
+          generatedDigest,
+          inventoryDigest,
+          commandId: entry.generated.commandId,
+        },
+      ];
+    },
+  );
+}
+
 function recordGeneratedTestMaterialization(
   projectDir: string,
   executedPaths: ReadonlySet<string>,
 ): void {
   const materializedRoot = join(generatedSmokeReportDir, "materialized-tests");
-  const generatedEntries = testInventory.tests.filter(({ lane }) => lane === "generated-app");
-  for (const entry of selectCompletedGeneratedTestEntries(
+  const generatedEntries = testInventory.tests.filter(
+    ({ lane, path }) => lane === "generated-app" && !generatedMaterializationEvidence.has(path),
+  );
+  for (const evidence of materializeGeneratedTestEvidence(
+    rootDir,
     projectDir,
+    materializedRoot,
     generatedEntries,
     executedPaths,
+    testInventoryDigest,
   )) {
-    if (!entry.generated || generatedMaterializationEvidence.has(entry.path)) continue;
-    const generatedPath = join(projectDir, entry.generated.generatedPath);
-    if (!existsSync(generatedPath)) continue;
-    const sourceDigest = fileSha256(join(rootDir, entry.path));
-    const generatedDigest = fileSha256(generatedPath);
-    if (sourceDigest !== generatedDigest) continue;
-    const reportPath = join(materializedRoot, entry.generated.generatedPath);
-    mkdirSync(dirname(reportPath), { recursive: true });
-    copyFileSync(generatedPath, reportPath);
-    generatedMaterializationEvidence.set(entry.path, {
-      sourcePath: entry.path,
-      sourceDigest,
-      generatedPath: entry.generated.generatedPath,
-      generatedDigest,
-      inventoryDigest: testInventoryDigest,
-      commandId: entry.generated.commandId,
-    });
+    generatedMaterializationEvidence.set(evidence.sourcePath, evidence);
   }
 }
 

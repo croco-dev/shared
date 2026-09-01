@@ -494,9 +494,10 @@ describe("generated-app materialization", () => {
     const root = createRepository();
     const sourcePath = "packages/create-croco-app/templates/basic/src/example.spec.ts";
     const generatedPath = "src/example.spec.ts";
+    const materializedPath = "packages/create-croco-app/templates/basic/src/example.spec.ts";
     write(root, sourcePath, "source\n");
     const generatedRoot = join(root, "materialized");
-    write(generatedRoot, generatedPath, "generated\n");
+    write(generatedRoot, materializedPath, "generated\n");
     const generatedEntry = entry(sourcePath, {
       lane: "generated-app",
       owner: "create-croco-app",
@@ -511,7 +512,8 @@ describe("generated-app materialization", () => {
         sourcePath,
         sourceDigest: fileDigest(join(root, sourcePath)),
         generatedPath,
-        generatedDigest: fileDigest(join(generatedRoot, generatedPath)),
+        materializedPath,
+        generatedDigest: fileDigest(join(generatedRoot, materializedPath)),
         inventoryDigest: inventoryDigest(testInventory),
         commandId: "create-croco-app",
       },

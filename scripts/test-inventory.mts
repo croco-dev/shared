@@ -117,6 +117,7 @@ export type MaterializationEvidence = {
   readonly sourcePath: string;
   readonly sourceDigest: string;
   readonly generatedPath: string;
+  readonly materializedPath: string;
   readonly generatedDigest: string;
   readonly inventoryDigest: string;
   readonly commandId: string;
@@ -627,6 +628,7 @@ export function parseMaterializationEvidence(
         "sourcePath",
         "sourceDigest",
         "generatedPath",
+        "materializedPath",
         "generatedDigest",
         "inventoryDigest",
         "commandId",
@@ -635,6 +637,7 @@ export function parseMaterializationEvidence(
     );
     const sourcePath = repositoryPath(entry.sourcePath, index, "sourcePath");
     const generatedPath = repositoryPath(entry.generatedPath, index, "generatedPath");
+    const materializedPath = repositoryPath(entry.materializedPath, index, "materializedPath");
     const sourceDigest = sha256Digest(entry.sourceDigest, index, "sourceDigest");
     const generatedDigest = sha256Digest(entry.generatedDigest, index, "generatedDigest");
     const materializationInventoryDigest = sha256Digest(
@@ -655,18 +658,19 @@ export function parseMaterializationEvidence(
       sourcePath,
       sourceDigest,
       generatedPath,
+      materializedPath,
       generatedDigest,
       inventoryDigest: materializationInventoryDigest,
       commandId,
     };
   });
   const sourcePaths = parsed.map(({ sourcePath }) => sourcePath);
-  const generatedPaths = parsed.map(({ generatedPath }) => generatedPath);
+  const materializedPaths = parsed.map(({ materializedPath }) => materializedPath);
   if (
     new Set(sourcePaths).size !== sourcePaths.length ||
-    new Set(generatedPaths).size !== generatedPaths.length
+    new Set(materializedPaths).size !== materializedPaths.length
   ) {
-    throw new TypeError("materialization evidence paths must be unique");
+    throw new TypeError("materialization evidence source and artifact paths must be unique");
   }
   return [...parsed].sort((left, right) => compareText(left.sourcePath, right.sourcePath));
 }
@@ -1115,7 +1119,7 @@ export function validateGeneratedMaterialization(
         ),
       );
     }
-    const materializedPath = resolve(generatedRoot, item.generatedPath);
+    const materializedPath = resolve(generatedRoot, item.materializedPath);
     if (
       !isWithinRoot(resolve(generatedRoot), materializedPath) ||
       !existsSync(materializedPath) ||
@@ -1124,7 +1128,7 @@ export function validateGeneratedMaterialization(
       diagnostics.push(
         diagnostic(
           "TEST_GENERATED_MAPPING_MISMATCH",
-          `Materialized destination is missing or has a stale digest: ${item.generatedPath}`,
+          `Materialized destination is missing or has a stale digest: ${item.materializedPath}`,
           item.sourcePath,
         ),
       );
