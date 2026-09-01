@@ -4750,6 +4750,10 @@ function boundHostCallbackDelegatesTo(
     return false;
   }
 
+  if (identifierResolvesTo(callback, configuredHandlers)) {
+    return true;
+  }
+
   return Boolean(
     callback
       .getSymbol()

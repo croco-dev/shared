@@ -13,6 +13,27 @@ export type RunningNodeApplication = {
   readonly close: () => Promise<void>;
 };
 
+async function shutdownApplication(app: RuntimeOwnedCrocoApp): Promise<void> {
+  let flushFailure: unknown;
+
+  try {
+    const flush = await telemetry.forceFlush();
+    if (flush.outcome === "failed") {
+      flushFailure = flush.error;
+    }
+  } finally {
+    try {
+      await telemetry.shutdown();
+    } finally {
+      await app.disposeApplicationRuntime();
+    }
+  }
+
+  if (flushFailure !== undefined) {
+    throw flushFailure;
+  }
+}
+
 export async function startNodeApplication(
   options: NodeHostOptions = {},
 ): Promise<RunningNodeApplication> {
@@ -24,7 +45,7 @@ export async function startNodeApplication(
   try {
     await host.start();
   } catch (error) {
-    await app.disposeApplicationRuntime();
+    await shutdownApplication(app);
     throw error;
   }
 
@@ -38,7 +59,7 @@ export async function startNodeApplication(
         try {
           await host.close();
         } finally {
-          await app.disposeApplicationRuntime();
+          await shutdownApplication(app);
         }
       })();
 

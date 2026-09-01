@@ -1065,6 +1065,9 @@ describe("E2E: generate()", () => {
         join(testDir, ".github", "workflows", "browser-tests.yml"),
         "utf8",
       );
+      const runtimeCapabilityManifest = JSON.parse(
+        readFileSync(join(testDir, "croco-runtime-capability.manifest.json"), "utf8"),
+      );
 
       expect(rootPackageJson.scripts).toMatchObject({
         dev: "turbo dev",
@@ -1157,8 +1160,27 @@ describe("E2E: generate()", () => {
       expect(apiAppSource).toContain("runtime.bindHostCallback");
       expect(apiNodeHostSource).toContain("createNodeHost");
       expect(apiNodeHostSource).toContain("startNodeApplication");
+      expect(apiNodeHostSource).toMatch(
+        /forceFlush\(\)[\s\S]*shutdown\(\)[\s\S]*disposeApplicationRuntime\(\)/,
+      );
       expect(apiLambdaHostSource).toContain("createLambdaHost");
       expect(apiLambdaHostSource).toContain("app.applicationRuntime.bindHostCallback");
+      expect(runtimeCapabilityManifest).toMatchObject({
+        platform: "node",
+        composition: {
+          host: {
+            platform: "node",
+            lifecycle: "process",
+            packageName: "@croco/preset-node",
+          },
+          transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
+          buildTarget: {
+            name: "node-application",
+            format: "cjs",
+            outputDirectory: "apps/api-server/dist",
+          },
+        },
+      });
       expect(clientSource).toContain("handleJsonResponse");
       expect(clientSource).toContain('const DEFAULT_API_BASE_PATH = "/api/"');
       expect(viteConfig).toContain("path.replace(/^\\/api/, '')");

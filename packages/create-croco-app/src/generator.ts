@@ -681,7 +681,7 @@ function createGeneratedRuntimeComposition(
 
   if (options.preset === "production-app" || options.preset === "admin-console") {
     return {
-      host: { platform: "node", lifecycle: "process" },
+      host: { platform: "node", lifecycle: "process", packageName: "@croco/preset-node" },
       transports,
       buildTarget: {
         name: "node-application",

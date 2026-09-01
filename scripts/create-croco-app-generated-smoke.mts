@@ -3089,7 +3089,7 @@ function runtimeCapabilityManifestValidation(
     },
     "node-application": {
       platform: "node",
-      host: { platform: "node", lifecycle: "process" },
+      host: { platform: "node", lifecycle: "process", packageName: "@croco/preset-node" },
       transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
       buildTarget: {
         name: "node-application",
