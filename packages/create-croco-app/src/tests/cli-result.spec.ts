@@ -52,6 +52,24 @@ describe("CLI result contract", () => {
     expect(result.nodeRecovery).toBe("Run nvm install 22.5 && nvm use 22.5.");
   });
 
+  it("uses host-specific verification commands for non-Node SaaS templates", () => {
+    const lambdaOptions = createOptions({
+      preset: "saas",
+      saasProviderProfile: "saas-lambda",
+    });
+    const cloudflareOptions = createOptions({
+      preset: "saas",
+      saasProviderProfile: "saas-cloudflare",
+    });
+
+    expect(createGenerationResult("/tmp/my-lambda", lambdaOptions, "lambda").nextSteps).toEqual([
+      { command: "pnpm", args: ["build:lambda"], cwd: "/tmp/my-lambda" },
+    ]);
+    expect(
+      createGenerationResult("/tmp/my-worker", cloudflareOptions, "cloudflare-workers").nextSteps,
+    ).toEqual([{ command: "pnpm", args: ["build:worker"], cwd: "/tmp/my-worker" }]);
+  });
+
   it("keeps shell quoting out of structured next steps", () => {
     const targetDir = "/tmp/Owen's Croco App";
     const result = createSuccessResult(targetDir, createOptions({ installDeps: false }));

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CloudflareFetchEnv, ExecutionContext } from "../fetch";
+import type {
+  CloudflareFetchEnv,
+  CloudflareHostExecutionContext,
+  ExecutionContext,
+} from "../fetch";
 import {
   createCloudflareBuildTarget,
   createCloudflareWorkersHost,
@@ -9,6 +13,11 @@ import {
 } from "../index";
 
 const createExecutionContext = (): ExecutionContext => ({
+  waitUntil: vi.fn(),
+  passThroughOnException: vi.fn(),
+});
+
+const createHostExecutionContext = (): CloudflareHostExecutionContext => ({
   waitUntil: vi.fn(),
   passThroughOnException: vi.fn(),
   props: {},
@@ -28,7 +37,7 @@ type PreviousCloudflareFetchHandler = (
 describe("createCloudflarePreset", () => {
   it("exposes separate canonical host and build-target entry points", () => {
     expect(createCloudflarePreset).toBe(createCloudflareBuildTarget);
-    expect(createWorkerFetchHandler).toBe(createCloudflareWorkersHost);
+    expect(createWorkerFetchHandler).not.toBe(createCloudflareWorkersHost);
   });
 
   it("returns a cloudflare preset", () => {
@@ -87,8 +96,18 @@ describe("createWorkerFetchHandler", () => {
         native: {
           executionContext: ctx,
         },
-        abortSignal: request.signal,
-        waitUntil: expect.any(Function),
+        capabilities: {
+          env: true,
+          filesystem: false,
+          nodeApi: false,
+          requestLifecycle: true,
+          waitUntil: true,
+          flush: false,
+          streamingResponse: true,
+          deadline: false,
+          abortSignal: true,
+          shutdown: false,
+        },
       }),
       { env, executionContext: expect.objectContaining({ props: undefined }) },
     );
@@ -152,8 +171,29 @@ describe("createWorkerFetchHandler", () => {
     const handler = createCloudflareWorkersHost(app);
 
     await expect(
-      handler(new Request("https://example.com/health"), {}, createExecutionContext()),
+      handler(new Request("https://example.com/health"), {}, createHostExecutionContext()),
     ).resolves.toBe(response);
+  });
+
+  it("passes initialization context through the canonical host", async () => {
+    const request = new Request("https://example.com/users");
+    const response = new Response("ok");
+    const env: CloudflareFetchEnv = {};
+    const ctx = createHostExecutionContext();
+    const fetch = vi.fn(async () => response);
+    const handler = createCloudflareWorkersHost({ fetch });
+
+    await expect(handler(request, env, ctx)).resolves.toBe(response);
+    expect(fetch).toHaveBeenCalledWith(
+      request,
+      expect.objectContaining({
+        platform: "cloudflare-workers",
+        env,
+        abortSignal: request.signal,
+        waitUntil: expect.any(Function),
+      }),
+      { env, executionContext: ctx },
+    );
   });
 
   it("keeps raw Hono forwarding behind an explicit compatibility helper", async () => {

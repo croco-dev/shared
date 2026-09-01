@@ -5,42 +5,20 @@ prev: false
 title: "createCloudflareWorkersHost"
 ---
 
-## Call Signature
+> **createCloudflareWorkersHost**(`honoApp`, `options?`): [`CloudflareHostFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarehostfetchhandler/)
 
-> **createCloudflareWorkersHost**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
+## Parameters
 
-### Parameters
+### honoApp
 
-#### honoApp
+#### fetch
 
-##### fetch
+[`CloudflareHostAppFetch`](/api/preset-cloudflare/src/type-aliases/cloudflarehostappfetch/) \| [`CloudflareHostRawHonoFetch`](/api/preset-cloudflare/src/type-aliases/cloudflarehostrawhonofetch/)
 
-[`RawHonoFetch`](/api/preset-cloudflare/src/type-aliases/rawhonofetch/) \| [`CloudflareAppFetch`](/api/preset-cloudflare/src/type-aliases/cloudflareappfetch/)\<`ExecutionContext`\>
+### options?
 
-#### options?
+[`WorkerFetchHandlerOptions`](/api/preset-cloudflare/src/type-aliases/workerfetchhandleroptions/) = `{}`
 
-[`WorkerFetchHandlerOptions`](/api/preset-cloudflare/src/type-aliases/workerfetchhandleroptions/)
+## Returns
 
-### Returns
-
-[`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
-
-## Call Signature
-
-> **createCloudflareWorkersHost**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
-
-### Parameters
-
-#### honoApp
-
-##### fetch
-
-[`CloudflareAppFetch`](/api/preset-cloudflare/src/type-aliases/cloudflareappfetch/)\<`ExecutionContext` & `object`\>
-
-#### options?
-
-[`WorkerFetchHandlerOptions`](/api/preset-cloudflare/src/type-aliases/workerfetchhandleroptions/)
-
-### Returns
-
-[`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
+[`CloudflareHostFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarehostfetchhandler/)

@@ -13,13 +13,48 @@ type HonoExecutionContext = ExecutionContext & {
   readonly props: unknown;
 };
 
+export type CloudflareHostExecutionContext = ExecutionContext & {
+  readonly props: unknown;
+  readonly exports?: unknown;
+};
+
 export type CloudflareFetchHandler = (
   request: Request,
   env: CloudflareFetchEnv,
   ctx: ExecutionContext,
 ) => Response | Promise<Response>;
 
-export type CloudflareRuntimeContext = RuntimeContextInit<"cloudflare-workers">;
+export type CloudflareHostFetchHandler = (
+  request: Request,
+  env: CloudflareFetchEnv,
+  ctx: CloudflareHostExecutionContext,
+) => Response | Promise<Response>;
+
+export type CloudflareHostRuntimeContext = RuntimeContextInit<"cloudflare-workers">;
+
+/** @deprecated Runtime callbacks should accept `CloudflareHostRuntimeContext`. */
+export type CloudflareRuntimeContext = {
+  readonly platform: "cloudflare-workers";
+  readonly requestId?: string;
+  readonly abortSignal: AbortSignal;
+  readonly env: Record<string, unknown>;
+  readonly native: {
+    readonly executionContext: ExecutionContext;
+  };
+  readonly waitUntil: (promise: Promise<unknown>) => void;
+  readonly capabilities: {
+    readonly env: true;
+    readonly filesystem: false;
+    readonly nodeApi: false;
+    readonly requestLifecycle: true;
+    readonly waitUntil: true;
+    readonly flush: false;
+    readonly streamingResponse: true;
+    readonly deadline: false;
+    readonly abortSignal: true;
+    readonly shutdown: false;
+  };
+};
 
 export type CloudflareAppFetch<TExecutionContext extends ExecutionContext = ExecutionContext> = (
   request: Request,
@@ -30,10 +65,25 @@ export type CloudflareAppFetch<TExecutionContext extends ExecutionContext = Exec
   },
 ) => Response | Promise<Response>;
 
+export type CloudflareHostAppFetch = (
+  request: Request,
+  runtimeContext?: CloudflareHostRuntimeContext,
+  options?: {
+    readonly env?: CloudflareFetchEnv;
+    readonly executionContext?: CloudflareHostExecutionContext;
+  },
+) => Response | Promise<Response>;
+
 export type RawHonoFetch = (
   request: Request,
   env: CloudflareFetchEnv,
   ctx: ExecutionContext,
+) => Response | Promise<Response>;
+
+export type CloudflareHostRawHonoFetch = (
+  request: Request,
+  env: CloudflareFetchEnv,
+  ctx: CloudflareHostExecutionContext,
 ) => Response | Promise<Response>;
 
 export type WorkerFetchHandlerOptions = {
@@ -42,11 +92,35 @@ export type WorkerFetchHandlerOptions = {
 
 export function createCloudflareWorkersHost(
   honoApp: {
+    readonly fetch: CloudflareHostAppFetch | CloudflareHostRawHonoFetch;
+  },
+  options: WorkerFetchHandlerOptions = {},
+): CloudflareHostFetchHandler {
+  if (options.mode === "raw-hono") {
+    const rawHonoApp = honoApp as { readonly fetch: CloudflareHostRawHonoFetch };
+    return async (request, env, ctx) => rawHonoApp.fetch(request, env, ctx);
+  }
+
+  return async (
+    request: Request,
+    env: CloudflareFetchEnv,
+    ctx: CloudflareHostExecutionContext,
+  ): Promise<Response> => {
+    const runtimeContext = createHostRuntimeContext(request, env, ctx);
+    const fetch = honoApp.fetch as CloudflareHostAppFetch;
+
+    return fetch.call(honoApp, request, runtimeContext, { env, executionContext: ctx });
+  };
+}
+
+/** @deprecated Use `createCloudflareWorkersHost`. */
+export function createWorkerFetchHandler(
+  honoApp: {
     readonly fetch: CloudflareAppFetch | RawHonoFetch;
   },
   options?: WorkerFetchHandlerOptions,
 ): CloudflareFetchHandler;
-export function createCloudflareWorkersHost(
+export function createWorkerFetchHandler(
   honoApp: {
     readonly fetch: CloudflareAppFetch<
       ExecutionContext & {
@@ -56,7 +130,7 @@ export function createCloudflareWorkersHost(
   },
   options?: WorkerFetchHandlerOptions,
 ): CloudflareFetchHandler;
-export function createCloudflareWorkersHost(
+export function createWorkerFetchHandler(
   honoApp: {
     readonly fetch: CloudflareAppFetch | CloudflareAppFetch<HonoExecutionContext> | RawHonoFetch;
   },
@@ -71,16 +145,13 @@ export function createCloudflareWorkersHost(
     env: CloudflareFetchEnv,
     ctx: ExecutionContext,
   ): Promise<Response> => {
-    const runtimeContext = createRuntimeContext(request, env, ctx);
+    const runtimeContext = createLegacyRuntimeContext(request, env, ctx);
     const executionContext = toHonoExecutionContext(ctx);
     const fetch = honoApp.fetch as CloudflareAppFetch<HonoExecutionContext>;
 
     return fetch.call(honoApp, request, runtimeContext, { env, executionContext });
   };
 }
-
-/** @deprecated Use `createCloudflareWorkersHost`. */
-export const createWorkerFetchHandler = createCloudflareWorkersHost;
 
 export function createRawHonoWorkerFetchHandler(honoApp: {
   readonly fetch: RawHonoFetch;
@@ -94,7 +165,24 @@ export function createRawHonoWorkerFetchHandler(honoApp: {
   };
 }
 
-function createRuntimeContext(
+function createHostRuntimeContext(
+  request: Request,
+  env: CloudflareFetchEnv,
+  ctx: CloudflareHostExecutionContext,
+): CloudflareHostRuntimeContext {
+  return {
+    platform: "cloudflare-workers",
+    requestId: request.headers.get("x-request-id") ?? undefined,
+    abortSignal: request.signal,
+    env: env as Record<string, unknown>,
+    native: {
+      executionContext: ctx,
+    },
+    waitUntil: (promise) => ctx.waitUntil(promise),
+  };
+}
+
+function createLegacyRuntimeContext(
   request: Request,
   env: CloudflareFetchEnv,
   ctx: ExecutionContext,
@@ -107,8 +195,19 @@ function createRuntimeContext(
     native: {
       executionContext: ctx,
     },
-    abortSignal: request.signal,
     waitUntil: (promise) => ctx.waitUntil(promise),
+    capabilities: {
+      env: true,
+      filesystem: false,
+      nodeApi: false,
+      requestLifecycle: true,
+      waitUntil: true,
+      flush: false,
+      streamingResponse: true,
+      deadline: false,
+      abortSignal: true,
+      shutdown: false,
+    },
   };
 }
 

@@ -783,7 +783,10 @@ function checkContainerFullstackStructure() {
 function checkSaasStructure() {
   checkFileExists("saas", "package.json.hbs");
   checkFileExists("saas", "README.md.hbs");
+  checkFileContains("saas", ["pnpm-workspace.yaml.hbs"], /saasCloudflare/);
+  checkFileContains("saas", ["pnpm-workspace.yaml.hbs"], /- workerd/);
   checkFileExists("saas", "apps", "api-server", "package.json.hbs");
+  checkFileExists("saas", "apps", "api-server", "wrangler.toml.hbs");
   checkFileExists("saas", "apps", "api-server", "vitest.config.ts");
   checkFileExists("saas", "apps", "api-server", "src", "saasDemo.ts");
   checkFileExists("saas", "apps", "api-server", "src", "providerProfiles.ts");
@@ -860,6 +863,7 @@ function checkSaasStructure() {
       "jobs:smoke": "pnpm --filter {{scope}}/api-server jobs:smoke",
       "failure-drill:smoke": "pnpm --filter {{scope}}/api-server failure-drill:smoke",
       "failure-drill:integration": "pnpm --filter {{scope}}/api-server failure-drill:integration",
+      "build:api": "pnpm --filter {{scope}}/api-server build",
       typecheck: "turbo typecheck",
       build: "turbo build",
       test: "turbo test",
@@ -943,7 +947,7 @@ function checkSaasStructure() {
   checkFileContains(
     "saas",
     ["apps", "api-server", "src", "index.ts"],
-    /createCrocoApp\(\{ profileMode: "production" \}\)/,
+    /createCrocoApp\(\{ profileMode: "production", hostPlatform: "node" \}\)/,
   );
   checkFileContains(
     "saas",
@@ -952,6 +956,11 @@ function checkSaasStructure() {
   );
   checkFileContains("saas", ["apps", "api-server", "src", "index.ts"], /createNodeHost/);
   checkFileContains("saas", ["apps", "api-server", "src", "lambda.ts"], /createLambdaHost/);
+  checkFileContains(
+    "saas",
+    ["apps", "api-server", "src", "worker.ts"],
+    /hostPlatform: "cloudflare-workers"/,
+  );
   checkFileContains(
     "saas",
     ["apps", "api-server", "src", "worker.ts"],
@@ -1346,6 +1355,12 @@ function checkAiSaasStructure() {
     ["apps", "api-server", "src", "controllers", "AiController.ts"],
     /defaultAiSaasRuntime|defaultSaasRuntime/,
   );
+  checkFileContains(
+    "ai-saas",
+    ["apps", "api-server", "src", "app.ts.hbs"],
+    /hostPlatform\?: "node" \| "lambda" \| "cloudflare-workers"/,
+  );
+  checkFileContains("ai-saas", ["apps", "api-server", "src", "app.ts.hbs"], /pruneIntervalMs: 0/);
   checkFileContains("ai-saas", ["apps", "api-server", "src", "aiSaas.ts"], /PROMPT_TOKENS/);
   checkFileContains("ai-saas", ["apps", "api-server", "src", "aiSaas.ts"], /COST_USD_NANOS/);
   checkFileContains(

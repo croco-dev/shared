@@ -17,6 +17,9 @@ allowBuilds:
   protobufjs: true
   sharp: true
   unrs-resolver: true
+  # {{#if saasCloudflare}}
+  workerd: true
+  # {{/if}}
 
 onlyBuiltDependencies:
   - "@apollo/protobufjs"
@@ -26,3 +29,6 @@ onlyBuiltDependencies:
   - protobufjs
   - sharp
   - unrs-resolver
+  # {{#if saasCloudflare}}
+  - workerd
+  # {{/if}}

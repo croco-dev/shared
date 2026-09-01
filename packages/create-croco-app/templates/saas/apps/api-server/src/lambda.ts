@@ -4,7 +4,7 @@ import { TelemetryForceFlushUnsupportedProblem } from "@croco/telemetry-sdk-node
 import { createCrocoApp } from "./app";
 import { telemetry, telemetryReady } from "./telemetry";
 
-const app = createCrocoApp();
+const app = createCrocoApp({ hostPlatform: "lambda" });
 const lambdaHost = createLambdaHost(app.getHono(), {
   flush: async () => {
     const result = await telemetry.forceFlush();

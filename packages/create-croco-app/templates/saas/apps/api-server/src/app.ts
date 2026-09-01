@@ -56,6 +56,7 @@ const diGraphRootControllers: readonly Constructor[] = controllers;
 export type CreateCrocoAppOptions = {
   readonly additionalMiddlewares?: readonly MiddlewareFunction[];
   readonly profileMode?: GeneratedSaasProfileMode;
+  readonly hostPlatform?: "node" | "lambda" | "cloudflare-workers";
 };
 
 export type RuntimeOwnedCrocoApp = CrocoApp & {
@@ -77,7 +78,9 @@ export async function createCrocoApp(
   const profileMode = options.profileMode ?? "production";
   const logger = new BootstrapLogger();
   const rateLimiter = new RateLimiter(
-    new SlidingWindowInMemoryStore(),
+    options.hostPlatform === "cloudflare-workers"
+      ? new SlidingWindowInMemoryStore({ pruneIntervalMs: 0 })
+      : new SlidingWindowInMemoryStore(),
     new RateLimitKeyBuilder(["ip"]),
   );
   const localProviders =

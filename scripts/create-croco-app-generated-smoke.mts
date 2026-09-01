@@ -903,6 +903,16 @@ const runtimeCapabilitySmokeSupport = {
     shutdown: false,
   },
 } as const satisfies Record<RuntimeCapabilitySmokePlatform, Record<string, boolean>>;
+const saasCloudflareWorkerRuntimeSmokeScript = [
+  'import { unstable_dev } from "wrangler";',
+  'const worker = await unstable_dev("src/worker.ts", { config: "wrangler.toml", local: true, logLevel: "error", experimental: { disableExperimentalWarning: true, disableDevRegistry: true, watch: false } });',
+  "try {",
+  '  const response = await worker.fetch("http://example.com/ops/health");',
+  "  if (response.status !== 200) throw new Error(`Expected Worker health status 200, received ${response.status}: ${await response.text()}`);",
+  "} finally {",
+  "  await worker.stop();",
+  "}",
+].join(" ");
 const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "advisory">[] = [
   {
     name: "blank-basic",
@@ -1960,6 +1970,18 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
       runtimeCapabilityManifestValidation("saas-cloudflare"),
       { label: "typecheck", args: ["typecheck"] },
       { label: "build", args: ["build"], paths: ["apps/api-server/dist/worker.mjs"] },
+      { label: "advertised Worker build", args: ["build:worker"] },
+      {
+        label: "Wrangler workerd runtime smoke",
+        packagePath: ["apps", "api-server"],
+        args: [
+          "exec",
+          "tsx",
+          "--input-type=module",
+          "--eval",
+          saasCloudflareWorkerRuntimeSmokeScript,
+        ],
+      },
       {
         label: "Contract snapshot",
         args: ["contract:snapshot"],
@@ -2016,7 +2038,11 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
       },
       runtimeCapabilityManifestValidation("saas-lambda"),
       { label: "typecheck", args: ["typecheck"] },
-      { label: "build", args: ["build"], paths: ["apps/api-server/dist/lambda.js"] },
+      {
+        label: "advertised Lambda build",
+        args: ["build:lambda"],
+        paths: ["apps/api-server/dist/lambda.js"],
+      },
       {
         label: "Contract snapshot",
         args: ["contract:snapshot"],
@@ -3132,7 +3158,7 @@ function runtimeCapabilityManifestValidation(
         name: "cloudflare-worker",
         format: "esm",
         outputDirectory: "apps/api-server/dist",
-        constraints: ["no-node-builtins", "web-standard-apis"],
+        constraints: ["cloudflare-nodejs-compat", "web-standard-apis"],
       },
     },
     "node-application": {

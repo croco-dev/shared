@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 const createExecutionContext = (): ExecutionContext => ({
   waitUntil: () => {},
   passThroughOnException: () => {},
-  props: undefined,
 });
 
 const createLambdaContext = (): LambdaContext => ({

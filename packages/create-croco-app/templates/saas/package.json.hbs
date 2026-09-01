@@ -4,6 +4,7 @@
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev:api": "pnpm --filter {{scope}}/api-server dev",
+    "build:api": "pnpm --filter {{scope}}/api-server build",
     "contract:check": "croco-rpc-codegen --controllers \"apps/api-server/src/controllers/**/*.ts\" --check --strict-schemas --fail-on-diagnostics",
     "contract:snapshot": "croco contracts check --controllers \"apps/api-server/src/controllers/**/*.ts\" --strict-schemas --json --out contract-graph.snapshot.json",
     "contract:diff": "croco contracts diff --baseline contract-graph.snapshot.json --controllers \"apps/api-server/src/controllers/**/*.ts\" --strict-schemas",

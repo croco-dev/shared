@@ -73,7 +73,7 @@ export async function startNodeApplication(
 ): Promise<RunningNodeApplication> {
   await telemetryReady;
   const port = parsePort(process.env.PORT);
-  const app = await createCrocoApp({ profileMode: "production" });
+  const app = await createCrocoApp({ profileMode: "production", hostPlatform: "node" });
   const host = createNodeHost(app.getHono(), { port, ...options });
   try {
     await host.start();

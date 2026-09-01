@@ -2448,7 +2448,7 @@ describe("E2E: generate()", () => {
           name: "cloudflare-worker",
           format: "esm",
           outputDirectory: "apps/api-server/dist",
-          constraints: ["no-node-builtins", "web-standard-apis"],
+          constraints: ["cloudflare-nodejs-compat", "web-standard-apis"],
         },
       },
       capabilities: {
@@ -2641,6 +2641,7 @@ describe("E2E: generate()", () => {
       buildFormat: "dual",
       source: "index.ts",
       canonicalHost: "createNodeHost",
+      nextStep: "dev:api",
     },
     {
       profile: "saas-lambda" as const,
@@ -2652,6 +2653,7 @@ describe("E2E: generate()", () => {
       buildFormat: "cjs",
       source: "lambda.ts",
       canonicalHost: "createLambdaHost",
+      nextStep: "build:lambda",
     },
     {
       profile: "saas-cloudflare" as const,
@@ -2663,6 +2665,7 @@ describe("E2E: generate()", () => {
       buildFormat: "esm",
       source: "worker.ts",
       canonicalHost: "createCloudflareWorkersHost",
+      nextStep: "build:worker",
     },
   ])(
     "emits a deployable $profile host artifact that matches runtime composition metadata",
@@ -2677,6 +2680,7 @@ describe("E2E: generate()", () => {
       buildFormat,
       source,
       canonicalHost,
+      nextStep,
     }) => {
       const options: GeneratorOptions = {
         projectName: `my-${profile}`,
@@ -2692,10 +2696,12 @@ describe("E2E: generate()", () => {
         initGit: false,
       };
 
-      await generate(testDir, options);
+      const result = await generate(testDir, options);
 
+      const rootPackageJson = readPackageJson(join(testDir, "package.json"));
       const apiPackageJson = readPackageJson(join(testDir, "apps", "api-server", "package.json"));
       const hostSource = readFileSync(join(testDir, "apps", "api-server", "src", source), "utf8");
+      const workspaceConfig = readFileSync(join(testDir, "pnpm-workspace.yaml"), "utf8");
       const runtimeCapabilityManifest = JSON.parse(
         readFileSync(join(testDir, "croco-runtime-capability.manifest.json"), "utf8"),
       );
@@ -2704,6 +2710,16 @@ describe("E2E: generate()", () => {
       expect(apiPackageJson.scripts?.build).toBe(build);
       expect(apiPackageJson.dependencies?.[hostPackage]).toBeDefined();
       expect(hostSource).toContain(canonicalHost);
+      expect(hostSource).toContain(`hostPlatform: "${platform}"`);
+      expect(result.nextSteps.at(-1)).toEqual({ command: "pnpm", args: [nextStep], cwd: testDir });
+      expect(rootPackageJson.scripts?.[nextStep]).toBeDefined();
+      expect(rootPackageJson.scripts?.["dev:api"] !== undefined).toBe(platform === "node");
+      expect(apiPackageJson.scripts?.dev !== undefined).toBe(platform === "node");
+      expect(existsSync(join(testDir, "apps", "api-server", "wrangler.toml"))).toBe(
+        platform === "cloudflare-workers",
+      );
+      expect(workspaceConfig.includes("workerd: true")).toBe(platform === "cloudflare-workers");
+      expect(workspaceConfig.includes("- workerd")).toBe(platform === "cloudflare-workers");
       for (const candidate of ["index.ts", "lambda.ts", "worker.ts"]) {
         expect(existsSync(join(testDir, "apps", "api-server", "src", candidate))).toBe(
           candidate === source,
@@ -3100,6 +3116,8 @@ describe("E2E: generate()", () => {
       expect(appSource).toContain("registerRuntimeScopedProviders(runtimeState.current)");
       expect(appSource).toContain("createAiSaasRuntime(runtime)");
       expect(appSource).toContain("runtime.bindHostCallback");
+      expect(appSource).toContain('hostPlatform?: "node" | "lambda" | "cloudflare-workers"');
+      expect(appSource).toContain('options.hostPlatform === "cloudflare-workers"');
       expect(appSource).not.toContain("Container.has(LOGGER_TOKEN)");
       expect(aiControllerSource).toContain("getAiSaasRuntime()");
       expect(aiControllerSource).not.toMatch(/defaultAiSaasRuntime|defaultSaasRuntime/);
