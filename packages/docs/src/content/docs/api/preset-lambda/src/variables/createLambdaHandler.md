@@ -15,7 +15,7 @@ Use `createLambdaHost`.
 
 ### honoApp
 
-`Hono`\<`BlankEnv`, `BlankSchema`, `"/"`\> \| \{ `fetch`: (`req`) => `Promise`\<`Response`\>; \}
+[`LambdaFetchApplication`](/api/preset-lambda/src/type-aliases/lambdafetchapplication/) \| `Hono`\<`BlankEnv`, `BlankSchema`, `"/"`\>
 
 ### options?
 
