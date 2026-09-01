@@ -261,7 +261,6 @@ describe("ContractRuntimeDifferentialIntegration", () => {
             const executionContext: Parameters<RawHonoFetch>[2] = {
               waitUntil: (promise) => void waitUntilTasks.push(promise),
               passThroughOnException: () => {},
-              props: undefined,
             };
             const response = await workerHandler(
               new Request(
