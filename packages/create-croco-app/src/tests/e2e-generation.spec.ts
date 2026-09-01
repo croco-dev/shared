@@ -2712,6 +2712,9 @@ describe("E2E: generate()", () => {
       expect(existsSync(join(testDir, "apps", "api-server", "src", "telemetry.ts"))).toBe(
         platform !== "cloudflare-workers",
       );
+      expect(
+        existsSync(join(testDir, "apps", "api-server", "src", "tests", "node-lifecycle.spec.ts")),
+      ).toBe(platform === "node");
       expect(runtimeCapabilityManifest).toMatchObject({
         platform,
         composition: {

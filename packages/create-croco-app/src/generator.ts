@@ -523,6 +523,11 @@ function writeSaasProviderPackageDependencies(
       rmSync(join(targetDir, "apps", "api-server", "src", artifact.source), { force: true });
     }
   }
+  if (manifest.profile.runtimeTarget !== "node") {
+    rmSync(join(targetDir, "apps", "api-server", "src", "tests", "node-lifecycle.spec.ts"), {
+      force: true,
+    });
+  }
   if (manifest.profile.runtimeTarget === "cloudflare-workers") {
     rmSync(join(targetDir, "apps", "api-server", "src", "telemetry.ts"), { force: true });
   }
