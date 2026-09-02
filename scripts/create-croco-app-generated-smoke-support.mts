@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { parse as parseYaml } from "yaml";
+
+const requireFromHere = createRequire(import.meta.url);
 
 export const dependencyFields = [
   "dependencies",
@@ -292,7 +294,10 @@ export function writePnpmWorkspaceOverrides(
 }
 
 function readPnpmWorkspaceOverrides(content: string): Readonly<Record<string, string>> {
-  const workspace = parseYaml(content) as unknown;
+  const yaml = requireFromHere("yaml") as {
+    readonly parse: (source: string) => unknown;
+  };
+  const workspace = yaml.parse(content);
   if (!isRecord(workspace) || !isRecord(workspace.overrides)) {
     return {};
   }

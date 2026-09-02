@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execPath } from "node:process";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { RELEASE_GATE_MAINTENANCE_PATHS } from "../release-gate-maintenance.mts";
 import {
@@ -16,6 +18,40 @@ import {
 import { formatVerificationProblem, VerificationProblem } from "../verification-problem.mts";
 
 describe("verification change classifier", () => {
+  it("loads before dependencies are installed", () => {
+    const root = mkdtempSync(join(tmpdir(), "croco-verification-classifier-loader-"));
+    try {
+      const loaderPath = join(root, "reject-yaml-loader.mjs");
+      writeFileSync(
+        loaderPath,
+        [
+          "export async function resolve(specifier, context, nextResolve) {",
+          '  if (specifier === "yaml") throw new Error("yaml loaded during classification");',
+          "  return nextResolve(specifier, context);",
+          "}",
+        ].join("\n"),
+      );
+      const classifierUrl = new URL("../verification-change-classifier.mts", import.meta.url).href;
+
+      expect(() =>
+        execFileSync(
+          execPath,
+          [
+            "--experimental-strip-types",
+            "--experimental-loader",
+            pathToFileURL(loaderPath).href,
+            "--input-type=module",
+            "--eval",
+            `await import(${JSON.stringify(classifierUrl)});`,
+          ],
+          { stdio: "pipe" },
+        ),
+      ).not.toThrow();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it("keeps both sides of a rename out of a watched path", () => {
     const root = mkdtempSync(join(tmpdir(), "croco-verification-classifier-"));
     try {
