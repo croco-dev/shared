@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   CloudflareFetchEnv,
   CloudflareHostExecutionContext,
+  CloudflareHostRawHonoFetch,
   ExecutionContext,
 } from "../fetch";
 import {
@@ -194,6 +195,21 @@ describe("createWorkerFetchHandler", () => {
       }),
       { env, executionContext: ctx },
     );
+  });
+
+  it("requires raw Hono forwarding to select the explicit dispatch mode", async () => {
+    const request = new Request("https://example.com/users");
+    const response = new Response("ok");
+    const env: CloudflareFetchEnv = {};
+    const ctx = createHostExecutionContext();
+    const fetch: CloudflareHostRawHonoFetch = vi.fn(async () => response);
+
+    // @ts-expect-error Raw Hono callbacks must opt into raw-Hono argument dispatch.
+    createCloudflareWorkersHost({ fetch });
+    const handler = createCloudflareWorkersHost({ fetch }, { mode: "raw-hono" });
+
+    await expect(handler(request, env, ctx)).resolves.toBe(response);
+    expect(fetch).toHaveBeenCalledWith(request, env, ctx);
   });
 
   it("keeps raw Hono forwarding behind an explicit compatibility helper", async () => {

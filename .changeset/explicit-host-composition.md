@@ -18,4 +18,5 @@ Expose host, transport, and build-target composition as separate runtime metadat
 to their owning application scope, preserve the legacy Cloudflare handler context, and teach generated
 apps and presentation adapters to use explicit host and build-target entry points. Generated Lambda and
 Cloudflare SaaS apps now advertise commands that validate their actual deployment targets, including a
-Wrangler configuration with explicit Node.js compatibility for the generated Worker composition.
+Wrangler configuration with explicit Node.js compatibility for the generated Worker composition. Raw
+Hono callbacks must explicitly select raw-Hono dispatch when using the canonical Cloudflare host.

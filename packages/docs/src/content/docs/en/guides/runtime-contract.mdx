@@ -69,6 +69,9 @@ falling back silently.
 `RuntimeCapabilityManifest.composition` records host, transports, and build target separately. The
 host uses one `platform` and lifecycle, each transport records a protocol and optional package, and
 the build target records artifact metadata without claiming lifecycle ownership.
+Each manifest describes one selected runtime composition. A project that ships optional host
+entrypoints keeps the default composition in the canonical manifest and documents the alternative
+entrypoints explicitly; the manifest is not an inventory of every deployable variant.
 
 ```typescript typecheck
 import { createRuntimeCapabilityManifest } from "@croco/framework-context";

@@ -12,7 +12,7 @@ execution remains separate.
 - `createCloudflareWorkersHost` - creates the canonical Workers fetch host.
 - `createCloudflareBuildTarget` - creates the Workers build target.
 - `CloudflareBuildTargetOptions` - canonical build-target options.
-- `createWorkerFetchHandler` - deprecated compatibility alias for `createCloudflareWorkersHost`.
+- `createWorkerFetchHandler` - deprecated compatibility adapter with the legacy runtime-context shape.
 - `createCloudflarePreset` - deprecated compatibility alias for `createCloudflareBuildTarget`.
 - `CloudflarePresetOptions` - deprecated compatibility alias for `CloudflareBuildTargetOptions`.
 - `createRawHonoWorkerFetchHandler` - explicit compatibility path for raw Hono forwarding.

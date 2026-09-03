@@ -91,6 +91,14 @@ export type WorkerFetchHandlerOptions = {
 };
 
 export function createCloudflareWorkersHost(
+  honoApp: { readonly fetch: CloudflareHostAppFetch },
+  options?: { readonly mode?: "runtime" },
+): CloudflareHostFetchHandler;
+export function createCloudflareWorkersHost(
+  honoApp: { readonly fetch: CloudflareHostRawHonoFetch },
+  options: { readonly mode: "raw-hono" },
+): CloudflareHostFetchHandler;
+export function createCloudflareWorkersHost(
   honoApp: {
     readonly fetch: CloudflareHostAppFetch | CloudflareHostRawHonoFetch;
   },
