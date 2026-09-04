@@ -13,6 +13,7 @@ import {
   findRequiredWorkflowPolicyViolations,
 } from "../branch-protection-policy.mts";
 import { createVerificationManifest, getVerificationCommand } from "../verification-manifest.mts";
+import { parseArgs as parseVerificationArgs } from "../release-spine-evidence.mts";
 import { ensureSarif, GITLEAKS_CORE_ARGS } from "../security-gitleaks-smoke.mts";
 import {
   findTrustedGitleaksImageViolations,
@@ -682,9 +683,17 @@ describe("CI verification profile contract", () => {
     );
   });
 
-  it("allows the selected profile and full changed-test shadow suite to finish", () => {
-    expect(VALIDATE_JOB).toContain("    timeout-minutes: 90");
-  });
+  it.each(["repo", "spine", "publish"])(
+    "leaves 30 minutes outside the %s profile for setup and post-verification evidence",
+    (profile) => {
+      const profileTimeoutMinutes =
+        parseVerificationArgs(["--profile", profile, "--output-dir", tmpdir()]).totalTimeoutMs /
+        60_000;
+      expect(WORKFLOW_DOCUMENT.getIn(["jobs", "validate", "timeout-minutes"])).toBe(
+        profileTimeoutMinutes + 30,
+      );
+    },
+  );
 
   it("measures the complete validate-job boundary after post-spine checks", () => {
     expect(workflowStep("Start validate performance measurement")).toContain(
