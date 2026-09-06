@@ -45,9 +45,9 @@ Cloudinary 업로드에 사용할 확장 옵션입니다.
 
 ### resourceType?
 
-> `optional` **resourceType?**: `"image"`
+> `optional` **resourceType?**: `"image"` \| `"video"` \| `"raw"`
 
-리소스 타입. CloudinaryProvider는 전체 객체 lifecycle에서 image만 지원합니다.
+리소스 타입. CloudinaryProvider는 키 확장자로 전체 객체 lifecycle의 타입을 결정합니다.
 
 ---
 
