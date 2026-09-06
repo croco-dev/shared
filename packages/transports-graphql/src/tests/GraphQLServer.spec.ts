@@ -824,6 +824,12 @@ describe("GraphQLServer integration", () => {
     { name: "missing HTTP/1.0 Host", version: "1.0", host: undefined, authority: "localhost" },
     { name: "unbracketed IPv6 Host", version: "1.1", host: "::1", authority: "localhost" },
     { name: "invalid character in Host", version: "1.1", host: "bad host", authority: "localhost" },
+    {
+      name: "embedded tab in Host",
+      version: "1.1",
+      host: "exa\tmple.test",
+      authority: "localhost",
+    },
     { name: "malformed bracketed Host", version: "1.1", host: "[", authority: "localhost" },
     { name: "userinfo in Host", version: "1.1", host: "user@localhost", authority: "localhost" },
     { name: "path in Host", version: "1.1", host: "example.test/path", authority: "localhost" },

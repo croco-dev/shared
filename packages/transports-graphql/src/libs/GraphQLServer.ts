@@ -164,7 +164,7 @@ export class GraphQLServer {
           abortScope.signal.throwIfAborted();
           const host = req.headers.host;
           const baseUrl =
-            host && !/[\\/?#@]/.test(host) && URL.canParse(`http://${host}`)
+            host && !/[\s\\/?#@]/.test(host) && URL.canParse(`http://${host}`)
               ? `http://${host}`
               : "http://localhost";
           const url = new URL(req.url || "/", baseUrl);
