@@ -38,6 +38,7 @@ import {
   type GeneratedSaasProfileMode,
 } from "./generatedSaasProviderProfile";
 import { NoopTxAdapter } from "./inMemoryAdapters";
+import { ApplicationBootstrapProblem } from "./problems";
 import {
   DemoBillingGateway,
   SAAS_RUNTIME_STATE_TOKEN,
@@ -113,6 +114,7 @@ export async function createCrocoApp(
     assertGeneratedSaasProfileGraph(runtime.createGraphManifest(), profileMode);
     const gracefulShutdown = createGracefulShutdownController({
       logger,
+      ...(options.hostPlatform === undefined ? {} : { signals: [] }),
       onShutdown: () => runtime.dispose(),
     });
     disposeApplicationRuntime = gracefulShutdown.shutdown;
@@ -158,7 +160,11 @@ export async function createCrocoApp(
       );
     });
   } catch (error) {
-    await disposeApplicationRuntime();
+    try {
+      await disposeApplicationRuntime();
+    } catch (cleanupFailure) {
+      throw new ApplicationBootstrapProblem(error, cleanupFailure);
+    }
     throw error;
   }
 }

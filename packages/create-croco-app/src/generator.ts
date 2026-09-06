@@ -542,9 +542,7 @@ function writeSaasProviderPackageDependencies(
       force: true,
     });
   }
-  if (manifest.profile.runtimeTarget === "cloudflare-workers") {
-    rmSync(join(targetDir, "apps", "api-server", "src", "telemetry.ts"), { force: true });
-  } else {
+  if (manifest.profile.runtimeTarget !== "cloudflare-workers") {
     rmSync(join(targetDir, "apps", "api-server", "wrangler.toml"), { force: true });
   }
 }

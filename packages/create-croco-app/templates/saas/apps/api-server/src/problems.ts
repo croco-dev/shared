@@ -1,7 +1,7 @@
 import { Problem, ProblemCategory } from "@croco/problems-core";
 
 export type ApplicationCleanupFailure = {
-  readonly phase: "telemetry-force-flush" | "telemetry-shutdown" | "application-runtime-dispose";
+  readonly phase: "telemetry-force-flush" | "application-runtime-dispose";
   readonly cause: unknown;
 };
 
@@ -27,6 +27,26 @@ export class ApplicationCleanupProblem extends Problem {
       ...(firstCause instanceof Error ? { cause: firstCause } : {}),
     });
     this.cleanupFailures = cleanupFailures;
+  }
+}
+
+export class ApplicationBootstrapProblem extends Problem {
+  readonly code = "saas-demo/application-bootstrap-failed";
+  readonly category = ProblemCategory.InternalServerError;
+
+  constructor(bootstrapFailure: unknown, cleanupFailure: unknown) {
+    super(undefined, undefined, "Application bootstrap and runtime disposal both failed.", {
+      extensions: {
+        bootstrapFailure: describeFailure(bootstrapFailure),
+        cleanupFailures: [
+          {
+            phase: "application-runtime-dispose",
+            detail: describeFailure(cleanupFailure),
+          },
+        ],
+      },
+      ...(bootstrapFailure instanceof Error ? { cause: bootstrapFailure } : {}),
+    });
   }
 }
 

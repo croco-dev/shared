@@ -321,6 +321,7 @@ function readSaasProviderProfileReferences(
   const profileEnd =
     nextProfileStart === -1 ? source.indexOf("\n} as const", profileStart) : nextProfileStart;
   const profileSource = source.slice(profileStart, profileEnd);
+  const references = new Set<string>();
   const pluginCatalogName = /plugins: ([A-Z][A-Z0-9_]+),/.exec(profileSource)?.[1];
   if (pluginCatalogName) {
     const catalogStart = source.indexOf(`const ${pluginCatalogName} = [`);
@@ -329,9 +330,10 @@ function readSaasProviderProfileReferences(
       catalogStart,
     );
     if (catalogStart === -1 || catalogEnd === -1) return [];
-    return [
-      ...new Set(source.slice(catalogStart, catalogEnd).match(CROCO_PACKAGE_REFERENCE) ?? []),
-    ];
+    for (const reference of source.slice(catalogStart, catalogEnd).match(CROCO_PACKAGE_REFERENCE) ??
+      []) {
+      references.add(reference);
+    }
   }
   const packagesStart = source.indexOf("packages: [", profileStart);
   const packagesEnd = source.indexOf("],", packagesStart);
@@ -344,9 +346,11 @@ function readSaasProviderProfileReferences(
   ) {
     return [];
   }
-  return [
-    ...new Set(source.slice(packagesStart, packagesEnd).match(CROCO_PACKAGE_REFERENCE) ?? []),
-  ];
+  for (const reference of source.slice(packagesStart, packagesEnd).match(CROCO_PACKAGE_REFERENCE) ??
+    []) {
+    references.add(reference);
+  }
+  return [...references];
 }
 
 function readTenantModelReferences(

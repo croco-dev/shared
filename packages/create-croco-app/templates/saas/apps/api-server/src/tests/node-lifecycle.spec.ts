@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeHostLifecycleProblem } from "../problems";
 
 const lifecycle = vi.hoisted(() => ({
+  createCrocoApp: vi.fn(),
   disposeApplicationRuntime: vi.fn(),
   forceFlush: vi.fn(),
   hostClose: vi.fn(),
@@ -17,18 +18,11 @@ vi.mock("@croco/preset-node", () => ({
 }));
 
 vi.mock("../app", () => ({
-  createCrocoApp: () => ({
-    disposeApplicationRuntime: lifecycle.disposeApplicationRuntime,
-    getHono: () => ({ fetch: vi.fn() }),
-  }),
+  createCrocoApp: lifecycle.createCrocoApp,
 }));
 
-vi.mock("../telemetry", () => ({
-  telemetry: {
-    forceFlush: lifecycle.forceFlush,
-    shutdown: lifecycle.telemetryShutdown,
-  },
-  telemetryReady: Promise.resolve(),
+vi.mock("@croco/telemetry-sdk-node", () => ({
+  TELEMETRY_RUNTIME_TOKEN: Symbol("telemetry-runtime"),
 }));
 
 import { startNodeApplication } from "../index";
@@ -41,6 +35,50 @@ describe("Node application lifecycle", () => {
     lifecycle.hostStart.mockResolvedValue(undefined);
     lifecycle.telemetryShutdown.mockResolvedValue({ outcome: "completed" });
     lifecycle.disposeApplicationRuntime.mockResolvedValue(undefined);
+    lifecycle.createCrocoApp.mockResolvedValue({
+      applicationRuntime: {
+        get: () => ({
+          forceFlush: lifecycle.forceFlush,
+          shutdown: lifecycle.telemetryShutdown,
+        }),
+      },
+      disposeApplicationRuntime: lifecycle.disposeApplicationRuntime,
+      getHono: () => ({ fetch: vi.fn() }),
+    });
+  });
+
+  it("waits for the production application before starting the host", async () => {
+    const app = await lifecycle.createCrocoApp();
+    lifecycle.createCrocoApp.mockClear();
+    let resolveApplication: (value: typeof app) => void = () => undefined;
+    lifecycle.createCrocoApp.mockReturnValue(
+      new Promise((resolve) => {
+        resolveApplication = resolve;
+      }),
+    );
+
+    const starting = startNodeApplication();
+    await Promise.resolve();
+
+    expect(lifecycle.createCrocoApp).toHaveBeenCalledWith({
+      profileMode: "production",
+      hostPlatform: "node",
+    });
+    expect(lifecycle.hostStart).not.toHaveBeenCalled();
+    resolveApplication(app);
+    const running = await starting;
+    expect(lifecycle.hostStart).toHaveBeenCalledOnce();
+    await running.close();
+  });
+
+  it("preserves asynchronous bootstrap failure without starting the host", async () => {
+    const failure = new Error("provider initialization failed");
+    lifecycle.createCrocoApp.mockRejectedValue(failure);
+
+    await expect(startNodeApplication()).rejects.toBe(failure);
+    expect(lifecycle.hostStart).not.toHaveBeenCalled();
+    expect(lifecycle.forceFlush).not.toHaveBeenCalled();
+    expect(lifecycle.disposeApplicationRuntime).not.toHaveBeenCalled();
   });
 
   it("preserves a host start failure when cleanup also fails", async () => {
@@ -63,26 +101,26 @@ describe("Node application lifecycle", () => {
         ],
       },
     });
-    expect(lifecycle.telemetryShutdown).toHaveBeenCalledOnce();
+    expect(lifecycle.telemetryShutdown).not.toHaveBeenCalled();
     expect(lifecycle.disposeApplicationRuntime).toHaveBeenCalledOnce();
   });
 
-  it("closes the host, telemetry, and application runtime once", async () => {
+  it("closes the host and runtime once, leaving telemetry shutdown to its plugin owner", async () => {
     const running = await startNodeApplication();
 
     await Promise.all([running.close(), running.close()]);
 
     expect(lifecycle.hostClose).toHaveBeenCalledOnce();
     expect(lifecycle.forceFlush).toHaveBeenCalledOnce();
-    expect(lifecycle.telemetryShutdown).toHaveBeenCalledOnce();
+    expect(lifecycle.telemetryShutdown).not.toHaveBeenCalled();
     expect(lifecycle.disposeApplicationRuntime).toHaveBeenCalledOnce();
   });
 
   it("preserves a host close failure when cleanup also fails", async () => {
     const hostFailure = new Error("server close failed");
-    const cleanupFailure = new Error("telemetry shutdown failed");
+    const cleanupFailure = new Error("runtime disposal failed");
     lifecycle.hostClose.mockRejectedValue(hostFailure);
-    lifecycle.telemetryShutdown.mockRejectedValue(cleanupFailure);
+    lifecycle.disposeApplicationRuntime.mockRejectedValue(cleanupFailure);
     const running = await startNodeApplication();
 
     const failure = await running.close().catch((cause: unknown) => cause);
@@ -95,7 +133,7 @@ describe("Node application lifecycle", () => {
         operation: "close",
         hostFailure: "Error: server close failed",
         cleanupFailures: [
-          { phase: "telemetry-shutdown", detail: "Error: telemetry shutdown failed" },
+          { phase: "application-runtime-dispose", detail: "Error: runtime disposal failed" },
         ],
       },
     });

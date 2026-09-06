@@ -20,3 +20,7 @@ apps and presentation adapters to use explicit host and build-target entry point
 Cloudflare SaaS apps now advertise commands that validate their actual deployment targets, including a
 Wrangler configuration with explicit Node.js compatibility for the generated Worker composition. Raw
 Hono callbacks must explicitly select raw-Hono dispatch when using the canonical Cloudflare host.
+
+Generated SaaS hosts await provider initialization and leave telemetry shutdown to the application
+runtime. Lambda and Workers host artifacts do not enable their documentation-only SaaS provider
+composition; invoking those profiles still reports `CROCO_SAAS_PROFILE_RUNTIME_UNAVAILABLE`.

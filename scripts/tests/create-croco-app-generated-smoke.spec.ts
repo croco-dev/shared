@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
 import { GOAL_SPECS } from "../../packages/create-croco-app/src/goals.ts";
 import { SUPPORTED_CREATE_CROCO_APP_CHOICES } from "../../packages/create-croco-app/src/supported-options.ts";
@@ -1440,6 +1441,37 @@ describe("create-croco-app generated smoke matrix", () => {
       }),
     );
   });
+
+  it.each([
+    { status: 500, body: "CROCO_SAAS_PROFILE_RUNTIME_UNAVAILABLE: saas-cloudflare", passes: true },
+    { status: 500, body: "unrelated runtime failure", passes: false },
+    { status: 200, body: "CROCO_SAAS_PROFILE_RUNTIME_UNAVAILABLE", passes: false },
+    { status: 503, body: "CROCO_SAAS_PROFILE_RUNTIME_UNAVAILABLE", passes: false },
+  ])(
+    "requires the exact unsupported-provider Worker response ($status, $body)",
+    async ({ status, body, passes }) => {
+      const validation = getGeneratedSmokeDependencyCaseInputs()
+        .find(({ name }) => name === "saas-cloudflare-profile")
+        ?.validations.find(({ label }) => label === "Wrangler workerd runtime smoke");
+      const script = validation?.args?.at(-1);
+      if (!script) throw new Error("Missing Wrangler runtime smoke script");
+      let stopped = false;
+      const execution = runInNewContext(
+        `(async () => { ${script.replace('import { unstable_dev } from "wrangler";', "")} })()`,
+        {
+          unstable_dev: async () => ({
+            fetch: async () => ({ status, text: async () => body }),
+            stop: async () => {
+              stopped = true;
+            },
+          }),
+        },
+      );
+      if (passes) await expect(execution).resolves.toBeUndefined();
+      else await expect(execution).rejects.toThrow();
+      expect(stopped).toBe(true);
+    },
+  );
 
   it("keeps REST SPA contract canaries selectable in the blocking tier", () => {
     expect(

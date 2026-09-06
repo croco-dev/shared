@@ -2726,9 +2726,7 @@ describe("E2E: generate()", () => {
           candidate === source,
         );
       }
-      expect(existsSync(join(testDir, "apps", "api-server", "src", "telemetry.ts"))).toBe(
-        platform !== "cloudflare-workers",
-      );
+      expect(existsSync(join(testDir, "apps", "api-server", "src", "telemetry.ts"))).toBe(false);
       expect(
         existsSync(join(testDir, "apps", "api-server", "src", "tests", "node-lifecycle.spec.ts")),
       ).toBe(platform === "node");

@@ -1,7 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { runInNewContext } from "node:vm";
+import { ModuleKind, transpileModule } from "typescript";
+import { describe, expect, it, vi } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { renderHandlebars } from "../helpers/fs.js";
 import { getSaasProviderPackageDependencyRange } from "../saas-provider-profiles.js";
@@ -13,6 +15,81 @@ const FIXTURE_TEMPLATES_DIR = join(
   "templates",
 );
 const FIXTURE_TEMPLATE_NAMES = new Set(["container-fullstack", "ssr-lambda"]);
+
+describe.each(["lambda", "worker"] as const)("SaaS %s async host bootstrap", (entry) => {
+  function loadEntry(createCrocoApp: ReturnType<typeof vi.fn>) {
+    const host = vi.fn(async () => "response");
+    const createHost = vi.fn(() => host);
+    const exports: Record<string, unknown> = {};
+    const source = readFileSync(
+      templatePath("saas", "apps", "api-server", "src", `${entry}.ts`),
+      "utf8",
+    );
+    const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } });
+    runInNewContext(compiled.outputText, {
+      exports,
+      require: (specifier: string) => {
+        if (specifier === "./app") return { createCrocoApp };
+        if (specifier === "@croco/preset-lambda") return { createLambdaHost: createHost };
+        if (specifier === "@croco/preset-cloudflare")
+          return { createCloudflareWorkersHost: createHost };
+        if (specifier === "@croco/telemetry-sdk-node")
+          return { TELEMETRY_RUNTIME_TOKEN: Symbol("telemetry") };
+        throw new Error(`Unexpected host entry import: ${specifier}`);
+      },
+    });
+    const callback =
+      entry === "lambda"
+        ? (exports.handler as (...args: unknown[]) => Promise<unknown>)
+        : (exports.default as { fetch: (...args: unknown[]) => Promise<unknown> }).fetch;
+    return { callback, createHost, host };
+  }
+
+  it("waits for one asynchronous provider graph before dispatching concurrent requests", async () => {
+    let resolveApp: (app: object) => void = () => undefined;
+    const createCrocoApp = vi.fn(
+      () =>
+        new Promise<object>((resolve) => {
+          resolveApp = resolve;
+        }),
+    );
+    const { callback, createHost, host } = loadEntry(createCrocoApp);
+    expect(createCrocoApp).not.toHaveBeenCalled();
+
+    const first = callback("request", {}, {});
+    const second = callback("request", {}, {});
+    expect(createCrocoApp).toHaveBeenCalledOnce();
+    expect(createCrocoApp).toHaveBeenCalledWith({
+      hostPlatform: entry === "lambda" ? "lambda" : "cloudflare-workers",
+    });
+    expect(createHost).not.toHaveBeenCalled();
+    resolveApp({
+      getHono: () => ({}),
+      applicationRuntime: {
+        get: () => ({ forceFlush: vi.fn() }),
+        bindHostCallback: (callback: unknown) => callback,
+      },
+    });
+    await expect(Promise.all([first, second])).resolves.toEqual(["response", "response"]);
+    expect(createHost).toHaveBeenCalledOnce();
+    expect(host).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves and caches unsupported provider bootstrap failure without dispatch", async () => {
+    const failure = Object.assign(new Error("Provider composition is documentation-only"), {
+      code: "CROCO_SAAS_PROFILE_RUNTIME_UNAVAILABLE",
+    });
+    const createCrocoApp = vi.fn(async () => {
+      throw failure;
+    });
+    const { callback, createHost } = loadEntry(createCrocoApp);
+
+    await expect(callback("request", {}, {})).rejects.toBe(failure);
+    await expect(callback("request", {}, {})).rejects.toBe(failure);
+    expect(createCrocoApp).toHaveBeenCalledOnce();
+    expect(createHost).not.toHaveBeenCalled();
+  });
+});
 const GENERATED_API_DI_GRAPH_SCRIPT =
   "cross-env NODE_OPTIONS=--import=tsx croco di graph --module src/app.ts --bootstrap createCrocoApp --roots createCrocoDiGraphRoots --write ../../.croco/build/di-graph.manifest.json";
 const GENERATED_SAAS_API_DI_GRAPH_SCRIPT =
@@ -966,7 +1043,11 @@ function checkSaasStructure() {
     ["apps", "api-server", "src", "worker.ts"],
     /createCloudflareWorkersHost/,
   );
-  checkFileContains("saas", ["apps", "api-server", "src", "telemetry.ts"], /TelemetryRuntime/);
+  checkFileContains(
+    "saas",
+    ["apps", "api-server", "src", "index.ts"],
+    /applicationRuntime\.get\(TELEMETRY_RUNTIME_TOKEN\)/,
+  );
   checkFileDoesNotContain(
     "saas",
     ["apps", "api-server", "src", "index.ts"],

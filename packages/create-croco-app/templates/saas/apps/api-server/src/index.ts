@@ -1,5 +1,6 @@
 import { createNodeHost } from "@croco/preset-node";
 import type { NodeHost, NodeHostOptions } from "@croco/preset-node";
+import { TELEMETRY_RUNTIME_TOKEN } from "@croco/telemetry-sdk-node";
 import { createCrocoApp } from "./app";
 import type { RuntimeOwnedCrocoApp } from "./app";
 import {
@@ -8,7 +9,6 @@ import {
   NodeHostLifecycleProblem,
 } from "./problems";
 import type { ApplicationCleanupFailure } from "./problems";
-import { telemetry, telemetryReady } from "./telemetry";
 
 export type RunningNodeApplication = {
   readonly app: RuntimeOwnedCrocoApp;
@@ -29,18 +29,12 @@ async function shutdownApplication(app: RuntimeOwnedCrocoApp): Promise<void> {
   const cleanupFailures: ApplicationCleanupFailure[] = [];
 
   try {
-    const flush = await telemetry.forceFlush();
+    const flush = await app.applicationRuntime.get(TELEMETRY_RUNTIME_TOKEN).forceFlush();
     if (flush.outcome === "failed") {
       cleanupFailures.push({ phase: "telemetry-force-flush", cause: flush.error });
     }
   } catch (cause) {
     cleanupFailures.push({ phase: "telemetry-force-flush", cause });
-  }
-
-  try {
-    await telemetry.shutdown();
-  } catch (cause) {
-    cleanupFailures.push({ phase: "telemetry-shutdown", cause });
   }
 
   try {
@@ -71,7 +65,6 @@ async function rethrowHostFailureAfterCleanup(
 export async function startNodeApplication(
   options: NodeHostOptions = {},
 ): Promise<RunningNodeApplication> {
-  await telemetryReady;
   const port = parsePort(process.env.PORT);
   const app = await createCrocoApp({ profileMode: "production", hostPlatform: "node" });
   const host = createNodeHost(app.getHono(), { port, ...options });
