@@ -342,6 +342,68 @@ describe("ResendProvider", () => {
       expect(JSON.stringify(vi.mocked(recordEvent).mock.calls)).not.toContain("fixed-key");
     });
 
+    it("should use metadata idempotency keys and let send options take precedence", async () => {
+      vi.mocked(mockResendClient.emails.send).mockResolvedValue(mockSuccessResponse);
+      const payload: NotificationPayload = {
+        to: "recipient@example.com",
+        content: "Hello",
+        metadata: { idempotencyKey: "metadata-key" },
+      };
+
+      await provider.send(payload);
+      await provider.send(payload, { idempotencyKey: "options-key" });
+
+      expect(
+        vi.mocked(mockResendClient.emails.send).mock.calls.map(([, options]) => options),
+      ).toEqual([{ idempotencyKey: "metadata-key" }, { idempotencyKey: "options-key" }]);
+      expect(recordEvent).toHaveBeenCalledWith(
+        "notifications.resend.send.accepted",
+        expect.objectContaining({ "notification.idempotency_key.source": "provided" }),
+      );
+      expect(JSON.stringify(vi.mocked(recordEvent).mock.calls)).not.toContain("metadata-key");
+    });
+
+    it.each([undefined, null, 123, false, {}, []])(
+      "should generate distinct keys when metadata idempotency key is not a string: %j",
+      async (idempotencyKey) => {
+        vi.mocked(mockResendClient.emails.send).mockResolvedValue(mockSuccessResponse);
+        const payload: NotificationPayload = {
+          to: "recipient@example.com",
+          content: "Hello",
+          metadata: { idempotencyKey },
+        };
+
+        await provider.sendBatch([payload, payload]);
+
+        const keys = vi
+          .mocked(mockResendClient.emails.send)
+          .mock.calls.map(([, options]) => options?.idempotencyKey);
+        expect(keys).toEqual([
+          expect.stringMatching(/^resend-[0-9a-f-]{36}$/),
+          expect.stringMatching(/^resend-[0-9a-f-]{36}$/),
+        ]);
+        expect(new Set(keys).size).toBe(2);
+      },
+    );
+
+    it("should report metadata idempotency keys as provided on validation failure", async () => {
+      const result = await provider.send({
+        to: "invalid-recipient",
+        content: "Hello",
+        metadata: { idempotencyKey: "metadata-key" },
+      });
+
+      expect(result.success).toBe(false);
+      expect(mockResendClient.emails.send).not.toHaveBeenCalled();
+      expect(recordEvent).toHaveBeenCalledWith(
+        "notifications.resend.send.failed",
+        expect.objectContaining({
+          "notification.idempotency_key.present": true,
+          "notification.idempotency_key.source": "provided",
+        }),
+      );
+    });
+
     it("should send custom email headers", async () => {
       vi.mocked(mockResendClient.emails.send).mockResolvedValue(mockSuccessResponse);
 
@@ -914,6 +976,50 @@ describe("ResendProvider", () => {
       expect(results).toHaveLength(3);
       expect(getSuccessfulMessageIds(results)).toEqual(["msg-1", "msg-2", "msg-3"]);
       expect(mockResendClient.emails.send).toHaveBeenCalledTimes(3);
+    });
+
+    it("should preserve per-payload metadata keys when retrying a partially failed batch", async () => {
+      const payloads: NotificationPayload[] = Array.from({ length: 6 }, (_, index) => ({
+        to: `user${index}@example.com`,
+        content: "Hello",
+        metadata: { idempotencyKey: `batch-message-${index}` },
+      }));
+      let upstreamUnavailable = true;
+      vi.mocked(mockResendClient.emails.send).mockImplementation(async (emailOptions) => {
+        if (upstreamUnavailable && emailOptions.to === "user5@example.com") {
+          return {
+            data: null,
+            error: { name: "rate_limit_exceeded", message: "Rate limit exceeded" },
+          };
+        }
+        return { data: { id: `msg-${emailOptions.to}` }, error: null };
+      });
+
+      const firstResults = await provider.sendBatch(payloads);
+      expect(firstResults.map((result) => result.success)).toEqual([
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+      ]);
+      expect(mockResendClient.emails.send).toHaveBeenCalledTimes(8);
+      upstreamUnavailable = false;
+
+      const retryProvider = new ResendProvider(mockConfig);
+      const retryPayloads = structuredClone(payloads).reverse();
+      const retryResults = await retryProvider.sendBatch(retryPayloads);
+
+      expect(retryResults.every((result) => result.success)).toBe(true);
+      expect(mockResendClient.emails.send).toHaveBeenCalledTimes(14);
+      for (const [emailOptions, options] of vi.mocked(mockResendClient.emails.send).mock.calls) {
+        const payload = payloads.find((item) => item.to === emailOptions.to);
+        expect(options?.idempotencyKey).toBe(payload?.metadata?.idempotencyKey);
+      }
+      expect(payloads.map((payload) => payload.metadata?.idempotencyKey)).toEqual(
+        Array.from({ length: 6 }, (_, index) => `batch-message-${index}`),
+      );
     });
 
     it("should handle mixed success and failure in batch", async () => {

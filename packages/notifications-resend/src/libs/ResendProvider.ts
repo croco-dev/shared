@@ -73,10 +73,19 @@ export class ResendProvider implements NotificationProvider {
     payload: NotificationPayload,
     options?: NotificationSendOptions,
   ): Promise<NotificationResult> {
+    const providedIdempotencyKey =
+      options?.idempotencyKey ??
+      (typeof payload.metadata?.idempotencyKey === "string"
+        ? payload.metadata.idempotencyKey
+        : undefined);
     const validationProblem = validateResendPayload(payload);
 
     if (validationProblem !== undefined) {
-      recordResendFailure(payload, getIdempotencyKeySource(options), validationProblem);
+      recordResendFailure(
+        payload,
+        providedIdempotencyKey === undefined ? "not_created" : "provided",
+        validationProblem,
+      );
 
       return {
         success: false,
@@ -85,9 +94,9 @@ export class ResendProvider implements NotificationProvider {
     }
 
     const { to, subject, content } = payload;
-    const idempotencyKey = options?.idempotencyKey ?? `resend-${randomUUID()}`;
+    const idempotencyKey = providedIdempotencyKey ?? `resend-${randomUUID()}`;
     const idempotencyKeySource: ResendIdempotencyKeySource =
-      options?.idempotencyKey === undefined ? "generated" : "provided";
+      providedIdempotencyKey === undefined ? "generated" : "provided";
     const redactionValues = getResendProblemRedactionValues(payload, idempotencyKey);
 
     try {
@@ -215,12 +224,6 @@ function toTextContent(content: string): string {
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function getIdempotencyKeySource(
-  options: NotificationSendOptions | undefined,
-): ResendIdempotencyKeySource {
-  return options?.idempotencyKey === undefined ? "not_created" : "provided";
 }
 
 function validateResendPayload(payload: NotificationPayload): Problem | undefined {
