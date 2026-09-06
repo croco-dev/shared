@@ -162,9 +162,12 @@ export class GraphQLServer {
         phase = "request-url";
         return FrameworkContext.run({ requestId }, async () => {
           abortScope.signal.throwIfAborted();
-          const url = req.url
-            ? new URL(req.url, `http://${req.headers.host}`)
-            : new URL("http://localhost");
+          const host = req.headers.host;
+          const baseUrl =
+            host && !/[\\/?#@]/.test(host) && URL.canParse(`http://${host}`)
+              ? `http://${host}`
+              : "http://localhost";
+          const url = new URL(req.url || "/", baseUrl);
           const method = req.method || "GET";
 
           let body: string | undefined;
@@ -211,7 +214,7 @@ export class GraphQLServer {
       const requestLifecycle = Promise.race([nodeRequest, abortScope.aborted]);
 
       void requestLifecycle
-        .catch((error: unknown) => this.handleNodeRequestFailure(error, phase, res))
+        .catch((error: unknown) => this.handleNodeRequestFailure(error, phase, req, res))
         .catch((error: unknown) => {
           this.recordNodeRequestFailure(error, "response-write");
           if (!res.destroyed) {
@@ -366,6 +369,7 @@ export class GraphQLServer {
   private async handleNodeRequestFailure(
     error: unknown,
     phase: NodeRequestPhase,
+    req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> {
     this.recordNodeRequestFailure(error, phase);
@@ -398,10 +402,17 @@ export class GraphQLServer {
 
     res.statusCode = problem.status;
     res.setHeader("content-type", "application/problem+json");
-    if (problem instanceof GraphQLRequestBodyTooLargeProblem) {
+    const bodyTooLarge = problem instanceof GraphQLRequestBodyTooLargeProblem;
+    if (bodyTooLarge) {
       res.setHeader("connection", "close");
     }
-    await this.writeNodeResponse(res, JSON.stringify(body));
+    try {
+      await this.writeNodeResponse(res, JSON.stringify(body));
+    } finally {
+      if (bodyTooLarge) {
+        req.destroy();
+      }
+    }
   }
 
   private writeNodeResponse(res: ServerResponse, body: string): Promise<void> {

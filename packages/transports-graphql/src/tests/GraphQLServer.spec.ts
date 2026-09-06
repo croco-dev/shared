@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { getEventListeners } from "node:events";
 import { IncomingMessage, request as httpRequest, ServerResponse } from "node:http";
+import type { Server } from "node:http";
 import { connect } from "node:net";
 import { Container } from "@croco/framework-context";
 import { Logger } from "@croco/framework-logger";
@@ -819,27 +820,66 @@ describe("GraphQLServer integration", () => {
     await testServer.stop();
   });
 
-  it("should convert malformed Node requests into a complete redacted response", async () => {
+  it.each([
+    { name: "missing HTTP/1.0 Host", version: "1.0", host: undefined, authority: "localhost" },
+    { name: "unbracketed IPv6 Host", version: "1.1", host: "::1", authority: "localhost" },
+    { name: "invalid character in Host", version: "1.1", host: "bad host", authority: "localhost" },
+    { name: "malformed bracketed Host", version: "1.1", host: "[", authority: "localhost" },
+    { name: "userinfo in Host", version: "1.1", host: "user@localhost", authority: "localhost" },
+    { name: "path in Host", version: "1.1", host: "example.test/path", authority: "localhost" },
+    {
+      name: "valid Host",
+      version: "1.1",
+      host: "example.test:8080",
+      authority: "example.test:8080",
+    },
+  ])(
+    "should resolve $name to $authority and execute the request",
+    async ({ version, host, authority }) => {
+      const testServer = new GraphQLServer({
+        schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+      });
+      await testServer.initialize();
+      const yogaHandler = vi.fn(async (request: Request) => new Response(request.url));
+      Reflect.set(testServer, "yogaHandler", yogaHandler);
+      await testServer.start(4004);
+
+      try {
+        const hostHeader = host === undefined ? "" : `Host: ${host}\r\n`;
+        const response = await sendRawHttpRequest(
+          4004,
+          `GET /graphql?query=test HTTP/${version}\r\n${hostHeader}Connection: close\r\n\r\n`,
+        );
+
+        expect(response).toContain("200 OK");
+        expect(response.split("\r\n\r\n")[1]).toBe(`http://${authority}/graphql?query=test`);
+        expect(yogaHandler).toHaveBeenCalledOnce();
+      } finally {
+        await testServer.stop();
+      }
+    },
+  );
+
+  it("should redact invalid absolute request-target failures", async () => {
     const logger = createLoggerMock();
     Container.set(Logger, logger);
     const testServer = new GraphQLServer({
-      schemaOptions: {
-        resolvers: [UserResolver],
-        autoDiscover: false,
-      },
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
     });
-
     await testServer.start(4004);
 
     try {
       const response = await sendRawHttpRequest(
         4004,
-        "GET /graphql HTTP/1.1\r\nHost: [\r\nConnection: close\r\n\r\n",
+        "GET http://[/graphql HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
       );
 
       expect(response).toContain("HTTP/1.1 500 Internal Server Error");
-      expect(response).toContain("application/problem+json");
-      expect(response).toContain('"code":"transports-graphql/request-handling-failed"');
+      expect(JSON.parse(response.split("\r\n\r\n")[1] ?? "")).toMatchObject({
+        code: "transports-graphql/request-handling-failed",
+        detail: "An internal error occurred",
+        status: 500,
+      });
       expect(logger.error).toHaveBeenCalledWith("GraphQL request failed", {
         phase: "request-url",
         problemCode: "transports-graphql/request-handling-failed",
@@ -847,6 +887,122 @@ describe("GraphQLServer integration", () => {
     } finally {
       await testServer.stop();
       Container.reset();
+    }
+  });
+
+  it.each([
+    {
+      name: "advertised Content-Length",
+      framing: "Content-Length: 1000",
+      body: "x",
+      nextChunk: undefined,
+    },
+    {
+      name: "incremental chunked body",
+      framing: "Transfer-Encoding: chunked",
+      body: "10\r\nxxxxxxxxxxxxxxxx\r\n",
+      nextChunk: "1\r\nx\r\n",
+    },
+  ])(
+    "should finish 413 and destroy the unfinished $name upload",
+    async ({ framing, body, nextChunk }) => {
+      const testServer = new GraphQLServer({
+        schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+        maxBodySizeBytes: 16,
+      });
+      await testServer.start(42213);
+      const nodeServer = Reflect.get(testServer, "server") as Server;
+      const destruction: { error: Error | undefined; finished: boolean }[] = [];
+      let receivedFirstChunk: (() => void) | undefined;
+      const firstChunk = new Promise<void>((resolve) => {
+        receivedFirstChunk = resolve;
+      });
+      nodeServer.once("request", (request, response) => {
+        if (nextChunk !== undefined) {
+          const emit = request.emit;
+          vi.spyOn(request, "emit").mockImplementation(function (
+            this: IncomingMessage,
+            event: string | symbol,
+            ...args: unknown[]
+          ) {
+            const emitted = emit.call(this, event, ...args);
+            if (event === "data") receivedFirstChunk?.();
+            return emitted;
+          });
+        }
+        const destroy = request.destroy;
+        vi.spyOn(request, "destroy").mockImplementation(function (
+          this: IncomingMessage,
+          error?: Error,
+        ) {
+          destruction.push({ error, finished: response.writableFinished });
+          return destroy.call(this, error);
+        });
+      });
+
+      try {
+        const response = await sendRawHttpRequest(
+          42213,
+          `POST /graphql HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nConnection: keep-alive\r\n${framing}\r\n\r\n${body}`,
+          {
+            unfinished: true,
+            continuation:
+              nextChunk === undefined ? undefined : { after: firstChunk, data: nextChunk },
+          },
+        );
+
+        expect(response).toContain("HTTP/1.1 413 Payload Too Large");
+        expect(response.toLowerCase()).toContain("connection: close");
+        expect(JSON.parse(response.split("\r\n\r\n")[1] ?? "")).toMatchObject({
+          code: "transports-graphql/request-body-too-large",
+          status: 413,
+          title: "Payload Too Large",
+        });
+        expect(destruction).toContainEqual({ error: undefined, finished: true });
+      } finally {
+        await testServer.stop();
+      }
+    },
+  );
+
+  it("should destroy an oversized upload when writing its 413 response fails", async () => {
+    const testServer = new GraphQLServer({
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+      maxBodySizeBytes: 16,
+    });
+    await testServer.start(42213);
+    const nodeServer = Reflect.get(testServer, "server") as Server;
+    const destruction: { error: Error | undefined; finished: boolean }[] = [];
+    nodeServer.once("request", (request, response) => {
+      const destroy = request.destroy;
+      vi.spyOn(request, "destroy").mockImplementation(function (
+        this: IncomingMessage,
+        error?: Error,
+      ) {
+        destruction.push({ error, finished: response.writableFinished });
+        return destroy.call(this, error);
+      });
+      vi.spyOn(response, "end").mockImplementation(function (this: ServerResponse) {
+        this.flushHeaders();
+        Object.defineProperties(this, {
+          writableEnded: { configurable: true, value: true },
+          writableFinished: { configurable: true, value: false },
+        });
+        setImmediate(() => this.emit("error", new Error("response write failed")));
+        return this;
+      });
+    });
+
+    try {
+      await sendRawHttpRequest(
+        42213,
+        "POST /graphql HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\nContent-Length: 1000\r\n\r\nx",
+        { unfinished: true },
+      );
+
+      expect(destruction).toContainEqual({ error: undefined, finished: false });
+    } finally {
+      await testServer.stop();
     }
   });
 
@@ -1422,18 +1578,42 @@ async function executeQuery(
   };
 }
 
-function sendRawHttpRequest(port: number, request: string): Promise<string> {
+function sendRawHttpRequest(
+  port: number,
+  request: string,
+  options: {
+    readonly unfinished?: boolean;
+    readonly continuation?: { readonly after: Promise<void>; readonly data: string };
+  } = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const socket = connect(port, "127.0.0.1", () => {
-      socket.end(request);
+      if (options.unfinished) {
+        socket.write(request);
+        if (options.continuation !== undefined) {
+          const continuation = options.continuation;
+          void continuation.after.then(() => {
+            if (!socket.destroyed) socket.write(continuation.data);
+          });
+        }
+      } else {
+        socket.end(request);
+      }
     });
     let response = "";
+    const timeout = setTimeout(() => {
+      socket.destroy();
+      reject(new Error("Server did not close the request socket within 1000 ms"));
+    }, 1_000);
 
     socket.setEncoding("utf8");
     socket.on("data", (chunk: string) => {
       response += chunk;
     });
-    socket.on("end", () => resolve(response));
+    socket.on("close", () => {
+      clearTimeout(timeout);
+      resolve(response);
+    });
     socket.on("error", reject);
   });
 }
