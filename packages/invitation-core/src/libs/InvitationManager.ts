@@ -278,7 +278,10 @@ export class InvitationManager {
           throw new InvitationNotFoundProblem("");
         }
 
-        if (current.status === "pending" || current.status === "expired") {
+        if (
+          current.status === "expired" ||
+          (current.status === "pending" && this.isExpired(current))
+        ) {
           throw new InvitationExpiredProblem(current.id);
         }
 

@@ -785,50 +785,86 @@ describe("InvitationManager", () => {
     expect(expired?.status).toBe("expired");
   });
 
-  it("should reject an invitation that expires after lookup but before acceptance", async () => {
-    vi.useFakeTimers();
-    try {
-      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
-      const invitation = createInvitation("boundary-token", {
-        expiresAt: new Date("2026-01-01T00:00:01.000Z"),
-      });
-      await store.save(invitation);
+  it("should report a conflict for a valid pending invitation after CAS failure and allow retry", async () => {
+    const invitation = createInvitation("cas-conflict-token");
+    await store.save(invitation);
+    const compareAndSetStatus = vi.spyOn(store, "compareAndSetStatus").mockResolvedValueOnce(null);
+    const input = {
+      token: "cas-conflict-token",
+      userId: "user-1",
+      email: "member@croco.dev",
+    };
 
-      const boundaryTxManager = new TxManager<unknown>({
-        async transaction<T>(fn: (client: unknown) => Promise<T>): Promise<T> {
-          vi.setSystemTime(new Date("2026-01-01T00:00:02.000Z"));
-          return fn({});
-        },
-        async savepoint<T>(_client: unknown, fn: (client: unknown) => Promise<T>): Promise<T> {
-          return fn({});
-        },
-        supportsSavepoint: () => false,
-      });
-      const boundaryManager = new InvitationManager(
-        store,
-        { addMember } as unknown as MembershipManager,
-        { send } as unknown as NotificationService,
-        {
-          publishNow,
-          publishMany: vi.fn(),
-        } as unknown as EventPublisher,
-        boundaryTxManager,
-      );
+    await expect(manager.acceptInvitation(input)).rejects.toMatchObject({
+      code: "INVITATION_INVALID_STATUS",
+      category: ProblemCategory.Conflict,
+      extensions: {
+        invitationId: invitation.id,
+        invitationStatus: "pending",
+        operation: "accept",
+      },
+    });
 
-      await expect(
-        boundaryManager.acceptInvitation({
-          token: "boundary-token",
-          userId: "user-1",
-          email: "member@croco.dev",
-        }),
-      ).rejects.toBeInstanceOf(InvitationExpiredProblem);
+    expect(compareAndSetStatus).toHaveBeenCalledTimes(1);
+    expect(await store.findById(invitation.id)).toEqual(invitation);
+    expect(addMember).not.toHaveBeenCalled();
+    expect(publishNow).not.toHaveBeenCalled();
 
-      expect((await store.findById(invitation.id))?.status).toBe("pending");
-      expect(addMember).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
+    const accepted = await manager.acceptInvitation(input);
+
+    expect(accepted.value.status).toBe("accepted");
+    expect(addMember).toHaveBeenCalledTimes(1);
+    expect(publishNow).toHaveBeenCalledExactlyOnceWith(expect.any(InvitationAcceptedEvent));
   });
+
+  it.each([0, 1])(
+    "should reject an invitation %i ms after expiry following lookup",
+    async (elapsed) => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+        const invitation = createInvitation("boundary-token", {
+          expiresAt: new Date("2026-01-01T00:00:01.000Z"),
+        });
+        await store.save(invitation);
+
+        const boundaryTxManager = new TxManager<unknown>({
+          async transaction<T>(fn: (client: unknown) => Promise<T>): Promise<T> {
+            vi.setSystemTime(new Date(invitation.expiresAt.getTime() + elapsed));
+            return fn({});
+          },
+          async savepoint<T>(_client: unknown, fn: (client: unknown) => Promise<T>): Promise<T> {
+            return fn({});
+          },
+          supportsSavepoint: () => false,
+        });
+        const boundaryManager = new InvitationManager(
+          store,
+          { addMember } as unknown as MembershipManager,
+          { send } as unknown as NotificationService,
+          {
+            publishNow,
+            publishMany: vi.fn(),
+          } as unknown as EventPublisher,
+          boundaryTxManager,
+        );
+
+        await expect(
+          boundaryManager.acceptInvitation({
+            token: "boundary-token",
+            userId: "user-1",
+            email: "member@croco.dev",
+          }),
+        ).rejects.toBeInstanceOf(InvitationExpiredProblem);
+
+        expect((await store.findById(invitation.id))?.status).toBe("pending");
+        expect(addMember).not.toHaveBeenCalled();
+        expect(publishNow).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("should report expiration when cleanup expires the invitation before acceptance", async () => {
     const invitation = createInvitation("cleanup-race-token");
@@ -849,6 +885,32 @@ describe("InvitationManager", () => {
     expect((await store.findById(invitation.id))?.status).toBe("expired");
     expect(addMember).not.toHaveBeenCalled();
   });
+
+  it.each(["accepted", "revoked", "declined"] as const)(
+    "should preserve the %s status diagnosis after a failed CAS even past expiry",
+    async (status) => {
+      const invitation = createInvitation("status-race-token");
+      await store.save(invitation);
+      vi.spyOn(store, "compareAndSetStatus").mockImplementationOnce(async () => {
+        await store.save({ ...invitation, status, expiresAt: new Date(0) });
+        return null;
+      });
+
+      await expect(
+        manager.acceptInvitation({
+          token: "status-race-token",
+          userId: "user-1",
+          email: "member@croco.dev",
+        }),
+      ).rejects.toBeInstanceOf(
+        status === "accepted" ? InvitationAlreadyAcceptedProblem : InvitationInvalidStatusProblem,
+      );
+
+      expect((await store.findById(invitation.id))?.status).toBe(status);
+      expect(addMember).not.toHaveBeenCalled();
+      expect(publishNow).not.toHaveBeenCalled();
+    },
+  );
 
   it("should throw InvitationAlreadyAcceptedProblem for accepted invitation", async () => {
     await store.save(
