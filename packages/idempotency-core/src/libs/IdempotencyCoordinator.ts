@@ -253,6 +253,14 @@ function isRetryableHandlerFailure(error: unknown): boolean {
     return retryable;
   }
 
+  const extensions = readDiagnosticProperty(error, "extensions");
+  if (typeof extensions === "object" && extensions !== null) {
+    const extensionRetryable = readDiagnosticProperty(extensions, "retryable");
+    if (typeof extensionRetryable === "boolean") {
+      return extensionRetryable;
+    }
+  }
+
   const status = readDiagnosticProperty(error, "status");
   return !(
     typeof status === "number" &&
@@ -265,7 +273,7 @@ function isRetryableHandlerFailure(error: unknown): boolean {
 
 function readDiagnosticProperty(
   error: object,
-  property: "code" | "status" | "detail" | "message" | "retryable",
+  property: "code" | "status" | "detail" | "message" | "retryable" | "extensions",
 ): unknown {
   try {
     return (error as Record<string, unknown>)[property];

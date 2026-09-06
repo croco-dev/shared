@@ -230,7 +230,8 @@ describe("IdempotencyCoordinator", () => {
   it.each([
     new InvalidIdempotencyKeyProblem("invalid input"),
     { code: "REJECTED", status: 422, detail: "business rule rejected" },
-    { code: "TERMINAL", status: 503, retryable: false },
+    { code: "TERMINAL", status: 503, retryable: false, extensions: { retryable: true } },
+    { code: "TERMINAL_EXTENSION", status: 503, extensions: { retryable: false } },
   ])("caches non-retryable handler failure %j until expiry", async (failure) => {
     let now = new Date("2026-01-01T00:00:00.000Z");
     const store = new InMemoryIdempotencyStore<string>({ now: () => now });
@@ -280,7 +281,8 @@ describe("IdempotencyCoordinator", () => {
     { status: 408 },
     { status: 429 },
     { status: 503 },
-    { status: 400, retryable: true },
+    { status: 400, retryable: true, extensions: { retryable: false } },
+    new InvalidIdempotencyKeyProblem("temporarily blocked", { retryable: true }),
     new Error("connection reset"),
   ])("allows another attempt after retryable handler failure %j", async (failure) => {
     const coordinator = createIdempotencyCoordinator({
