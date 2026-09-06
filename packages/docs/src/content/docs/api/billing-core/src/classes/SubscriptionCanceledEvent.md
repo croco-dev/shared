@@ -15,7 +15,7 @@ title: "SubscriptionCanceledEvent"
 
 ### Constructor
 
-> **new SubscriptionCanceledEvent**(`tenantId`, `externalSubscriptionId`, `cancelAtPeriodEnd`, `eventId?`): `SubscriptionCanceledEvent`
+> **new SubscriptionCanceledEvent**(`tenantId`, `externalSubscriptionId`, `cancelAtPeriodEnd`, `eventId?`, `planVersionRef?`): `SubscriptionCanceledEvent`
 
 #### Parameters
 
@@ -34,6 +34,10 @@ title: "SubscriptionCanceledEvent"
 ##### eventId?
 
 `string`
+
+##### planVersionRef?
+
+[`PlanVersionRef`](/api/billing-core/src/type-aliases/planversionref/)
 
 #### Returns
 
@@ -84,6 +88,12 @@ title: "SubscriptionCanceledEvent"
 #### Inherited from
 
 [`DomainEvent`](/api/events-core/src/classes/domainevent/).[`metadata`](/api/events-core/src/classes/domainevent/#metadata)
+
+---
+
+### planVersionRef?
+
+> `readonly` `optional` **planVersionRef?**: [`PlanVersionRef`](/api/billing-core/src/type-aliases/planversionref/)
 
 ---
 

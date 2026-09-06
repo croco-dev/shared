@@ -640,6 +640,7 @@ export class BillingService {
         command.subscription.externalSubscriptionId,
         command.kind === "cancel_at_period_end",
         `billing-lifecycle:${command.idempotencyKey}`,
+        command.subscription.planVersionRef,
       ),
     );
   }

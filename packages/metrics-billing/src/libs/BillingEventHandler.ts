@@ -183,20 +183,26 @@ export class BillingEventHandler
       return;
     }
 
-    const subscription = await this.billingStore.findSubscriptionByExternalId(
-      event.externalSubscriptionId,
-    );
-    if (subscription === null) {
-      throw this.createDroppedProblem(
-        event,
-        "subscription_not_found",
+    let planVersionRef = event.planVersionRef;
+    let planResourceId: string = planVersionRef ?? event.externalSubscriptionId;
+    if (planVersionRef === undefined) {
+      const subscription = await this.billingStore.findSubscriptionByExternalId(
         event.externalSubscriptionId,
       );
+      if (subscription === null) {
+        throw this.createDroppedProblem(
+          event,
+          "subscription_not_found",
+          event.externalSubscriptionId,
+        );
+      }
+      planVersionRef = subscription.planVersionRef;
+      planResourceId = subscription.planId;
     }
 
-    const plan = await this.getPinnedPlan(subscription.planVersionRef);
+    const plan = await this.getPinnedPlan(planVersionRef);
     if (plan === null) {
-      throw this.createDroppedProblem(event, "plan_not_found", subscription.planId);
+      throw this.createDroppedProblem(event, "plan_not_found", planResourceId);
     }
 
     const mrrAmount = this.calculator.normalizeMRR(plan.amount, plan.interval, plan.intervalCount);

@@ -530,6 +530,12 @@
       "owner": "@croco/billing-core"
     },
     {
+      "path": "packages/billing-core/src/tests/SubscriptionCanceledEvent.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "@croco/billing-core"
+    },
+    {
       "path": "packages/billing-core/src/tests/SubscriptionQuantityReconciler.spec.ts",
       "lane": "fast",
       "qualifiers": [],
