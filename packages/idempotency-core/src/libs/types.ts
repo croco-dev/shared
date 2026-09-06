@@ -165,6 +165,8 @@ export type IdempotencyReserveResult<TResult = unknown> =
     };
 
 export type IdempotencyExecutionRequest = {
+  /** Overrides handler failure retryability; audit and commit recovery are unchanged. */
+  readonly isRetryable?: (error: unknown) => boolean;
   readonly key: DerivedIdempotencyKey;
   readonly ttlMs?: number;
   readonly metadata?: Record<string, unknown>;

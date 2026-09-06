@@ -47,6 +47,16 @@ structured clone이 `lastIndex`를 초기화하므로 모든 RegExp는 `lastInde
 만료되지 않습니다. in-flight reservation은 `expiresAt` 직전까지만 완료할 수 있습니다. 만료 시각부터 `commit`과 `fail`은
 `IdempotencyReservationExpiredProblem`으로 거부되며, 새 `reserve`가 발급한 reservation만 상태를 전이할 수 있습니다.
 
+handler가 실패하면 첫 호출은 원래 오류를 throw하고, 비재시도 실패는 같은 key의 후속 호출에서 handler를 실행하지 않고
+`outcome: "failed"`와 이전 `record.problem`을 반환합니다. `ttlMs`를 지정하면 만료 후 다시 실행할 수 있으며, 생략하면
+실패 레코드를 만료시키기 전까지 보존합니다.
+
+재시도 여부는 요청의 `isRetryable(error)` 정책, 오류의 boolean `retryable`, 오류의 HTTP `status` 순서로 결정합니다.
+기본적으로 408·429를 제외한 4xx는 비재시도 실패이며, 5xx와 재시도 정보가 없는 오류는 기존처럼 재시도할 수 있습니다.
+도메인 오류나 외부 SDK 오류는 `coordinator.execute({ key, isRetryable: (error) => ... }, handler)`로 분류할 수 있습니다.
+이 정책은 handler 실패에만 적용하며, 예약 감사와 commit 실패는 기존 복구 동작을 유지합니다. 정책 함수가 throw하면
+원래 handler 오류에 `idempotencyFailureRecordError`로 첨부되고 실패 레코드는 기록되지 않습니다.
+
 handler가 성공한 뒤 `commit`이 실패하면 coordinator는 같은 reservation을 `retryable: false` failed 상태로 전이하고 원래
 commit 오류를 다시 throw합니다. 이후 같은 key 호출은 handler를 다시 실행하지 않고
 `IdempotencyExecutionIndeterminateProblem`으로 실패합니다. 이 상태는 handler의 부수효과가 이미 완료됐을 수 있지만
