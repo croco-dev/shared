@@ -424,6 +424,80 @@ describe("QStashChunkExecutor continuation execution", () => {
     });
   });
 
+  it.each(["publish response", "publication confirmation"])(
+    "processes an already delivered next token after losing the %s",
+    async (failurePoint) => {
+      const harness = createHarness({ maxAttempts: 2 });
+      const execution = await harness.createExecution();
+      const writer = createWriter();
+      const step = createStep(createCheckpointReader([1, 2, 3, 4]), writer, 2);
+      if (failurePoint === "publish response") {
+        harness.publishJSON.mockRejectedValueOnce(new Error("response lost after acceptance"));
+      } else {
+        vi.spyOn(harness.manager, "confirmContinuationPublication").mockRejectedValueOnce(
+          new Error("confirmation unavailable"),
+        );
+      }
+
+      await expect(harness.executor.executeChunk(execution.id, step)).rejects.toThrow();
+      harness.advance(120_001);
+      const continuationToken = publishedToken(harness, 0);
+      const result = await harness.executor.executeChunk(execution.id, step, {
+        continuationToken,
+        workerId: "accepted-publication-delivery",
+      });
+
+      expect(result).toEqual({ hasMore: false, processedCount: 2 });
+      expect(writer.writeIdempotent.mock.calls.map(([items]) => items)).toEqual([
+        [1, 2],
+        [3, 4],
+      ]);
+      expect(harness.publishJSON).toHaveBeenCalledTimes(1);
+      expect(await harness.manager.get(execution.id)).toMatchObject({
+        status: "completed",
+        result: { processedCount: 4 },
+      });
+      await expect(
+        harness.executor.executeChunk(execution.id, step, { continuationToken }),
+      ).resolves.toMatchObject({ kind: "stale" });
+      expect(writer.writeIdempotent).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("records processing failure under the fresh claim after confirming a delivered token", async () => {
+    const harness = createHarness();
+    const execution = await harness.createExecution();
+    const failContinuation = vi.spyOn(harness.manager, "failContinuation");
+    const writer = createWriter();
+    const step = createStep(createCheckpointReader([1, 2, 3, 4]), writer, 2);
+    harness.publishJSON.mockRejectedValueOnce(new Error("response lost after acceptance"));
+    await expect(harness.executor.executeChunk(execution.id, step)).rejects.toThrow();
+    const continuationToken = publishedToken(harness, 0);
+    writer.writeIdempotent.mockRejectedValueOnce(new Error("writer unavailable"));
+
+    await expect(
+      harness.executor.executeChunk(execution.id, step, { continuationToken }),
+    ).rejects.toThrow("writer unavailable");
+    expect(failContinuation).toHaveBeenCalledTimes(2);
+    expect(await harness.manager.get(execution.id)).toMatchObject({
+      status: "retrying",
+      attempts: 2,
+    });
+
+    await expect(
+      harness.executor.executeChunk(execution.id, step, { continuationToken }),
+    ).resolves.toEqual({ hasMore: false, processedCount: 2 });
+    expect(writer.writeIdempotent.mock.calls[2]?.[1].processingToken).toBe(
+      writer.writeIdempotent.mock.calls[1]?.[1].processingToken,
+    );
+    expect(harness.publishJSON).toHaveBeenCalledTimes(1);
+    expect(await harness.manager.get(execution.id)).toMatchObject({
+      status: "completed",
+      attempts: 3,
+      result: { processedCount: 4 },
+    });
+  });
+
   it("reuses the processing token after lease takeover and fences the stale owner", async () => {
     const harness = createHarness({ leaseDurationMs: 60_001 });
     const execution = await harness.createExecution();
