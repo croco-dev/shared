@@ -65,6 +65,76 @@ function readDeadlineError(error: unknown) {
   };
 }
 
+describe("CrocoLambdaAdapter request cookies", () => {
+  it.each([
+    {
+      headers: { cookie: "a=1" },
+      cookies: ["b=2", "session=xyz"],
+      expected: "a=1; b=2; session=xyz",
+    },
+    {
+      headers: { cookie: "" },
+      cookies: ["session=xyz", "csrf=token"],
+      expected: "session=xyz; csrf=token",
+    },
+    { headers: { Cookie: "a=1" }, cookies: ["session=xyz"], expected: "a=1; session=xyz" },
+    {
+      headers: { cookie: "session=old; theme=dark" },
+      cookies: ["session=new"],
+      expected: "session=old; theme=dark",
+    },
+    {
+      headers: { cookie: "a=1" },
+      cookies: ["session=first; csrf=token", "session=last"],
+      expected: "a=1; session=first; csrf=token",
+    },
+    {
+      headers: { cookie: "a=1" },
+      cookies: ["session=abc==; encoded=a%3Db%3Bc; empty="],
+      expected: "a=1; session=abc==; encoded=a%3Db%3Bc; empty=",
+    },
+    {
+      headers: { cookie: "Session=upper" },
+      cookies: ["session=lower"],
+      expected: "Session=upper; session=lower",
+    },
+    {
+      headers: { cookie: " a=1; " },
+      cookies: [" ; session=xyz;  ", ""],
+      expected: "a=1; session=xyz",
+    },
+    { headers: {}, cookies: ["session=xyz", "csrf=token"], expected: "session=xyz; csrf=token" },
+    { headers: {}, cookies: ["session", "session=xyz"], expected: "session=xyz" },
+    {
+      headers: { cookie: "session; session=xyz" },
+      cookies: ["csrf=token"],
+      expected: "session=xyz; csrf=token",
+    },
+    {
+      headers: { cookie: "session=xyz; session=other" },
+      cookies: undefined,
+      expected: "session=xyz; session=other",
+    },
+    { headers: { cookie: "session=xyz" }, cookies: [], expected: "session=xyz" },
+    { headers: {}, cookies: undefined, expected: null },
+    { headers: {}, cookies: [], expected: null },
+  ])("combines request cookie sources: $expected", async ({ headers, cookies, expected }) => {
+    const app = new Hono();
+    app.get("/test", (context) => context.json({ cookie: context.req.raw.headers.get("cookie") }));
+    const event = { ...createLambdaEvent(), headers, cookies };
+    const originalEvent = structuredClone(event);
+
+    const response = await new CrocoLambdaAdapter(app).createHandler()(
+      event,
+      createLambdaContext(),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body ?? "")).toEqual({ cookie: expected });
+    expect(event).toEqual(originalEvent);
+  });
+});
+
 describe("CrocoLambdaAdapter base64 request bodies", () => {
   const variants = [
     { name: "standard", encode: (body: string) => body },

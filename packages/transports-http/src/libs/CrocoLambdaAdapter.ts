@@ -589,8 +589,22 @@ export class CrocoLambdaAdapter {
               }
             }
           }
-          if (!headers.has("cookie") && event.cookies && event.cookies.length > 0) {
-            headers.set("cookie", event.cookies.join("; "));
+          if (event.cookies && event.cookies.length > 0) {
+            const cookiesByName = new Map<string, string>();
+            for (const source of [headers.get("cookie") ?? "", ...event.cookies]) {
+              for (const part of source.split(";")) {
+                const cookie = part.trim();
+                const separator = cookie.indexOf("=");
+                if (separator <= 0) {
+                  continue;
+                }
+                const name = cookie.slice(0, separator).trim();
+                if (!cookiesByName.has(name)) {
+                  cookiesByName.set(name, cookie);
+                }
+              }
+            }
+            headers.set("cookie", [...cookiesByName.values()].join("; "));
           }
 
           let body: BodyInit | null = null;
