@@ -1409,8 +1409,8 @@ describe("release-spine-evidence.mts", () => {
   });
 
   it("uses safe bounded CLI concurrency by default", () => {
-    const expected = Math.max(2, Math.min(DEFAULT_CLI_MAX_CONCURRENCY, availableParallelism()));
-    expect(parseArgs([]).maxConcurrency).toBe(expected);
+    const expected = Math.max(1, Math.min(DEFAULT_CLI_MAX_CONCURRENCY, availableParallelism()));
+    expect(parseArgs([], {}).maxConcurrency).toBe(expected);
   });
 
   it("resolves concurrency from CLI flags, environment, or runner parallelism", () => {
