@@ -58,7 +58,15 @@ with `TransactionRollbackConfirmedProblem` before release, or fulfill after rele
 
 ### supportsSavepoint()
 
-> **supportsSavepoint**(): `boolean`
+> **supportsSavepoint**(`client?`): `boolean`
+
+Check the active transaction client when capability depends on the driver or connection.
+
+#### Parameters
+
+##### client?
+
+`TClient`
 
 #### Returns
 
