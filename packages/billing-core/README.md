@@ -143,7 +143,7 @@ annual.toString();
 - `BillingGateway.createCheckout()` 구현은 전달된 provider operation key로 같은 checkout session을
   반환해야 합니다. 응답 수신이나 멱등성 저장소 commit 결과가 모호하면
   `BillingGateway.reconcileCheckout()`이 새 session을 만들지 않고 기존 결과만 조회해야 합니다.
-- 즉시 취소 시 주문 이력이 없으면 billing account와 subscription을 함께 정리합니다.
+- 즉시 취소 시 주문 이력이 없으면 subscription만 정리하며, billing account와 tenant/customer 매핑은 보존합니다.
 - billing 상태 변화는 도메인 이벤트로 다른 SaaS 패키지와 연결할 수 있습니다.
 
 ## 불변 플랜 버전

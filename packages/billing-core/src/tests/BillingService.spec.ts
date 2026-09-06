@@ -682,35 +682,58 @@ describe("BillingService", () => {
       expect(updatedSubscription?.lastSyncedAt).toBeInstanceOf(Date);
     });
 
-    it("should cleanup orphan account when subscription is canceled immediately", async () => {
-      await saveBillingAccount("tenant-1");
+    it.each(["active", "trialing"] as const)(
+      "should preserve a no-order account when its %s subscription is canceled immediately",
+      async (status) => {
+        const account = await saveBillingAccount("tenant-1", "account-1");
 
-      const subscription: Subscription = {
-        id: "sub-1",
-        billingAccountId: "tenant-1",
-        externalSubscriptionId: "ext-sub-1",
-        planId: "plan-pro",
-        planVersionRef: PLAN_VERSION_REF,
-        status: "active",
-        currentPeriodEnd: new Date(),
-        cancelAtPeriodEnd: false,
-        lastSyncedAt: new Date(),
-      };
-      await store.saveSubscription(subscription);
+        const subscription: Subscription = {
+          id: "sub-1",
+          billingAccountId: account.id,
+          externalSubscriptionId: "ext-sub-1",
+          planId: "plan-pro",
+          planVersionRef: PLAN_VERSION_REF,
+          status,
+          currentPeriodEnd: new Date(),
+          cancelAtPeriodEnd: false,
+          lastSyncedAt: new Date(),
+        };
+        await store.saveSubscription(subscription);
 
-      const command = await service.cancelSubscription({
-        tenantId: "tenant-1",
-        idempotencyKey: "cancel-immediate-1",
-        immediate: true,
-      });
+        const command = await service.cancelSubscription({
+          tenantId: "tenant-1",
+          idempotencyKey: "cancel-immediate-1",
+          immediate: true,
+        });
 
-      expect(mockGateway.cancelSubscription).toHaveBeenCalledWith("ext-sub-1", true, {
-        idempotencyKey: "cancel-immediate-1",
-      });
-      expect(command.state).toBe("completed");
-      expect(await store.findSubscription("tenant-1")).toBeNull();
-      expect(await store.findAccountByTenantId("tenant-1")).toBeNull();
-    });
+        expect(mockGateway.cancelSubscription).toHaveBeenCalledWith("ext-sub-1", true, {
+          idempotencyKey: "cancel-immediate-1",
+        });
+        expect(command.state).toBe("completed");
+        expect(await store.findOrdersByAccount(account.id)).toEqual([]);
+        expect(await store.findSubscription(account.id)).toBeNull();
+        expect(
+          await store.findSubscriptionByExternalId(subscription.externalSubscriptionId),
+        ).toBeNull();
+        expect(await store.findAccountByTenantId(account.tenantId)).toEqual(account);
+        expect(await store.findAccountByExternalId(account.externalCustomerId)).toEqual(account);
+        vi.mocked(mockGateway.getCustomerPortalUrl).mockResolvedValue(
+          "https://billing.example.com/portal",
+        );
+        await expect(service.getCustomerPortalUrl(account.tenantId)).resolves.toBe(
+          "https://billing.example.com/portal",
+        );
+        expect(mockGateway.getCustomerPortalUrl).toHaveBeenCalledWith(account.externalCustomerId);
+
+        await service.cancelSubscription({
+          tenantId: account.tenantId,
+          idempotencyKey: "cancel-immediate-1",
+          immediate: true,
+        });
+        expect(mockGateway.cancelSubscription).toHaveBeenCalledTimes(1);
+        expect(await store.findAccountByTenantId(account.tenantId)).toEqual(account);
+      },
+    );
 
     it("should keep billing history when immediate cancellation has existing orders", async () => {
       await saveBillingAccount("tenant-1");
@@ -1243,7 +1266,7 @@ describe("BillingService", () => {
         lastSyncedAt: new Date("2026-01-01T00:00:00.000Z"),
       });
       vi.spyOn(store, "reconcileLifecycleSubscription").mockRejectedValueOnce(
-        new Error("account delete failed"),
+        new Error("local reconciliation failed"),
       );
 
       const pending = await service.cancelSubscription({
@@ -1264,7 +1287,10 @@ describe("BillingService", () => {
 
       expect(completed.state).toBe("completed");
       expect(mockGateway.cancelSubscription).toHaveBeenCalledTimes(1);
-      expect(await store.findAccountByTenantId("tenant-1")).toBeNull();
+      expect(await store.findAccountByTenantId("tenant-1")).toMatchObject({
+        id: "tenant-1",
+        externalCustomerId: "ext-tenant-1",
+      });
       expect(await service.getSubscriptionStatus("tenant-1")).toBeNull();
     });
 
@@ -1298,7 +1324,10 @@ describe("BillingService", () => {
       });
       expect(completed.state).toBe("completed");
       expect(mockGateway.cancelSubscription).toHaveBeenCalledTimes(1);
-      expect(await store.findAccountByTenantId("tenant-1")).toBeNull();
+      expect(await store.findAccountByTenantId("tenant-1")).toMatchObject({
+        id: "tenant-1",
+        externalCustomerId: "ext-tenant-1",
+      });
     });
 
     it("should keep provider retries idempotent when provider application fails", async () => {

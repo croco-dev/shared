@@ -154,12 +154,6 @@ export class InMemoryBillingStore extends BillingStore {
     this.subscriptions.delete(current.billingAccountId);
     this.subscriptionsByExternalId.delete(current.externalSubscriptionId);
 
-    const account = this.accounts.get(command.subscription.billingAccountId);
-    if (account) {
-      this.accounts.delete(account.id);
-      this.accountsByTenantId.delete(account.tenantId);
-      this.accountsByExternalId.delete(account.externalCustomerId);
-    }
     return "applied";
   }
 

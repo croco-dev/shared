@@ -382,6 +382,37 @@ describe("InMemoryBillingStore", () => {
       };
     }
 
+    it("should remove only the matching subscription and preserve account indices on repeated reconciliation", async () => {
+      const command = createLifecycleCommand({
+        kind: "cancel_immediately",
+        state: "pending_local",
+      });
+      const account: BillingAccount = {
+        id: command.subscription.billingAccountId,
+        tenantId: command.tenantId,
+        externalCustomerId: "ext-cust-1",
+        email: "test@example.com",
+        createdAt: command.createdAt,
+      };
+      await store.saveAccount(account);
+      await store.saveSubscription(command.subscription);
+      expect(await store.findOrdersByAccount(account.id)).toEqual([]);
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await expect(store.reconcileLifecycleSubscription(command, null)).resolves.toBe("applied");
+        expect(await store.findSubscription(account.id)).toBeNull();
+        expect(
+          await store.findSubscriptionByExternalId(command.subscription.externalSubscriptionId),
+        ).toBeNull();
+        expect(await store.findAccountByTenantId(account.tenantId)).toEqual(account);
+        expect(await store.findAccountByExternalId(account.externalCustomerId)).toEqual(account);
+      }
+
+      await store.deleteAccount(account.id);
+      expect(await store.findAccountByTenantId(account.tenantId)).toBeNull();
+      expect(await store.findAccountByExternalId(account.externalCustomerId)).toBeNull();
+    });
+
     it("should deduplicate the same semantic command and reject conflicting key reuse", async () => {
       const command = createLifecycleCommand();
 

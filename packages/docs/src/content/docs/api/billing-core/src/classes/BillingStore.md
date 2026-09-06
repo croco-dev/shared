@@ -371,8 +371,8 @@ Marks one stable event intent as durably published. Repeated calls with the same
 
 Applies a lifecycle target while the stored external subscription identity still matches the
 command. Implementations must atomically rebase the lifecycle delta onto a newer snapshot of
-that same external subscription. A `null` target atomically removes the matching subscription
-and account.
+that same external subscription. A `null` target atomically removes only the matching
+subscription. The billing account and its lookup indices must be preserved.
 
 Implementations must return `superseded` without mutation only when a different external
 subscription occupies the billing account.
