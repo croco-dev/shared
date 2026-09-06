@@ -15,13 +15,17 @@ Better Auth 세션을 읽어 Croco의 [AuthUser](/api/auth-core/src/type-aliases
 
 ### Constructor
 
-> **new BetterAuthProvider**(`factory`): `BetterAuthProvider`
+> **new BetterAuthProvider**(`factory`, `options?`): `BetterAuthProvider`
 
 #### Parameters
 
 ##### factory
 
 [`BetterAuthFactory`](/api/auth-better-auth/src/classes/betterauthfactory/)
+
+##### options?
+
+[`BetterAuthProviderOptions`](/api/auth-better-auth/src/type-aliases/betterauthprovideroptions/) = `{}`
 
 #### Returns
 
