@@ -22,5 +22,6 @@ export interface TxAdapter<TClient, TOptions = unknown> {
     signal?: AbortSignal,
   ): Promise<T>;
 
-  supportsSavepoint(): boolean;
+  /** Check the active transaction client when capability depends on the driver or connection. */
+  supportsSavepoint(client?: TClient): boolean;
 }

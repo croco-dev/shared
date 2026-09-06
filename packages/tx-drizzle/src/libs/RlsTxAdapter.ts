@@ -180,8 +180,8 @@ export function createRlsTxAdapter<TDb extends DrizzleDb>(
       return baseAdapter.savepoint(client, fn, txOptions, signal);
     },
 
-    supportsSavepoint() {
-      return baseAdapter.supportsSavepoint();
+    supportsSavepoint(client) {
+      return baseAdapter.supportsSavepoint(client);
     },
   };
 }
