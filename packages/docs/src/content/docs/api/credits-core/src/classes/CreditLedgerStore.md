@@ -28,6 +28,32 @@ title: "CreditLedgerStore"
 
 ## Methods
 
+### claimPendingEventIntents()
+
+> `abstract` **claimPendingEventIntents**(`limit?`, `leaseMs?`, `eventId?`): `Promise`\<readonly [`ClaimedCreditLedgerEventIntent`](/api/credits-core/src/type-aliases/claimedcreditledgereventintent/)[]\>
+
+Atomically leases committed, unpublished intents using the store clock.
+
+#### Parameters
+
+##### limit?
+
+`number`
+
+##### leaseMs?
+
+`number`
+
+##### eventId?
+
+`string`
+
+#### Returns
+
+`Promise`\<readonly [`ClaimedCreditLedgerEventIntent`](/api/credits-core/src/type-aliases/claimedcreditledgereventintent/)[]\>
+
+---
+
 ### execute()
 
 > `abstract` **execute**(`command`): `Promise`\<[`CreditCommandResult`](/api/credits-core/src/type-aliases/creditcommandresult/)\>
@@ -168,7 +194,9 @@ title: "CreditLedgerStore"
 
 ### markEventIntentPublished()
 
-> `abstract` **markEventIntentPublished**(`eventId`): `Promise`\<`void`\>
+> `abstract` **markEventIntentPublished**(`eventId`, `claimToken`): `Promise`\<`boolean`\>
+
+Returns false when the lease expired or another worker owns the intent.
 
 #### Parameters
 
@@ -176,6 +204,30 @@ title: "CreditLedgerStore"
 
 `string`
 
+##### claimToken
+
+`string`
+
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`\<`boolean`\>
+
+---
+
+### releaseEventIntentClaim()
+
+> `abstract` **releaseEventIntentClaim**(`eventId`, `claimToken`): `Promise`\<`boolean`\>
+
+#### Parameters
+
+##### eventId
+
+`string`
+
+##### claimToken
+
+`string`
+
+#### Returns
+
+`Promise`\<`boolean`\>
