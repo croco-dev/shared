@@ -34,6 +34,7 @@ export {
   createCreditIdempotencyIdentity,
   createCreditLedgerEventIntent,
   type CreditLedgerEventIntent,
+  type ClaimedCreditLedgerEventIntent,
 } from "./libs/eventIntent";
 export {
   type CreditLedgerStoreConformanceCase,

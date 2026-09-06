@@ -342,7 +342,7 @@ describe("CreditLedgerService", () => {
       clock: () => new Date("2026-07-26T12:00:00.000Z"),
       idGenerator: () => `event-id-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit() {
+        onAfterCommit() {
           throw new EventAfterCommitRequiresActiveTransactionProblem();
         },
         async publishIdempotently(event) {
@@ -394,7 +394,7 @@ describe("CreditLedgerService", () => {
       clock: () => new Date("2026-07-26T12:00:00.000Z"),
       idGenerator: () => `retry-event-id-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit() {
+        onAfterCommit() {
           throw new EventAfterCommitRequiresActiveTransactionProblem();
         },
         async publishIdempotently(event) {
@@ -430,7 +430,7 @@ describe("CreditLedgerService", () => {
       clock: () => new Date("2026-07-26T12:00:00.000Z"),
       idGenerator: () => `restarted-event-id-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit() {
+        onAfterCommit() {
           throw new EventAfterCommitRequiresActiveTransactionProblem();
         },
         async publishIdempotently(event) {
@@ -466,7 +466,7 @@ describe("CreditLedgerService", () => {
       clock: () => new Date("2026-07-26T12:00:00.000Z"),
       idGenerator: () => `outcome-event-id-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit() {
+        onAfterCommit() {
           throw new EventAfterCommitOutcomeRequiredProblem();
         },
         async publishIdempotently() {
@@ -486,19 +486,20 @@ describe("CreditLedgerService", () => {
     expect(await store.listPendingEventIntents()).toHaveLength(1);
   });
 
-  it("keeps scheduled intent pending until idempotent publication is acknowledged", async () => {
-    const acknowledgements: Array<() => Promise<void>> = [];
+  it("keeps scheduled intent pending until the after-commit callback publishes", async () => {
+    const publications: Array<() => Promise<void>> = [];
+    let published = 0;
     service = new CreditLedgerService({
       store,
       eventDelivery: "development",
       clock: () => new Date("2026-07-26T12:00:00.000Z"),
       idGenerator: () => `scheduled-event-id-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit(_event, onPublished) {
-          acknowledgements.push(onPublished);
+        onAfterCommit(publish) {
+          publications.push(publish);
         },
         async publishIdempotently() {
-          throw new InvalidCreditAmountProblem("unexpected immediate publication");
+          published++;
         },
       },
     });
@@ -516,11 +517,14 @@ describe("CreditLedgerService", () => {
 
     await service.grantCredits(input);
     await service.grantCredits(input);
-    expect(acknowledgements).toHaveLength(2);
+    expect(publications).toHaveLength(2);
 
-    await acknowledgements[1]?.();
+    expect(published).toBe(0);
+    await publications[1]?.();
+    await publications[0]?.();
+    expect(published).toBe(1);
     await service.grantCredits(input);
-    expect(acknowledgements).toHaveLength(2);
+    expect(publications).toHaveLength(2);
     expect(await service.getBalance(opened.account.id)).toMatchObject({
       position: 1,
       available: "2",
@@ -554,7 +558,7 @@ describe("CreditLedgerService", () => {
       store,
       eventDelivery: "development",
       eventPublisher: {
-        publishIdempotentlyAfterCommit() {
+        onAfterCommit() {
           throw new InvalidCreditAmountProblem("unexpected scheduled publication");
         },
         async publishIdempotently(event) {

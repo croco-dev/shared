@@ -123,9 +123,9 @@ do {
 
 `CreditLedgerStore.execute()` must atomically persist every transaction-producing command and its
 `CreditLedgerCommittedEvent` intent. `CreditLedgerService` schedules the stable event identity through
-`publishIdempotentlyAfterCommit()` when an ambient transaction exists and otherwise calls
-`publishIdempotently()` after the store commit. Publication acknowledgement marks the stored intent as
-published; a crash before acknowledgement leaves it available to command replay or
+`onAfterCommit(publish)` when an ambient transaction exists and otherwise calls
+`publishIdempotently()` after the store commit. The scheduled callback acquires a claim and invokes `publishIdempotently()` only after commit.
+Publication acknowledgement marks the stored intent as published only while its claim token is current; a crash before acknowledgement leaves it available to command replay or
 `publishPendingEvents()` without applying the balance movement twice.
 
 If the ambient transaction cannot report after-commit outcomes, the service leaves the intent pending
@@ -142,6 +142,20 @@ capability. `InMemoryCreditLedgerStore` is intentionally available only through 
 `eventDelivery: "development"` mode. Its intent queue is volatile and cannot be used as production
 delivery evidence. Publishers must deduplicate by `event.eventId` because a crash after transport
 acceptance but before acknowledgement can produce an at-least-once retry.
+
+`publishPendingEvents(limit)` atomically claims at most `limit` intents and starts their publications
+concurrently. Immediate publication and replay use the same claim path. Failed publications release their
+claim for retry; abandoned claims become eligible after `eventClaimLeaseMs` (default 60 seconds). Set the
+lease longer than the publisher's maximum transport timeout. Exclusivity lasts for the lease: a paused or
+slow publisher can overlap recovery after expiry, so publisher deduplication remains required. A stale
+worker cannot acknowledge or release the replacement worker's claim. Polling must run outside an ambient
+transaction so every claim commits before external dispatch.
+
+Custom stores must implement `claimPendingEventIntents`, token-fenced `markEventIntentPublished`, and
+`releaseEventIntentClaim` using an authoritative store clock. Custom publishers must replace
+`publishIdempotentlyAfterCommit(event, onPublished)` with `onAfterCommit(publish)`, registering the supplied
+callback without sending the event themselves. The callback must run only after a successful commit and
+outside the completed transaction context.
 
 Adapters must pass the exported conformance suite:
 

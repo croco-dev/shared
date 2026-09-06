@@ -77,6 +77,129 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
     `);
   }
 
+  async function seedClaimIntents(count: number) {
+    await reset();
+    const store = new DrizzleCreditLedgerStore(db, txManager);
+    let sequence = 0;
+    const service = new CreditLedgerService({ store, idGenerator: () => `claim-${++sequence}` });
+    const { account } = await service.openAccount({
+      tenantId: "claim-tenant",
+      idempotencyKey: "claim-open",
+      reference: { type: "test", id: "claim" },
+    });
+    for (let index = 0; index < count; index += 1) {
+      await service.grantCredits({
+        accountId: account.id,
+        amount: creditAmount("1"),
+        idempotencyKey: `claim-grant-${index}`,
+        reference: { type: "test", id: "claim" },
+      });
+    }
+    return store;
+  }
+
+  it("atomically leases disjoint batches to concurrent independent stores", async () => {
+    const first = await seedClaimIntents(6);
+    const second = new DrizzleCreditLedgerStore(db, txManager);
+    const [left, right] = await Promise.all([
+      first.claimPendingEventIntents(3),
+      second.claimPendingEventIntents(3),
+    ]);
+    expect(left).toHaveLength(3);
+    expect(right).toHaveLength(3);
+    expect(new Set([...left, ...right].map((intent) => intent.eventId)).size).toBe(6);
+    expect(await first.claimPendingEventIntents()).toEqual([]);
+    expect(await first.listPendingEventIntents()).toHaveLength(6);
+  });
+
+  it("expires leases using elapsed PostgreSQL time", async () => {
+    const store = await seedClaimIntents(1);
+    const [first] = await store.claimPendingEventIntents(1, 20);
+    await db.execute(sql`select pg_sleep(0.04)`);
+    const [second] = await store.claimPendingEventIntents(1);
+    expect(second?.eventId).toBe(first?.eventId);
+    expect(second?.claimToken).not.toBe(first?.claimToken);
+  });
+
+  it("reclaims expired leases and fences stale acknowledgement and release", async () => {
+    const store = await seedClaimIntents(1);
+    const [original] = await store.claimPendingEventIntents();
+    if (!original) throw new Error("missing claim fixture");
+    await db
+      .update(creditLedgerEventIntents)
+      .set({ claimExpiresAt: sql`clock_timestamp() - interval '1 millisecond'` })
+      .where(eq(creditLedgerEventIntents.eventId, original.eventId));
+    expect(await store.markEventIntentPublished(original.eventId, original.claimToken)).toBe(false);
+    expect(await store.releaseEventIntentClaim(original.eventId, original.claimToken)).toBe(false);
+    const [replacement] = await store.claimPendingEventIntents(1, 60_000, original.eventId);
+    if (!replacement) throw new Error("missing reclaimed fixture");
+    expect(replacement.claimToken).not.toBe(original.claimToken);
+    expect(replacement.eventId).toBe(original.eventId);
+    expect(await store.markEventIntentPublished(original.eventId, original.claimToken)).toBe(false);
+    expect(await store.releaseEventIntentClaim(original.eventId, original.claimToken)).toBe(false);
+    expect(await store.releaseEventIntentClaim(replacement.eventId, replacement.claimToken)).toBe(
+      true,
+    );
+    const [finalClaim] = await store.claimPendingEventIntents();
+    if (!finalClaim) throw new Error("missing final claim fixture");
+    expect(await store.markEventIntentPublished(finalClaim.eventId, finalClaim.claimToken)).toBe(
+      true,
+    );
+    expect(await store.markEventIntentPublished(finalClaim.eventId, finalClaim.claimToken)).toBe(
+      false,
+    );
+    expect(await store.claimPendingEventIntents()).toEqual([]);
+  });
+
+  it("skips locked pending rows without waiting for their transaction", async () => {
+    const store = await seedClaimIntents(2);
+    const [locked] = await store.listPendingEventIntents();
+    if (!locked) throw new Error("missing locked fixture");
+    await db.transaction(async (tx) => {
+      await tx
+        .select()
+        .from(creditLedgerEventIntents)
+        .where(eq(creditLedgerEventIntents.eventId, locked.eventId))
+        .for("update");
+      const claims = await store.claimPendingEventIntents();
+      expect(claims).toHaveLength(1);
+      expect(claims[0]?.eventId).not.toBe(locked.eventId);
+    });
+    const claims = await store.claimPendingEventIntents();
+    expect(claims.map((intent) => intent.eventId)).toEqual([locked.eventId]);
+  });
+
+  it("rejects claiming from an ambient transaction before exposing its intents", async () => {
+    const store = await seedClaimIntents(1);
+    await txManager.run(async () => {
+      await expect(store.claimPendingEventIntents()).rejects.toThrow(
+        "outside an active transaction",
+      );
+    });
+    expect(await store.claimPendingEventIntents()).toHaveLength(1);
+  });
+
+  it("adds lease columns to existing rows idempotently while preserving publication state", async () => {
+    const store = await seedClaimIntents(2);
+    const [published] = await store.claimPendingEventIntents(1);
+    if (!published) throw new Error("missing migration fixture");
+    await store.markEventIntentPublished(published.eventId, published.claimToken);
+    await db.execute(
+      sql`alter table credit_ledger_event_intents drop column claim_token, drop column claim_expires_at`,
+    );
+    await createCreditsSchema(db);
+    await createCreditsSchema(db);
+    const claims = await store.claimPendingEventIntents();
+    expect(claims).toHaveLength(1);
+    expect(claims[0]?.eventId).not.toBe(published.eventId);
+    const rows = await db
+      .select()
+      .from(creditLedgerEventIntents)
+      .where(eq(creditLedgerEventIntents.eventId, published.eventId));
+    expect(rows[0]?.publishedAt).toBeInstanceOf(Date);
+    expect(rows[0]?.claimToken).toBeNull();
+  });
+
   const suite = createCreditLedgerStoreConformanceSuite({
     storeName: "drizzle-postgres",
     createStore: () => new DrizzleCreditLedgerStore(db, txManager),
@@ -281,9 +404,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
       clock: () => new Date("2026-07-30T00:00:00.000Z"),
       idGenerator: () => `rollback-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit(_event, onPublished) {
-          publishedEvents += 1;
-          void onPublished();
+        onAfterCommit(publish) {
+          txManager.onAfterCommit(publish);
         },
         async publishIdempotently() {
           publishedEvents += 1;
@@ -545,11 +667,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
       store,
       idGenerator: () => `ambient-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit(event, onPublished) {
-          txManager.onAfterCommit(async () => {
-            publishedEvents.push(event);
-            await onPublished();
-          });
+        onAfterCommit(publish) {
+          txManager.onAfterCommit(publish);
         },
         async publishIdempotently(event) {
           publishedEvents.push(event);
@@ -614,9 +733,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
       clock: () => new Date("2026-07-30T00:01:00.000Z"),
       idGenerator: () => `restarted-${++sequence}`,
       eventPublisher: {
-        publishIdempotentlyAfterCommit(event, onPublished) {
-          publishedEvents.push({ eventId: event.eventId });
-          publicationAcknowledgement = onPublished();
+        onAfterCommit(publish) {
+          publicationAcknowledgement = publish();
         },
         async publishIdempotently(event) {
           publishedEvents.push({ eventId: event.eventId });

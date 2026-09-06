@@ -7890,6 +7890,11 @@
               "source": "./libs/CreditLedgerService"
             },
             {
+              "name": "ClaimedCreditLedgerEventIntent",
+              "exportKind": "named",
+              "source": "./libs/eventIntent"
+            },
+            {
               "name": "CommitCreditsCommand",
               "exportKind": "named",
               "source": "./libs/types"

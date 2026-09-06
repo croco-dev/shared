@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   addCreditAmounts,
   addSignedCreditAmounts,
@@ -26,6 +27,7 @@ import type { TxManager } from "@croco/tx-core";
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type {
+  ClaimedCreditLedgerEventIntent,
   AdjustCreditsCommand,
   CommitCreditsCommand,
   CreditAccount,
@@ -434,17 +436,97 @@ export class DrizzleCreditLedgerStore extends CreditLedgerStore {
     });
   }
 
-  async markEventIntentPublished(eventId: string): Promise<void> {
-    await this.persist("mark event intent published", async () => {
-      await this.getClient()
+  async claimPendingEventIntents(
+    limit = 100,
+    leaseMs = 60_000,
+    eventId?: string,
+  ): Promise<readonly ClaimedCreditLedgerEventIntent[]> {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) {
+      throw new InvalidCreditCommandProblem(
+        "event intent limit must be an integer between 1 and 1000",
+      );
+    }
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1 || leaseMs > 2_147_483_647) {
+      throw new InvalidCreditCommandProblem(
+        "event intent lease must be an integer between 1 and 2147483647 milliseconds",
+      );
+    }
+    if (this.txManager.getClient()) {
+      throw new InvalidCreditCommandProblem(
+        "event intents must be claimed outside an active transaction",
+      );
+    }
+    return this.persist("claim pending event intents", () =>
+      this.db.transaction(async (tx) => {
+        const candidates = await tx
+          .select({ eventId: creditLedgerEventIntents.eventId })
+          .from(creditLedgerEventIntents)
+          .where(
+            and(
+              isNull(creditLedgerEventIntents.publishedAt),
+              or(
+                isNull(creditLedgerEventIntents.claimExpiresAt),
+                lte(creditLedgerEventIntents.claimExpiresAt, sql`clock_timestamp()`),
+              ),
+              eventId === undefined ? undefined : eq(creditLedgerEventIntents.eventId, eventId),
+            ),
+          )
+          .orderBy(asc(creditLedgerEventIntents.createdAt), asc(creditLedgerEventIntents.eventId))
+          .limit(limit)
+          .for("update", { skipLocked: true });
+        if (candidates.length === 0) return [];
+        const claimToken = randomUUID();
+        const rows = await tx
+          .update(creditLedgerEventIntents)
+          .set({
+            claimToken,
+            claimExpiresAt: sql`clock_timestamp() + ${leaseMs} * interval '1 millisecond'`,
+          })
+          .where(
+            inArray(
+              creditLedgerEventIntents.eventId,
+              candidates.map((row) => row.eventId),
+            ),
+          )
+          .returning();
+        return rows.map((row) => ({ ...this.mapEventIntent(row), claimToken }));
+      }),
+    );
+  }
+
+  async markEventIntentPublished(eventId: string, claimToken: string): Promise<boolean> {
+    return this.persist("mark event intent published", async () => {
+      const rows = await this.db
         .update(creditLedgerEventIntents)
-        .set({ publishedAt: new Date() })
+        .set({ publishedAt: sql`clock_timestamp()`, claimToken: null, claimExpiresAt: null })
         .where(
           and(
             eq(creditLedgerEventIntents.eventId, eventId),
+            eq(creditLedgerEventIntents.claimToken, claimToken),
+            gt(creditLedgerEventIntents.claimExpiresAt, sql`clock_timestamp()`),
             isNull(creditLedgerEventIntents.publishedAt),
           ),
-        );
+        )
+        .returning({ eventId: creditLedgerEventIntents.eventId });
+      return rows.length === 1;
+    });
+  }
+
+  async releaseEventIntentClaim(eventId: string, claimToken: string): Promise<boolean> {
+    return this.persist("release event intent claim", async () => {
+      const rows = await this.db
+        .update(creditLedgerEventIntents)
+        .set({ claimToken: null, claimExpiresAt: null })
+        .where(
+          and(
+            eq(creditLedgerEventIntents.eventId, eventId),
+            eq(creditLedgerEventIntents.claimToken, claimToken),
+            gt(creditLedgerEventIntents.claimExpiresAt, sql`clock_timestamp()`),
+            isNull(creditLedgerEventIntents.publishedAt),
+          ),
+        )
+        .returning({ eventId: creditLedgerEventIntents.eventId });
+      return rows.length === 1;
     });
   }
 
