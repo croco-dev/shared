@@ -65,6 +65,95 @@ function readDeadlineError(error: unknown) {
   };
 }
 
+describe("CrocoLambdaAdapter base64 request bodies", () => {
+  const variants = [
+    { name: "standard", encode: (body: string) => body },
+    { name: "LF wrapping", encode: (body: string) => body.replace(/.{4}/g, "$&\n") },
+    { name: "CRLF wrapping", encode: (body: string) => body.replace(/.{4}/g, "$&\r\n") },
+    { name: "spaces and tabs", encode: (body: string) => ` \t${body.split("").join(" \t")}\n` },
+    { name: "URL-safe", encode: (body: string) => body.replace(/\+/g, "-").replace(/\//g, "_") },
+    { name: "omitted padding", encode: (body: string) => body.replace(/=+$/, "") },
+    {
+      name: "URL-safe, whitespace, and omitted padding",
+      encode: (body: string) =>
+        ` \t${body.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "").split("").join("\r\n")} `,
+    },
+  ];
+
+  describe.each(variants)("$name", ({ encode }) => {
+    it.each([4, 5, 6])("preserves all bytes of a %i-byte binary request", async (length) => {
+      const bytes = Uint8Array.from([0xfb, 0xff, 0x00, 0x80, 0xfe, 0x01]).slice(0, length);
+      const received: Uint8Array[] = [];
+      const app = new Hono();
+      app.post("/test", async (context) => {
+        received.push(new Uint8Array(await context.req.raw.arrayBuffer()));
+        return context.text("ok");
+      });
+      const event = createLambdaEvent();
+      event.requestContext.http.method = "POST";
+      event.body = encode(Buffer.from(bytes).toString("base64"));
+      event.isBase64Encoded = true;
+
+      const response = await new CrocoLambdaAdapter(app).createHandler()(
+        event,
+        createLambdaContext(),
+      );
+
+      expect(response.statusCode).toBe(200);
+      expect(received).toEqual([bytes]);
+    });
+  });
+
+  it.each(["", " \t\r\n"])("accepts an empty encoded body %j", async (body) => {
+    const app = new Hono();
+    app.post("/test", async (context) =>
+      context.text(String((await context.req.arrayBuffer()).byteLength)),
+    );
+    const event = createLambdaEvent();
+    event.requestContext.http.method = "POST";
+    event.body = body;
+    event.isBase64Encoded = true;
+
+    const response = await new CrocoLambdaAdapter(app).createHandler()(
+      event,
+      createLambdaContext(),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toBe("0");
+  });
+
+  it.each([
+    "!!!!",
+    "+/8!",
+    "A",
+    "AAAAA",
+    "=",
+    "====",
+    "AA=",
+    "AAA==",
+    "AAAA=",
+    "AA===",
+    "AA==AA",
+    "AA= A",
+    "AA\u0000==",
+  ])("rejects malformed base64 %j before dispatch", async (body) => {
+    const dispatch = vi.fn(() => new Response("unexpected"));
+    const event = createLambdaEvent();
+    event.requestContext.http.method = "POST";
+    event.body = body;
+    event.isBase64Encoded = true;
+
+    await expect(
+      new CrocoLambdaAdapter({ fetch: dispatch }).createHandler()(event, createLambdaContext()),
+    ).rejects.toMatchObject({
+      name: "LambdaEventValidationError",
+      code: "transports-http/lambda-event-invalid",
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+});
+
 describe("CrocoLambdaAdapter waitUntil draining", () => {
   afterEach(() => {
     vi.useRealTimers();
