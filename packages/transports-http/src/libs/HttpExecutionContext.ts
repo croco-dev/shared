@@ -44,6 +44,14 @@ export class HttpExecutionContext implements ExecutionContext {
     return this.ctx.req.method;
   }
 
+  get<T>(key: string): T | undefined {
+    return this.ctx.get<T>(key);
+  }
+
+  set<T>(key: string, value: T): void {
+    this.ctx.set(key, value);
+  }
+
   getHttpContext(): CrocoHttpContext {
     return this.ctx;
   }
