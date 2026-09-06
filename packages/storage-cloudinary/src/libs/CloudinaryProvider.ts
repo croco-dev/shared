@@ -53,7 +53,9 @@ function resolveResourceType(key: string): CloudinaryResourceType {
   const filename = key.slice(key.lastIndexOf("/") + 1);
   if (
     !filename.includes(".") ||
-    /\.(avif|bmp|gif|heic|heif|ico|jpe?g|png|psd|svg|tiff?|webp)$/i.test(filename)
+    /\.(avif|bmp|flif|gif|hdp|heic|heif|ico|jp2|jpe|jpe?g|jxl|jxr|png|psd|svg|tga|tiff?|wdp|webp)$/i.test(
+      filename,
+    )
   ) {
     return "image";
   }

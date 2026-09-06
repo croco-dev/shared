@@ -128,6 +128,23 @@ describe("Cloudinary resource namespaces", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each(["jpe", "jp2", "jxl", "jxr", "wdp", "hdp", "tga", "flif"])(
+    "preserves the image namespace for supported .%s keys",
+    async (extension) => {
+      const backend = useNamespaceBackend();
+      const key = `images/photo.${extension}`;
+      const provider = new CloudinaryProvider(config);
+      await provider.put(key, payload, { contentType: "image/jpeg" });
+      expect(backend.objects.get(`image:${key}`)?.data).toEqual(payload);
+      await provider.put(key, payload);
+      await expect(new CloudinaryProvider(config).getMetadata(key)).resolves.toMatchObject({
+        size: payload.length,
+      });
+      await new CloudinaryProvider(config).delete(key);
+      expect(backend.objects.has(`image:${key}`)).toBe(false);
+    },
+  );
+
   describe.each(cases)("$key", ({ key, resource, publicId, contentType }) => {
     it.each(["bytes", "stream"])(
       "stores %s with the expected namespace and public ID",
