@@ -7,6 +7,14 @@ import {
   InvalidCreditCommandProblem,
 } from "../index";
 
+function deferred() {
+  let resolve: () => void;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve: () => resolve() };
+}
+
 describe("credit event dispatch claims", () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -82,6 +90,29 @@ describe("credit event dispatch claims", () => {
     expect(await store.listPendingEventIntents()).toEqual([]);
   });
 
+  it("preserves publication and claim-release failures together", async () => {
+    const { store } = await seed();
+    const publicationFailure = new Error("transport failed");
+    const releaseFailure = new InvalidCreditCommandProblem("release failed");
+    vi.spyOn(store, "releaseEventIntentClaim").mockRejectedValue(releaseFailure);
+    const service = new CreditLedgerService({
+      store,
+      eventDelivery: "development",
+      eventPublisher: {
+        onAfterCommit() {},
+        async publishIdempotently() {
+          throw publicationFailure;
+        },
+      },
+    });
+    const failure = await service.publishPendingEvents().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(CreditEventPublicationProblem);
+    expect(failure).toMatchObject({
+      cause: { name: "CreditEventDeliveryFailure", errors: [publicationFailure, releaseFailure] },
+    });
+    expect(await store.listPendingEventIntents()).toHaveLength(1);
+  });
+
   it("claims at callback execution and excludes replay hooks racing with polling", async () => {
     const { store, account, reference } = await seed(0);
     const callbacks: Array<() => Promise<void>> = [];
@@ -116,8 +147,8 @@ describe("credit event dispatch claims", () => {
   it("reports lost ownership after a slow publisher without releasing its replacement", async () => {
     const { store } = await seed();
     const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
-    const started = Promise.withResolvers<void>();
-    const finish = Promise.withResolvers<void>();
+    const started = deferred();
+    const finish = deferred();
     const service = new CreditLedgerService({
       store,
       eventDelivery: "development",
@@ -184,8 +215,8 @@ describe("credit event dispatch claims", () => {
       idempotencyKey: "grant",
       reference,
     });
-    const started = Promise.withResolvers<void>();
-    const finish = Promise.withResolvers<void>();
+    const started = deferred();
+    const finish = deferred();
     const dispatched: string[] = [];
     const eventPublisher = {
       onAfterCommit() {},

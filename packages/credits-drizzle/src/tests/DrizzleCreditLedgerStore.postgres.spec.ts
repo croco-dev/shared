@@ -112,6 +112,58 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
     expect(await first.listPendingEventIntents()).toHaveLength(6);
   });
 
+  it("shares live ownership across after-commit callbacks, immediate replay, and recovery", async () => {
+    const store = await seedClaimIntents(0);
+    const [account] = await db.select().from(creditAccounts);
+    if (!account) throw new Error("missing account fixture");
+    let signalStarted: () => void = () => {};
+    let finishPublish: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      finishPublish = resolve;
+    });
+    const published: string[] = [];
+    const eventPublisher = {
+      onAfterCommit(publish: () => Promise<void>) {
+        txManager.onAfterCommit(publish);
+      },
+      async publishIdempotently(event: { eventId: string }) {
+        published.push(event.eventId);
+        signalStarted();
+        await blocked;
+      },
+    };
+    const first = new CreditLedgerService({
+      store,
+      eventPublisher,
+      idGenerator: () => "race-first",
+    });
+    const second = new CreditLedgerService({
+      store: new DrizzleCreditLedgerStore(db, txManager),
+      eventPublisher,
+      idGenerator: () => "race-second",
+    });
+    const input = {
+      accountId: account.id as Parameters<typeof first.grantCredits>[0]["accountId"],
+      amount: creditAmount("1"),
+      idempotencyKey: "race-grant",
+      reference: { type: "test", id: "race" },
+    };
+    const publishing = txManager.runWithOutcome(() => first.grantCredits(input));
+    await started;
+    try {
+      await expect(second.grantCredits(input)).resolves.toMatchObject({ replayed: true });
+      await expect(second.publishPendingEvents()).resolves.toBe(0);
+      expect(published).toHaveLength(1);
+    } finally {
+      finishPublish();
+      await publishing;
+    }
+    expect(await store.listPendingEventIntents()).toEqual([]);
+  });
+
   it("expires leases using elapsed PostgreSQL time", async () => {
     const store = await seedClaimIntents(1);
     const [first] = await store.claimPendingEventIntents(1, 20);

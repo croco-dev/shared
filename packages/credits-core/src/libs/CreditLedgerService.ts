@@ -43,6 +43,14 @@ type CommandMetadata = {
   readonly expectedPosition?: number;
 };
 
+class CreditEventDeliveryFailure extends Error {
+  readonly name = "CreditEventDeliveryFailure";
+
+  constructor(readonly errors: readonly unknown[]) {
+    super("Event publication and claim release failed");
+  }
+}
+
 type AfterCommitFallback = "keep-pending" | "publish-now";
 
 function resolveAfterCommitFallback(error: unknown): AfterCommitFallback | undefined {
@@ -388,7 +396,14 @@ export class CreditLedgerService {
         throw new InvalidCreditCommandProblem("event intent publication lease is no longer owned");
       }
     } catch (error) {
-      await this.store.releaseEventIntentClaim(intent.eventId, intent.claimToken);
+      try {
+        await this.store.releaseEventIntentClaim(intent.eventId, intent.claimToken);
+      } catch (releaseError) {
+        throw new CreditEventPublicationProblem(
+          intent.idempotencyKey,
+          new CreditEventDeliveryFailure([error, releaseError]),
+        );
+      }
       const cause = error instanceof Error ? error : new Error(String(error));
       throw new CreditEventPublicationProblem(intent.idempotencyKey, cause);
     }
