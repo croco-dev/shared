@@ -121,7 +121,11 @@ await chunkExecutor.execute(executionId, loadStep, { startExecution: false });
 남깁니다. 운영자는 실패한 실행을 조회해 `status`, `error`, `progress`, `checkpoints`를 확인한 뒤 같은
 실행 ID로 다시 실행할 수 있습니다.
 
-- 성공한 청크는 writer가 완료된 뒤에만 `step.name.cursor` 체크포인트를 갱신합니다.
+- `chunkSize`는 성공적으로 처리한 입력 수를 기준으로 하며, processor가 `null`을 반환한 항목도 포함합니다.
+  각 청크와 마지막 남은 입력의 처리가 끝나면 `step.name.cursor` 체크포인트를 갱신합니다. 출력이 있는
+  청크는 writer가 완료된 뒤에만 갱신하고, 모두 필터링된 청크는 writer 호출 없이 갱신합니다.
+- `progress.current`와 완료 결과의 `processedCount`도 필터링된 입력을 포함합니다. 진행률 갱신은 유효한
+  `progress.total`이 설정된 실행에만 적용됩니다.
 - 재시도 가능한 실패는 `execution-core`가 실행을 `retrying` 상태로 남기며, 다음 `execute()` 호출은 마지막
   체크포인트를 reader에 복원합니다.
 - 재시도 중 진행률은 기존 `progress.current`에서 이어집니다. 체크포인트 이후 남은 청크만 처리해도 완료

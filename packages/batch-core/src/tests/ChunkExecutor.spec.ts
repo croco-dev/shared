@@ -223,6 +223,143 @@ describe("ChunkExecutor", () => {
     });
   });
 
+  it.each([0, 1, 4, 5])(
+    "should checkpoint all-filtered input at chunk boundaries and flush the remainder (%i items)",
+    async (count) => {
+      (executionManager.start as Mock).mockResolvedValue({
+        id: "exec-1",
+        checkpoints: {},
+        progress: { current: 0, total: 5 },
+      });
+      const reader = createCheckpointReader(Array.from({ length: count }, (_, index) => index));
+      const writer = { write: vi.fn().mockResolvedValue(undefined) };
+      const checkpoints: number[] = [];
+      const process = vi.fn(async () => {
+        checkpoints.push((executionManager.checkpoint as Mock).mock.calls.length);
+        return null;
+      });
+
+      await executor.execute(
+        "exec-1",
+        new Step<number, number>({
+          name: "filtered-step",
+          reader,
+          processor: { process },
+          writer,
+          chunkSize: 2,
+        }),
+      );
+
+      const offsets = Array.from({ length: Math.ceil(count / 2) }, (_, index) =>
+        Math.min((index + 1) * 2, count),
+      );
+      expect((executionManager.checkpoint as Mock).mock.calls).toEqual(
+        offsets.map((offset) => ["exec-1", "filtered-step.cursor", { offset }]),
+      );
+      expect((executionManager.updateProgress as Mock).mock.calls).toEqual(
+        offsets.map((current) => ["exec-1", { current, total: 5 }]),
+      );
+      expect(checkpoints).toEqual(
+        Array.from({ length: count }, (_, index) => Math.floor(index / 2)),
+      );
+      expect(writer.write).not.toHaveBeenCalled();
+      expect(executionManager.complete).toHaveBeenCalledWith("exec-1", { processedCount: count });
+    },
+  );
+
+  it("should count filtered input while writing only retained items in each input chunk", async () => {
+    const reader = createCheckpointReader([1, 2, 3, 4, 5]);
+    const writer = { write: vi.fn().mockResolvedValue(undefined) };
+
+    await executor.execute(
+      "exec-1",
+      new Step<number, number>({
+        name: "mixed-step",
+        reader,
+        processor: { process: async (item) => (item % 2 === 0 ? item * 10 : null) },
+        writer,
+        chunkSize: 2,
+      }),
+    );
+
+    expect(writer.write.mock.calls).toEqual([[[20]], [[40]]]);
+    expect((executionManager.checkpoint as Mock).mock.calls).toEqual([
+      ["exec-1", "mixed-step.cursor", { offset: 2 }],
+      ["exec-1", "mixed-step.cursor", { offset: 4 }],
+      ["exec-1", "mixed-step.cursor", { offset: 5 }],
+    ]);
+    expect(executionManager.updateProgress).not.toHaveBeenCalled();
+    expect(executionManager.complete).toHaveBeenCalledWith("exec-1", { processedCount: 5 });
+  });
+
+  it.each(["reader", "processor", "writer"] as const)(
+    "should resume filtered input after a %s failure without skipping an uncommitted chunk",
+    async (failureSource) => {
+      const realManager = new ExecutionManagerImpl(new TestExecutionStore());
+      const realExecutor = new ChunkExecutor(realManager);
+      const execution = await realManager.create({ type: "batch-job", maxAttempts: 2 });
+      await realManager.updateProgress(execution.id, { current: 0, total: 5 });
+      const reader = createCheckpointReader([1, 2, 3, 4, 5]);
+      const failure = new Error("temporary batch failure");
+      if (failureSource === "reader") {
+        const read = reader.read.bind(reader);
+        reader.read = async () => {
+          if (reader.getCheckpoint().offset === 3) throw failure;
+          return read();
+        };
+      }
+      const processor = {
+        process: vi.fn(async (item: number) => {
+          if (failureSource === "processor" && item === 4) throw failure;
+          return failureSource === "writer" && item === 4 ? item : null;
+        }),
+      };
+      const writer = { write: vi.fn().mockRejectedValue(failure) };
+
+      await expect(
+        realExecutor.execute(
+          execution.id,
+          new Step<number, number>({
+            name: "filtered-retry",
+            reader,
+            processor,
+            writer,
+            chunkSize: 2,
+          }),
+        ),
+      ).rejects.toBe(failure);
+
+      const retrying = await realManager.get(execution.id);
+      expect(retrying.status).toBe("retrying");
+      expect(retrying.checkpoints).toEqual({ "filtered-retry.cursor": { offset: 2 } });
+      expect(retrying.progress).toMatchObject({ current: 2, total: 5 });
+      expect(writer.write.mock.calls).toEqual(failureSource === "writer" ? [[[4]]] : []);
+
+      const resumedReader = createCheckpointReader([1, 2, 3, 4, 5]);
+      const resumedProcessor = { process: vi.fn(async () => null) };
+      const resumedWriter = { write: vi.fn().mockResolvedValue(undefined) };
+      await realExecutor.execute(
+        execution.id,
+        new Step<number, number>({
+          name: "filtered-retry",
+          reader: resumedReader,
+          processor: resumedProcessor,
+          writer: resumedWriter,
+          chunkSize: 2,
+        }),
+      );
+
+      expect(resumedReader.restoreCheckpoint).toHaveBeenCalledWith({ offset: 2 });
+      expect(resumedProcessor.process.mock.calls).toEqual([[3], [4], [5]]);
+      expect(resumedWriter.write).not.toHaveBeenCalled();
+      const completed = await realManager.get(execution.id);
+      expect(completed.status).toBe("completed");
+      expect(completed.checkpoints).toEqual({ "filtered-retry.cursor": { offset: 5 } });
+      expect(completed.progress).toMatchObject({ current: 5, total: 5, percent: 100 });
+      expect(completed.result).toEqual({ processedCount: 5 });
+    },
+  );
+
   it("should keep multi-step executions open when completion is disabled", async () => {
     const reader = {
       read: vi.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(null),

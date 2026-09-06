@@ -78,6 +78,7 @@ export class ChunkExecutor {
     }
 
     let items: O[] = [];
+    let chunkInputCount = 0;
     let processedCount = this.resolveProcessedCount(execution, restoredCheckpoint);
     const totalCount = execution.progress?.total;
 
@@ -106,33 +107,35 @@ export class ChunkExecutor {
         if (processedItem !== null) {
           items.push(processedItem);
         }
+        chunkInputCount += 1;
 
-        // Write if chunk full
-        if (items.length >= step.chunkSize) {
+        // Commit after processing a full input chunk, including filtered items.
+        if (chunkInputCount >= step.chunkSize) {
           await this.writeChunk(
             executionId,
             step,
             items,
             checkpointKey,
-            processedCount + items.length,
+            processedCount + chunkInputCount,
             totalCount,
           );
-          processedCount += items.length;
+          processedCount += chunkInputCount;
           items = [];
+          chunkInputCount = 0;
         }
       }
 
-      // Write remaining items
-      if (items.length > 0) {
+      // Commit the remaining input chunk even when all its items were filtered.
+      if (chunkInputCount > 0) {
         await this.writeChunk(
           executionId,
           step,
           items,
           checkpointKey,
-          processedCount + items.length,
+          processedCount + chunkInputCount,
           totalCount,
         );
-        processedCount += items.length;
+        processedCount += chunkInputCount;
       }
 
       if (options.completeExecution ?? true) {
@@ -161,7 +164,9 @@ export class ChunkExecutor {
     currentProcessedCount: number,
     totalCount?: number,
   ): Promise<void> {
-    await step.writer.write(items);
+    if (items.length > 0) {
+      await step.writer.write(items);
+    }
 
     // Save checkpoint
     if (isCheckpointable(step.reader)) {
