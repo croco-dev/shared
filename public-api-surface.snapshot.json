@@ -3804,6 +3804,12 @@
           ],
           "typeExports": [
             {
+              "name": "BetterAuthClaimField",
+              "exportKind": "declaration",
+              "source": "./libs/BetterAuthProvider",
+              "declarationKind": "type"
+            },
+            {
               "name": "BetterAuthConfig",
               "exportKind": "declaration",
               "source": "./libs/BetterAuthFactory",
@@ -3831,6 +3837,12 @@
               "name": "BetterAuthPluginOptions",
               "exportKind": "declaration",
               "source": "./libs/BetterAuthPlugin",
+              "declarationKind": "type"
+            },
+            {
+              "name": "BetterAuthProviderOptions",
+              "exportKind": "declaration",
+              "source": "./libs/BetterAuthProvider",
               "declarationKind": "type"
             },
             {

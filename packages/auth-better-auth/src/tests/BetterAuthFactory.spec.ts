@@ -54,7 +54,16 @@ describe("BetterAuthFactory", () => {
         secret: "test-secret-key",
         plugins: [
           expect.objectContaining({ id: "bearer" }),
-          expect.objectContaining({ id: "admin" }),
+          expect.objectContaining({
+            id: "admin",
+            schema: expect.objectContaining({
+              user: expect.objectContaining({
+                fields: expect.objectContaining({
+                  role: expect.objectContaining({ input: false }),
+                }),
+              }),
+            }),
+          }),
         ],
       });
 

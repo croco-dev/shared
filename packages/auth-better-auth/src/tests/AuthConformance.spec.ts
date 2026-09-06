@@ -45,7 +45,9 @@ function createMockBetterAuthFactory(session: unknown, error?: unknown): BetterA
 }
 
 function createProvider(session: unknown, error?: unknown): BetterAuthProvider {
-  return new BetterAuthProvider(createMockBetterAuthFactory(session, error));
+  return new BetterAuthProvider(createMockBetterAuthFactory(session, error), {
+    trustedMetadataKeys: ["privateMetadata"],
+  });
 }
 
 function createRequest(token?: string): Request {
@@ -114,7 +116,7 @@ describe("Better Auth conformance", () => {
       id: "user_123",
       email: "user@example.com",
       emailVerified: true,
-      metadata: {
+      privateMetadata: {
         roles: ["admin"],
         permissions: ["tenant:read"],
         orgId: "org_123",

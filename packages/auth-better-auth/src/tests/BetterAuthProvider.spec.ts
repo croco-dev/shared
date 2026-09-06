@@ -1,6 +1,7 @@
 import "reflect-metadata";
+import { RbacEngine } from "@croco/auth-core";
 import type { AuthProvider } from "@croco/auth-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BetterAuthFactory } from "../libs/BetterAuthFactory";
 import { BetterAuthProvider } from "../libs/BetterAuthProvider";
 import { BetterAuthAuthenticationProblem } from "../libs/problems/BetterAuthAuthenticationProblem";
@@ -28,6 +29,11 @@ describe("BetterAuthProvider", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("authenticate", () => {
@@ -211,7 +217,9 @@ describe("BetterAuthProvider", () => {
       };
 
       mockFactory = createMockBetterAuthFactory(mockSession);
-      provider = new BetterAuthProvider(mockFactory);
+      provider = new BetterAuthProvider(mockFactory, {
+        trustedUserFields: ["roles", "permissions"],
+      });
 
       const result = await provider.authenticate(createMockRequest());
 
@@ -219,28 +227,168 @@ describe("BetterAuthProvider", () => {
       expect(result?.permissions).toEqual(["project:read", "project:write"]);
     });
 
-    it("should preserve role and permissions from nested metadata fields", async () => {
-      const mockSession = {
-        user: {
-          id: "user-metadata-rbac",
-          email: "metadata-rbac@example.com",
-          metadata: {
-            role: "owner",
-            permissions: ["tenant:manage"],
-          },
-          publicMetadata: {
-            roles: ["owner", "billing-admin"],
-          },
-        },
-      };
+    it.each(["metadata", "userMetadata", "publicMetadata", "privateMetadata", "rbac"])(
+      "should ignore untrusted %s claims and emit a redacted warning",
+      async (source) => {
+        const claims = {
+          roles: ["injected-admin"],
+          role: "injected-owner",
+          permissions: ["injected:*"],
+          permission: "injected:write",
+          tenantId: "injected-tenant",
+          tenant_id: "injected-tenant-alias",
+          orgId: "injected-org",
+          org_id: "injected-org-alias",
+          organizationId: "injected-organization",
+          organization_id: "injected-organization-alias",
+        };
+        provider = new BetterAuthProvider(
+          createMockBetterAuthFactory({
+            user: { id: "secret-user-id", email: "secret@example.test", [source]: claims },
+          }),
+        );
 
-      mockFactory = createMockBetterAuthFactory(mockSession);
-      provider = new BetterAuthProvider(mockFactory);
+        const result = await provider.authenticate(createMockRequest());
 
+        expect(result?.roles).toEqual([]);
+        expect(result?.permissions).toEqual([]);
+        expect(result?.metadata).not.toHaveProperty("tenantId");
+        expect(result?.metadata).not.toHaveProperty("orgId");
+        expect(console.warn).toHaveBeenCalledOnce();
+        expect(console.warn).toHaveBeenCalledWith(
+          "Ignoring untrusted Better Auth authorization claims",
+          { code: "auth-better-auth/untrusted-claims", claims: Object.keys(claims) },
+        );
+        expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toMatch(/injected|secret/);
+      },
+    );
+
+    it("should deny admin authorization for a session with injected public claims", async () => {
+      provider = new BetterAuthProvider(
+        createMockBetterAuthFactory({
+          user: {
+            id: "user-123",
+            publicMetadata: { roles: ["admin"], permissions: ["tenant:manage"] },
+          },
+        }),
+      );
+      const user = await provider.authenticate(createMockRequest());
+      expect(user).not.toBeNull();
+      const rbac = new RbacEngine({
+        getRolePermissions: (role) => (role === "admin" ? ["tenant:manage"] : []),
+      });
+      if (!user) throw new Error("Expected an authenticated user");
+      expect(rbac.hasRole(user, "admin")).toBe(false);
+      expect(rbac.hasPermission(user, "tenant:manage")).toBe(false);
+    });
+
+    it("should trust only the admin plugin role at the top level by default", async () => {
+      provider = new BetterAuthProvider(
+        createMockBetterAuthFactory({
+          user: {
+            id: "user-123",
+            role: "member",
+            roles: ["admin"],
+            permissions: ["*"],
+            tenantId: "other-tenant",
+            orgId: "other-org",
+          },
+        }),
+      );
       const result = await provider.authenticate(createMockRequest());
+      expect(result?.roles).toEqual(["member"]);
+      expect(result?.permissions).toEqual([]);
+      expect(result?.metadata).not.toHaveProperty("tenantId");
+      expect(result?.metadata).not.toHaveProperty("orgId");
+      expect(console.warn).toHaveBeenCalledOnce();
+    });
 
-      expect(result?.roles).toEqual(["owner", "billing-admin"]);
-      expect(result?.permissions).toEqual(["tenant:manage"]);
+    it("should use explicit server metadata with alias, filtering, and precedence rules", async () => {
+      const warn = vi.fn();
+      provider = new BetterAuthProvider(
+        createMockBetterAuthFactory({
+          user: {
+            id: "user-123",
+            role: "member",
+            tenant_id: "direct-tenant",
+            privateMetadata: {
+              roles: ["member", "owner", 123],
+              permission: "read",
+              tenant_id: "private-tenant",
+              organization_id: "private-org",
+            },
+            serverClaims: { roles: ["other-owner"], permissions: ["write", "write", false] },
+            publicMetadata: { roles: ["injected-admin"], tenantId: "injected-tenant" },
+          },
+        }),
+        {
+          trustedMetadataKeys: ["privateMetadata", "serverClaims"],
+          trustedUserFields: ["tenant_id"],
+          logger: { warn },
+        },
+      );
+      const result = await provider.authenticate(createMockRequest());
+      expect(result?.roles).toEqual(["member", "owner"]);
+      expect(result?.permissions).toEqual(["write", "read"]);
+      expect(result?.metadata).toMatchObject({ tenantId: "direct-tenant", orgId: "private-org" });
+      expect(warn).toHaveBeenCalledOnce();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it("should snapshot trust options and ignore inherited claims and sources", async () => {
+      const trustedMetadataKeys = ["privateMetadata", "serverClaims"];
+      const trustedUserFields: ["tenantId"] = ["tenantId"];
+      const user = Object.assign(
+        Object.create({ role: "admin", privateMetadata: { permissions: ["*"] } }),
+        {
+          id: "user-123",
+          publicMetadata: { roles: ["admin"] },
+          serverClaims: Object.create({ role: "admin" }),
+        },
+      );
+      provider = new BetterAuthProvider(createMockBetterAuthFactory({ user }), {
+        trustedMetadataKeys,
+        trustedUserFields,
+      });
+      trustedMetadataKeys.push("publicMetadata");
+      const result = await provider.authenticate(createMockRequest());
+      expect(result?.roles).toEqual([]);
+      expect(result?.permissions).toEqual([]);
+      expect(result?.metadata).not.toHaveProperty("tenantId");
+    });
+
+    it.each([null, "admin", [], 42])(
+      "should ignore malformed trusted metadata %j",
+      async (privateMetadata) => {
+        provider = new BetterAuthProvider(
+          createMockBetterAuthFactory({ user: { id: "user-123", privateMetadata } }),
+          {
+            trustedMetadataKeys: ["privateMetadata"],
+          },
+        );
+        const result = await provider.authenticate(createMockRequest());
+        expect(result?.roles).toEqual([]);
+        expect(result?.permissions).toEqual([]);
+        expect(console.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should keep empty or malformed trusted values from falling through to untrusted claims", async () => {
+      provider = new BetterAuthProvider(
+        createMockBetterAuthFactory({
+          user: {
+            id: "user-123",
+            privateMetadata: { roles: [], permissions: null, tenantId: 42 },
+            publicMetadata: { roles: ["admin"], permissions: ["*"], tenantId: "other-tenant" },
+          },
+        }),
+        { trustedMetadataKeys: ["privateMetadata"] },
+      );
+      const result = await provider.authenticate(createMockRequest());
+      expect(result?.roles).toEqual([]);
+      expect(result?.permissions).toEqual([]);
+      expect(result?.metadata).not.toHaveProperty("tenantId");
+      expect(console.warn).toHaveBeenCalledOnce();
     });
 
     it("should implement AuthProvider interface", () => {
