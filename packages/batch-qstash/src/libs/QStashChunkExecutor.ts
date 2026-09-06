@@ -274,6 +274,7 @@ export class QStashChunkExecutor {
     await runQStashBatchOperation("publishJSON", () =>
       this.options.qstashClient.publishJSON({
         url: this.options.webhookUrl,
+        deduplicationId: `chunk:${executionId}:${stepName}:${publication.nextToken}`,
         body: {
           executionId,
           stepName,

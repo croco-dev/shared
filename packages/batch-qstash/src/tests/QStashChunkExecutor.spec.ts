@@ -228,6 +228,7 @@ describe("QStashChunkExecutor continuation execution", () => {
       result: { processedCount: 7 },
     });
     expect(harness.publishJSON.mock.calls[0]?.[0]).toMatchObject({
+      deduplicationId: `chunk:${execution.id}:numbers:next-token-1`,
       body: {
         executionId: execution.id,
         stepName: "numbers",
@@ -235,6 +236,12 @@ describe("QStashChunkExecutor continuation execution", () => {
       },
       headers: {
         "Idempotency-Key": `chunk:${execution.id}:numbers:1:next-token-1`,
+      },
+    });
+    expect(harness.publishJSON.mock.calls[1]?.[0]).toMatchObject({
+      deduplicationId: `chunk:${execution.id}:numbers:next-token-2`,
+      headers: {
+        "Idempotency-Key": `chunk:${execution.id}:numbers:1:next-token-2`,
       },
     });
   });
@@ -387,6 +394,20 @@ describe("QStashChunkExecutor continuation execution", () => {
     expect(writer.writeIdempotent).toHaveBeenCalledTimes(1);
     expect(reader.read).toHaveBeenCalledTimes(3);
     expect(publishedToken(harness, 1)).toBe("next-token-1");
+    expect(harness.publishJSON).toHaveBeenCalledTimes(2);
+    for (const [index, [request]] of harness.publishJSON.mock.calls.entries()) {
+      expect(request).toMatchObject({
+        deduplicationId: `chunk:${execution.id}:numbers:next-token-1`,
+        body: {
+          executionId: execution.id,
+          stepName: "numbers",
+          continuationToken: "next-token-1",
+        },
+        headers: {
+          "Idempotency-Key": `chunk:${execution.id}:numbers:${index + 1}:next-token-1`,
+        },
+      });
+    }
     const delayedOldAttempt = await harness.executor.executeChunk(execution.id, step, {
       continuationToken: "initial",
       workerId: "delayed-old-attempt",
