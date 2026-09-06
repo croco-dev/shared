@@ -53,7 +53,7 @@ function resolveResourceType(key: string): CloudinaryResourceType {
   const filename = key.slice(key.lastIndexOf("/") + 1);
   if (
     !filename.includes(".") ||
-    /\.(avif|bmp|flif|gif|hdp|heic|heif|ico|jp2|jpe|jpe?g|jxl|jxr|png|psd|svg|tga|tiff?|wdp|webp)$/i.test(
+    /\.(3ds|ai|arw|avif|bmp|bw|cr2|cr3|djvu|dng|eps|eps3|ept|fbx|flif|gif|glb|gltf|hdp|heic|heif|ico|indd|jp2|jpe|jpeg|jpg|jxl|jxr|obj|ply|png|ps|psd|svg|tga|tif|tiff|u3ma|usdz|wdp|webp)$/i.test(
       filename,
     )
   ) {
