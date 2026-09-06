@@ -231,14 +231,28 @@ export function selectGeneratedTestPathsForSmokeCases(
   caseNames: readonly string[],
   generatedTestPaths: readonly string[],
 ): readonly string[] {
-  const prefixes = caseNames.flatMap((caseName) => {
+  const selections = caseNames.map((caseName) => {
     const selected = CASE_TEST_PATH_PREFIXES[caseName as keyof typeof CASE_TEST_PATH_PREFIXES];
     if (!selected) throw new Error(`Unknown generated smoke case: ${caseName}`);
-    return selected.map((prefix) => `packages/create-croco-app/templates/${prefix}`);
+    return {
+      prefixes: selected.map((prefix) => `packages/create-croco-app/templates/${prefix}`),
+      excludesNodeLifecycle:
+        caseName === "saas-cloudflare-profile" || caseName === "saas-lambda-profile",
+    };
   });
   return generatedTestPaths
     .filter((path) =>
-      prefixes.some((prefix) => (prefix.endsWith("/") ? path.startsWith(prefix) : path === prefix)),
+      selections.some(
+        ({ prefixes, excludesNodeLifecycle }) =>
+          !(
+            excludesNodeLifecycle &&
+            path ===
+              "packages/create-croco-app/templates/saas/apps/api-server/src/tests/node-lifecycle.spec.ts"
+          ) &&
+          prefixes.some((prefix) =>
+            prefix.endsWith("/") ? path.startsWith(prefix) : path === prefix,
+          ),
+      ),
     )
     .sort();
 }

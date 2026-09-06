@@ -917,7 +917,7 @@ describe("verification manifest", () => {
     const internal = selectGeneratedTestPathsForSmokeCases(["goal-internal-tool"], paths);
     const admin = selectGeneratedTestPathsForSmokeCases(["admin-console-starter"], paths);
 
-    expect(internal).toHaveLength(4);
+    expect(internal).toHaveLength(5);
     expect(internal.some((path) => path.includes("/tests/journeys/"))).toBe(false);
     expect(admin).toEqual(
       [
@@ -938,12 +938,34 @@ describe("verification manifest", () => {
         ],
         paths,
       ),
-    ).toHaveLength(12);
+    ).toHaveLength(14);
     expect(selectGeneratedTestPathsForSmokeCases(["rest-spa-contracts"], paths)).toEqual([]);
     expect(() => selectGeneratedTestPathsForSmokeCases(["unknown-smoke-case"], paths)).toThrow(
       "Unknown generated smoke case: unknown-smoke-case",
     );
   });
+
+  it.each(["saas-cloudflare-profile", "saas-lambda-profile"])(
+    "keeps Node lifecycle evidence scoped to Node cases alongside %s",
+    (caseName) => {
+      const paths = readTestInventory()
+        .inventory.tests.filter(({ lane }) => lane === "generated-app")
+        .map(({ path }) => path);
+      const nodePaths = selectGeneratedTestPathsForSmokeCases(["goal-saas-api"], paths);
+      const lifecycle =
+        "packages/create-croco-app/templates/saas/apps/api-server/src/tests/node-lifecycle.spec.ts";
+      expect(nodePaths).toContain(lifecycle);
+      expect(selectGeneratedTestPathsForSmokeCases([caseName], paths)).toEqual(
+        nodePaths.filter((path) => path !== lifecycle),
+      );
+      expect(selectGeneratedTestPathsForSmokeCases([caseName, "goal-saas-api"], paths)).toEqual(
+        nodePaths,
+      );
+      expect(selectGeneratedTestPathsForSmokeCases(["goal-saas-api", caseName], paths)).toEqual(
+        nodePaths,
+      );
+    },
+  );
 
   it("omits all generated materialization validation arguments for an empty selected path set", () => {
     const generatedInventoryPaths = readTestInventory()
@@ -1032,6 +1054,12 @@ describe("verification manifest", () => {
           .filter((entry) => {
             const generatedPath = entry.generated?.generatedPath;
             if (!generatedPath || !existsSync(join(projectDir, generatedPath))) return false;
+            if (
+              !readFileSync(join(ROOT_DIR, entry.path)).equals(
+                readFileSync(join(projectDir, generatedPath)),
+              )
+            )
+              return false;
             return smokeCase.validations.some((validation) => {
               if (generatedPath.startsWith("tests/journeys/")) {
                 return (
