@@ -490,7 +490,7 @@ describe("transactional event spine smoke", () => {
     ).rejects.toBeInstanceOf(InvalidIdempotencyKeyProblem);
     expect(failureStore.failures).toHaveLength(1);
     expect(failureStore.failures[0]).toMatchObject({
-      retryable: true,
+      retryable: false,
       problem: {
         code: "idempotency-core/invalid-key",
         status: 400,
@@ -502,12 +502,14 @@ describe("transactional event spine smoke", () => {
       "croco.idempotency.fingerprint": "invalid-amount",
     });
 
+    const duplicateHandler = vi.fn(() => "must-not-run");
     await expect(
-      failureCoordinator.execute({ key: failureKey }, () => "recovered"),
+      failureCoordinator.execute({ key: failureKey }, duplicateHandler),
     ).resolves.toMatchObject({
-      outcome: "executed",
-      response: "recovered",
+      outcome: "failed",
+      record: { problem: failureStore.failures[0].problem },
     });
+    expect(duplicateHandler).not.toHaveBeenCalled();
   });
 });
 
