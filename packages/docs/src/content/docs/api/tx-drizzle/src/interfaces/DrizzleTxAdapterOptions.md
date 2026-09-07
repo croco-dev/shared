@@ -63,3 +63,11 @@ after an abort signal fires before considering the connection permanently stuck.
 ```ts
 5000;
 ```
+
+---
+
+### supportsSavepoint?
+
+> `optional` **supportsSavepoint?**: `boolean`
+
+Disable savepoints for drivers whose transaction method does not support nested execution.

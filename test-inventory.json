@@ -4319,6 +4319,12 @@
       "owner": "@croco/tx-drizzle"
     },
     {
+      "path": "packages/tx-drizzle/src/tests/SavepointCapability.spec.ts",
+      "lane": "fast",
+      "qualifiers": ["coverage"],
+      "owner": "@croco/tx-drizzle"
+    },
+    {
       "path": "packages/tx-drizzle/src/tests/TxDrizzleProblems.spec.ts",
       "lane": "fast",
       "qualifiers": ["coverage"],

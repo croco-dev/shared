@@ -118,7 +118,7 @@ class UserService {
 
 ## API
 
-### createDrizzleTxAdapter(db)
+### createDrizzleTxAdapter(db, adapterOptions?)
 
 Drizzle DB 인스턴스를 받아 `TxAdapter`를 반환합니다.
 
@@ -131,8 +131,18 @@ const adapter = createDrizzleTxAdapter(db);
 반환된 어댑터는 다음을 지원합니다:
 
 - `transaction(fn, options?)`: `db.transaction` 호출
-- `savepoint(client, fn, options?)`: `tx.transaction` 호출 (중첩 트랜잭션). 런타임 transaction client가 `transaction()`을 제공하지 않으면 `SavepointUnsupportedProblem`으로 즉시 실패
-- `supportsSavepoint()`: `true` 반환. 단, 실제 중첩 트랜잭션 실행은 런타임 transaction client의 `transaction()` 지원이 필요
+- `savepoint(client, fn, options?)`: `tx.transaction` 호출 (중첩 트랜잭션). 세이브포인트가 비활성화되어 있거나 클라이언트에 `transaction()`이 없으면 `SavepointUnsupportedProblem`으로 즉시 실패
+- `supportsSavepoint(client?)`: 활성 트랜잭션 클라이언트의 `transaction()` 메서드를 확인. `adapterOptions.supportsSavepoint: false`이면 항상 `false` 반환. 클라이언트를 생략하면 기존처럼 기본값 `true` 반환
+
+`TxManager`는 중첩 실행 전에 현재 클라이언트로 지원 여부를 확인합니다. 지원하지 않으면 경고를 남기고 부모 트랜잭션에 참여합니다. 이 경우 중첩 구간만 독립적으로 롤백할 수 없으며, 상위로 전파된 오류는 부모 트랜잭션을 롤백합니다.
+
+드라이버가 `transaction()` 메서드를 제공하더라도 중첩 실행을 지원하지 않는다면 명시적으로 비활성화하세요.
+
+```ts
+const adapter = createDrizzleTxAdapter(db, { supportsSavepoint: false });
+```
+
+`supportsSavepoint: true`도 클라이언트에 없는 메서드를 지원하게 만들지는 않습니다. 이 설정은 세이브포인트에만 적용되며, 드라이버의 루트 트랜잭션 지원이 필요합니다.
 
 ### 타입 유틸리티
 

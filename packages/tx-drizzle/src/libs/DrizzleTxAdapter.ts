@@ -4,6 +4,9 @@ import { SavepointUnsupportedProblem } from "./problems/TxDrizzleProblems";
 import type { DrizzleDb, DrizzleTx, InferTxClient, InferTxOptions } from "./types";
 
 export interface DrizzleTxAdapterOptions {
+  /** Disable savepoints for drivers whose transaction method does not support nested execution. */
+  supportsSavepoint?: boolean;
+
   /**
    * Optional hook invoked when a transaction connection is invalidated or aborted
    * with active in-flight operations, ensuring the socket is discarded/destroyed
@@ -527,7 +530,10 @@ export function createDrizzleTxAdapter<TDb extends DrizzleDb>(
     ): Promise<T> {
       const txClient = client as unknown as DrizzleTx<TClient, TOptions>;
 
-      if (typeof txClient.transaction !== "function") {
+      if (
+        adapterOptions?.supportsSavepoint === false ||
+        typeof txClient?.transaction !== "function"
+      ) {
         throw new SavepointUnsupportedProblem();
       }
 
@@ -543,8 +549,15 @@ export function createDrizzleTxAdapter<TDb extends DrizzleDb>(
       }
     },
 
-    supportsSavepoint(): boolean {
-      return true;
+    supportsSavepoint(client?: TClient): boolean {
+      if (adapterOptions?.supportsSavepoint === false) {
+        return false;
+      }
+
+      return (
+        client === undefined ||
+        typeof (client as unknown as DrizzleTx<TClient, TOptions>)?.transaction === "function"
+      );
     },
   };
 }

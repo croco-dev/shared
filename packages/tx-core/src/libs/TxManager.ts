@@ -221,7 +221,7 @@ export class TxManager<TClient, TOptions = unknown> implements TransactionContex
     options?: TOptions,
     timeout?: number,
   ): Promise<T> {
-    if (!this.adapter.supportsSavepoint()) {
+    if (!this.adapter.supportsSavepoint(currentContext.client)) {
       this.warnSavepointNotSupported();
       return this.executeJoined(currentContext, fn);
     }
