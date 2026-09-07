@@ -151,28 +151,32 @@ export class QStashChunkExecutor {
     const heartbeat = this.createHeartbeat(executionId, acquired.claim, workerId);
     try {
       if (acquired.kind === "publish_pending") {
+        const alreadyDelivered = deliveryToken === acquired.publication.nextToken;
         await heartbeat.renew();
-        await this.publishContinuation(executionId, step.name, acquired.publication);
+        if (!alreadyDelivered) {
+          await this.publishContinuation(executionId, step.name, acquired.publication);
+        }
         await heartbeat.assertOwned();
         await heartbeat.runOwned(() =>
           this.continuationManager.confirmContinuationPublication(executionId, acquired.claim),
         );
-        return { hasMore: true, processedCount: 0 };
+        if (!alreadyDelivered) return { hasMore: true, processedCount: 0 };
+      } else {
+        return await this.processClaimedChunk(
+          executionId,
+          step,
+          acquired.execution,
+          acquired.claim,
+          heartbeat,
+        );
       }
-
-      return await this.processClaimedChunk(
-        executionId,
-        step,
-        acquired.execution,
-        acquired.claim,
-        heartbeat,
-      );
     } catch (error) {
       await this.failWhileOwned(executionId, step, acquired.claim, error, heartbeat);
       throw error;
     } finally {
       heartbeat.stop();
     }
+    return this.executeChunk(executionId, step, { ...delivery, workerId });
   }
 
   private async processClaimedChunk<I, O>(
@@ -274,6 +278,7 @@ export class QStashChunkExecutor {
     await runQStashBatchOperation("publishJSON", () =>
       this.options.qstashClient.publishJSON({
         url: this.options.webhookUrl,
+        deduplicationId: `chunk:${executionId}:${stepName}:${publication.nextToken}`,
         body: {
           executionId,
           stepName,
