@@ -73,7 +73,12 @@ const response = await fetch(intent.uploadUrl, {
 `CloudinaryProvider`는 키의 마지막 확장자로 업로드, URL, 조회, 삭제에 사용할 리소스 타입을 결정합니다.
 
 - 이미지 확장자(`jpg`, `png`, `webp` 등)와 확장자 없는 기존 키는 `image`를 사용합니다.
-- 영상·오디오 확장자(`mp4`, `mov`, `mp3`, `wav` 등)는 `video`를 사용합니다.
+- 영상·오디오 확장자 `3g2`, `3gp`, `aac`, `aif`, `aiff`, `amr`, `avi`, `flac`, `flv`, `m2ts`,
+  `m4a`, `m4v`, `mkv`, `mov`, `mp3`, `mp4`, `mpeg`, `mpg`, `mts`, `mxf`, `ogg`, `ogv`, `opus`,
+  `ts`, `wav`, `webm`, `wmv`는 `video`를 사용합니다.
+  [공식 영상 목록](https://cloudinary.com/documentation/video_transcoding)과
+  [오디오 목록](https://cloudinary.com/documentation/audio_transformations)을 포함합니다.
+  매니페스트 파일 `m3u8`, `mpd`와 위 목록에 없는 확장자는 `raw`를 사용합니다.
 - 그 밖의 확장자(`pdf`, `zip`, `txt`, `bin` 등)는 원본 파일을 보존하는 `raw`를 사용합니다.
 
 확장자는 대소문자를 구분하지 않습니다. 비이미지 파일에는 확장자가 있는 키를 사용하세요.
@@ -155,10 +160,13 @@ pnpm --filter @croco/storage-cloudinary test -- CloudinaryLiveSmoke
 - `cover`, `contain`, `fill`, `inside`, `outside`를 Cloudinary crop 값으로 변환합니다.
 - 일시적 네트워크 오류와 5xx 응답은 최대 3회 재시도합니다.
 - 업로드 인텐트는 직접 업로드 엔드포인트, 공개 URL, `public_id`, `timestamp`, `api_key`, `signature` multipart 필드를 반환합니다. API secret은 반환하지 않으며 Cloudinary의 서명 유효 시간에 맞춰 TTL은 최대 1시간입니다.
-- 이미지 직접 업로드 인텐트의 키는 기존처럼 확장자를 생략합니다. 영상·오디오와 raw 파일은 확장자가 있는
-  전체 키를 `public_id`로 보존합니다. 따라서 `clip.mp4`와 `clip.mov`는 서로 다른 파일입니다.
-- Cloudinary는 영상 전달 URL에서 포맷 확장자를 별도로 해석하므로 `clip.mp4`의 전달 경로는
-  `clip.mp4.mp4`가 됩니다. 저장 ID의 확장자와 전달 포맷을 구분하는 [Cloudinary 규칙](https://cloudinary.com/documentation/upload_parameters)을 따릅니다.
+- 이미지 직접 업로드 인텐트의 키는 기존처럼 확장자를 생략하며, raw 파일은 전체 키를 `public_id`로 사용합니다.
+- 영상·오디오 키는 `-`를 `--`로, `.`을 `-d`로 순서대로 이스케이프한 `public_id`를 사용합니다.
+  예를 들어 `clip.mp4`는 `clip-dmp4`, `clip-d.mp4`는 `clip--d-dmp4`가 되어 서로 충돌하지 않습니다.
+  업로드, 인텐트, URL, 메타데이터, 삭제가 모두 같은 ID를 사용합니다.
+- 영상 전달 URL에는 출력 포맷 확장자를 붙이지 않습니다. 따라서 키 확장자와 실제 포맷이 달라도
+  [Cloudinary의 원본 포맷 전달 규칙](https://cloudinary.com/documentation/video_transcoding)에 따라
+  원본을 받습니다. 인텐트의 `public_id`를 원래 키로 바꾸지 마세요.
 - `getUploadIntent("reports/invoice.pdf")`는 `/raw/upload`를, `getUploadIntent("clips/demo.mp4")`는
   `/video/upload`를 반환합니다. 인텐트의 `fields`를 그대로 전송하세요.
 - 이미지 변환 옵션 확장은 제공하지 않습니다.

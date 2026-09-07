@@ -34,25 +34,25 @@ const cases = [
   {
     key: "files/clip.mp4",
     resource: "video",
-    publicId: "files/clip.mp4",
+    publicId: "files/clip-dmp4",
     contentType: "video/mp4",
   },
   {
     key: "files/clip.mov",
     resource: "video",
-    publicId: "files/clip.mov",
+    publicId: "files/clip-dmov",
     contentType: "video/quicktime",
   },
   {
     key: "files/song.mp3",
     resource: "video",
-    publicId: "files/song.mp3",
+    publicId: "files/song-dmp3",
     contentType: "audio/mpeg",
   },
   {
     key: "files/song.wav",
     resource: "video",
-    publicId: "files/song.wav",
+    publicId: "files/song-dwav",
     contentType: "audio/wav",
   },
   {
@@ -68,11 +68,65 @@ const cases = [
     contentType: "image/jpeg",
   },
   { key: "files/avatar", resource: "image", publicId: "files/avatar", contentType: "image/png" },
+  {
+    key: "files/live.m3u8",
+    resource: "raw",
+    publicId: "files/live.m3u8",
+    contentType: "application/vnd.apple.mpegurl",
+  },
+  {
+    key: "files/live.mpd",
+    resource: "raw",
+    publicId: "files/live.mpd",
+    contentType: "application/dash+xml",
+  },
+  {
+    key: "files/clip.3g2",
+    resource: "video",
+    publicId: "files/clip-d3g2",
+    contentType: "video/3gpp2",
+  },
+  {
+    key: "files/clip.3gp",
+    resource: "video",
+    publicId: "files/clip-d3gp",
+    contentType: "video/3gpp",
+  },
+  {
+    key: "files/clip.m2ts",
+    resource: "video",
+    publicId: "files/clip-dm2ts",
+    contentType: "video/mp2t",
+  },
+  {
+    key: "files/clip.mts",
+    resource: "video",
+    publicId: "files/clip-dmts",
+    contentType: "video/mp2t",
+  },
+  {
+    key: "files/clip.mxf",
+    resource: "video",
+    publicId: "files/clip-dmxf",
+    contentType: "application/mxf",
+  },
+  {
+    key: "files/clip.ts",
+    resource: "video",
+    publicId: "files/clip-dts",
+    contentType: "video/mp2t",
+  },
+  {
+    key: "files/clip.amr",
+    resource: "video",
+    publicId: "files/clip-damr",
+    contentType: "audio/amr",
+  },
 ] as const;
 
 type StoredObject = { data: Uint8Array; publicId: string };
 
-function useNamespaceBackend() {
+function useNamespaceBackend(actualVideoFormat?: string) {
   const objects = new Map<string, StoredObject>();
   const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -88,6 +142,10 @@ function useNamespaceBackend() {
       if (parts[3] === "upload") {
         const form = await new Response(init?.body, { headers: init?.headers }).formData();
         const publicId = String(form.get("public_id"));
+        const expectedSignature = createHash("sha1")
+          .update(`public_id=${publicId}&timestamp=${form.get("timestamp")}${config.apiSecret}`)
+          .digest("hex");
+        expect(form.get("signature")).toBe(expectedSignature);
         const file = form.get("file");
         if (file === null || typeof file === "string") throw new Error("Missing upload file");
         const data = new Uint8Array(await file.arrayBuffer());
@@ -111,6 +169,10 @@ function useNamespaceBackend() {
       const key = deliveryParts.join("/");
       const publicId = parts[1] === "video" ? key.replace(/\.[^/.]+$/, "") : key;
       const object = objects.get(`${parts[1]}:${publicId}`);
+      const requestedFormat = parts[1] === "video" ? key.match(/\.([^/.]+)$/)?.[1] : undefined;
+      if (object && actualVideoFormat && requestedFormat && requestedFormat !== actualVideoFormat) {
+        return new Response(`transcoded:${requestedFormat}`);
+      }
       return object
         ? new Response(new Uint8Array(object.data))
         : new Response(null, { status: 404 });
@@ -184,6 +246,60 @@ describe("Cloudinary resource namespaces", () => {
     await new CloudinaryProvider(config).delete(key);
     expect(backend.objects.has(`image:${key}`)).toBe(false);
   });
+
+  describe.each([undefined, "application/octet-stream", "video/quicktime"])(
+    "original video bytes with MIME %s",
+    (contentType) => {
+      const key = "files/clip.mp4";
+      const movBytes = new TextEncoder().encode("actual MOV video bytes");
+
+      beforeEach(async () => {
+        useNamespaceBackend("mov");
+        await new CloudinaryProvider(config).put(key, movBytes, { contentType });
+      });
+
+      it("downloads the original format after provider reconstruction", async () => {
+        await expect(new CloudinaryProvider(config).get(key)).resolves.toEqual(movBytes);
+      });
+
+      it("streams the original format after provider reconstruction", async () => {
+        const stream = await new CloudinaryProvider(config).getStream(key);
+        expect(new Uint8Array(await new Response(stream).arrayBuffer())).toEqual(movBytes);
+      });
+
+      it("delivers original bytes through the public URL", async () => {
+        const url = new CloudinaryProvider(config).getPublicUrl(key);
+        expect(new Uint8Array(await (await fetch(url)).arrayBuffer())).toEqual(movBytes);
+      });
+
+      it("delivers original bytes through the signed URL", async () => {
+        const url = await new CloudinaryProvider(config).getSignedUrl(key, { expiresIn: 60 });
+        expect(new Uint8Array(await (await fetch(url)).arrayBuffer())).toEqual(movBytes);
+      });
+
+      it("uploads through an intent and retrieves original bytes after reconstruction", async () => {
+        useNamespaceBackend("mov");
+        const intent = await new CloudinaryProvider(config).getUploadIntent(key);
+        const form = new FormData();
+        for (const [name, value] of Object.entries(intent.fields ?? {})) form.set(name, value);
+        form.set("file", new Blob([movBytes]), "clip.mp4");
+        const request = new Request(intent.uploadUrl, { method: "POST", body: form });
+        await fetch(intent.uploadUrl, {
+          method: "POST",
+          body: request.body,
+          headers: request.headers,
+        });
+        await expect(new CloudinaryProvider(config).get(key)).resolves.toEqual(movBytes);
+      });
+
+      it("delivers original bytes through the reconstructed upload intent public URL", async () => {
+        const intent = await new CloudinaryProvider(config).getUploadIntent(key);
+        expect(new Uint8Array(await (await fetch(intent.publicUrl)).arrayBuffer())).toEqual(
+          movBytes,
+        );
+      });
+    },
+  );
 
   describe.each(cases)("$key", ({ key, resource, publicId, contentType }) => {
     it.each(["bytes", "stream"])(
@@ -279,18 +395,28 @@ describe("Cloudinary resource namespaces", () => {
   );
 
   it.each([
-    ["files/clip.mp4", "files/clip.mp4.mp4"],
-    ["files/clip.mov", "files/clip.mov.mov"],
-    ["files/clip.MP4", "files/clip.MP4.mp4"],
-    ["files/song.mp3", "files/song.mp3.mp3"],
-    ["files/song.wav", "files/song.wav.wav"],
-  ])("preserves the full public ID and appends the delivery format for %s", (key, deliveryKey) => {
+    ["files/clip.mp4", "files/clip-dmp4"],
+    ["files/clip.mov", "files/clip-dmov"],
+    ["files/clip.MP4", "files/clip-dMP4"],
+    ["files/song.mp3", "files/song-dmp3"],
+    ["files/song.wav", "files/song-dwav"],
+    ["files/clip-d.mp4", "files/clip--d-dmp4"],
+    ["files/clip--d.mp4", "files/clip----d-dmp4"],
+    ["release.v1/my-clips/clip.MP4", "release-dv1/my--clips/clip-dMP4"],
+  ])("uses an extensionless video public ID for %s", (key, deliveryKey) => {
     const url = new CloudinaryProvider(config).getPublicUrl(key);
     expect(new URL(url).pathname).toBe(`/resource-test/video/upload/v1/${deliveryKey}`);
   });
 
   describe("video keys sharing a basename", () => {
-    const siblings = ["files/clip.mp4", "files/clip.mov", "files/clip.MP4"];
+    const siblings = [
+      "files/clip.mp4",
+      "files/clip.mov",
+      "files/clip.MP4",
+      "files/clip-d.mp4",
+      "files/clip--d.mp4",
+      "release.v1/my-clips/clip.MP4",
+    ];
 
     beforeEach(async () => {
       useNamespaceBackend();
@@ -319,15 +445,16 @@ describe("Cloudinary resource namespaces", () => {
   });
 
   it.each([
-    ["files/report.PDF", "Application/PDF; charset=binary", "raw"],
-    ["files/clip.MP4", "Video/MP4; codecs=avc1", "video"],
-    ["files/song.WAV", "Audio/WAV; rate=44100", "video"],
+    ["files/report.PDF", "Application/PDF; charset=binary", "raw:files/report.PDF"],
+    ["files/clip.MP4", "Video/MP4; codecs=avc1", "video:files/clip-dMP4"],
+    ["files/song.WAV", "Audio/WAV; rate=44100", "video:files/song-dWAV"],
+    ["files/clip.MXF", "Application/MXF; version=1", "video:files/clip-dMXF"],
   ])(
-    "accepts case-insensitive MIME parameters for %s without changing its public ID",
-    async (key, contentType, resource) => {
+    "accepts case-insensitive MIME parameters for %s in its key namespace",
+    async (key, contentType, storageId) => {
       const backend = useNamespaceBackend();
       await new CloudinaryProvider(config).put(key, payload, { contentType });
-      expect(backend.objects.get(`${resource}:${key}`)?.data).toEqual(payload);
+      expect(backend.objects.get(storageId)?.data).toEqual(payload);
     },
   );
 
@@ -343,6 +470,7 @@ describe("Cloudinary resource namespaces", () => {
   it.each([
     ["files/report.pdf", "image/png"],
     ["files/report.pdf", "video/mp4"],
+    ["files/report.pdf", "application/mxf"],
     ["files/clip.mp4", "application/pdf"],
     ["files/clip.mp4", "image/png"],
     ["files/avatar.png", "application/pdf"],

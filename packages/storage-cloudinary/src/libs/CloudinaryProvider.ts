@@ -60,7 +60,7 @@ function resolveResourceType(key: string): CloudinaryResourceType {
     return "image";
   }
   if (
-    /\.(aac|aiff?|avi|flac|flv|m4a|m4v|mkv|mov|mp3|mp4|mpeg|mpg|ogg|ogv|opus|wav|webm|wmv)$/i.test(
+    /\.(3g2|3gp|aac|aiff?|amr|avi|flac|flv|m2ts|m4a|m4v|mkv|mov|mp3|mp4|mpeg|mpg|mts|mxf|ogg|ogv|opus|ts|wav|webm|wmv)$/i.test(
       filename,
     )
   ) {
@@ -69,10 +69,8 @@ function resolveResourceType(key: string): CloudinaryResourceType {
   return "raw";
 }
 
-function resolveDeliveryKey(key: string): string {
-  return resolveResourceType(key) === "video"
-    ? `${key}${key.slice(key.lastIndexOf(".")).toLowerCase()}`
-    : key;
+function resolvePublicId(key: string): string {
+  return resolveResourceType(key) === "video" ? key.replace(/-/g, "--").replace(/\./g, "-d") : key;
 }
 
 type CloudinarySdkError = Error & {
@@ -327,7 +325,7 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
 
   getPublicUrl(key: string): string {
     this.validateKey(key);
-    return cloudinary.url(resolveDeliveryKey(key), {
+    return cloudinary.url(resolvePublicId(key), {
       cloud_name: this.cloudName,
       secure: this.secure,
       ...(resolveResourceType(key) === "image" ? {} : { resource_type: resolveResourceType(key) }),
@@ -339,7 +337,7 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
     this.assertOperationNotAborted(options, "getSignedUrl", key);
     const expiresIn = validateSignedUrlExpiry(options.expiresIn);
 
-    const url = cloudinary.url(resolveDeliveryKey(key), {
+    const url = cloudinary.url(resolvePublicId(key), {
       cloud_name: this.cloudName,
       api_secret: this.apiSecret,
       secure: this.secure,
@@ -421,7 +419,7 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
     const now = Date.now();
     const timestamp = Math.floor(now / 1000);
     const signedFields = {
-      public_id: key,
+      public_id: resolvePublicId(key),
       timestamp,
     };
     const uploadUrl = new URL(
@@ -446,7 +444,7 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
 
   private buildDeliveryUrl(key: string, resourceType: string): string {
     const protocol = this.secure ? "https" : "http";
-    return `${protocol}://res.cloudinary.com/${this.cloudName}/${resourceType}/upload/${resolveDeliveryKey(key)}`;
+    return `${protocol}://res.cloudinary.com/${this.cloudName}/${resourceType}/upload/${resolvePublicId(key)}`;
   }
 
   private async executeWithRetry<T>(
@@ -484,13 +482,13 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
     const context = options?.metadata ? this.formatContext(options.metadata) : undefined;
     const signedFields = {
       ...(context === undefined ? {} : { context }),
-      public_id: key,
+      public_id: resolvePublicId(key),
       timestamp,
     };
     const fields = {
       api_key: this.apiKey,
       ...(context === undefined ? {} : { context }),
-      public_id: key,
+      public_id: resolvePublicId(key),
       signature: cloudinary.utils.api_sign_request(signedFields, this.apiSecret),
       timestamp: String(timestamp),
     };
@@ -525,7 +523,11 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
       ...(duplex === undefined ? {} : { duplex }),
     } as RequestInit & { duplex?: "half" });
     const result = await this.readCloudinaryResponse(response, "Cloudinary upload request failed");
-    if (typeof result !== "object" || result === null || Reflect.get(result, "public_id") !== key) {
+    if (
+      typeof result !== "object" ||
+      result === null ||
+      Reflect.get(result, "public_id") !== resolvePublicId(key)
+    ) {
       const responseError = new Error(
         "Cloudinary upload response did not confirm the requested public ID",
       ) as CloudinarySdkError;
@@ -590,10 +592,10 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
   ): Promise<{ result: string }> {
     const resourceType = resolveResourceType(key);
     const timestamp = Math.floor(Date.now() / 1000);
-    const signedFields = { public_id: key, timestamp };
+    const signedFields = { public_id: resolvePublicId(key), timestamp };
     const body = new URLSearchParams({
       api_key: this.apiKey,
-      public_id: key,
+      public_id: resolvePublicId(key),
       signature: cloudinary.utils.api_sign_request(signedFields, this.apiSecret),
       timestamp: String(timestamp),
     });
@@ -610,7 +612,7 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
   private async fetchResource(key: string, options?: StorageOperationOptions): Promise<unknown> {
     const resourceType = resolveResourceType(key);
     const response = await fetch(
-      this.buildCloudinaryApiUrl("resources", resourceType, "upload", key),
+      this.buildCloudinaryApiUrl("resources", resourceType, "upload", resolvePublicId(key)),
       {
         headers: {
           Authorization: `Basic ${Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString("base64")}`,
@@ -748,7 +750,9 @@ export class CloudinaryProvider extends BaseStorageProvider implements ImageProv
     const mimeType = contentType.split(";", 1)[0]?.trim().toLowerCase();
     const contentResourceType = mimeType?.startsWith("image/")
       ? "image"
-      : mimeType?.startsWith("video/") || mimeType?.startsWith("audio/")
+      : mimeType?.startsWith("video/") ||
+          mimeType?.startsWith("audio/") ||
+          mimeType === "application/mxf"
         ? "video"
         : "raw";
     if (

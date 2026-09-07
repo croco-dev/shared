@@ -19558,7 +19558,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/storage-cloudinary/src/libs/CloudinaryProvider.ts",
-          line: 415,
+          line: 413,
           column: 13,
           kind: "problem-factory",
         },
