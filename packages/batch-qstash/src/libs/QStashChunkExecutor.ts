@@ -275,10 +275,19 @@ export class QStashChunkExecutor {
     stepName: string,
     publication: ExecutionContinuationPublication,
   ): Promise<void> {
+    const digest = await globalThis.crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(
+        JSON.stringify(["chunk", executionId, stepName, publication.nextToken]),
+      ),
+    );
+    const deduplicationId = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
     await runQStashBatchOperation("publishJSON", () =>
       this.options.qstashClient.publishJSON({
         url: this.options.webhookUrl,
-        deduplicationId: `chunk:${executionId}:${stepName}:${publication.nextToken}`,
+        deduplicationId,
         body: {
           executionId,
           stepName,
