@@ -68,7 +68,8 @@ Container.register(BillingEventHandler, {
 
 - `cancelAtPeriodEnd: false`: `churned` MRR 기록
 - `cancelAtPeriodEnd: true`: 구독이 활성 상태이므로 MRR movement를 기록하지 않음
-- 취소 시점의 플랜 금액 기준
+- 이벤트의 `planVersionRef`로 취소 시점에 고정된 플랜 버전을 조회합니다. 즉시 취소로 구독이나 계정이 삭제되어도 해당 버전의 금액으로 집계합니다.
+- `BillingService`와 Polar 이벤트 매퍼는 취소 이벤트에 `planVersionRef`를 포함합니다. 이전 버전의 이벤트처럼 이 값이 없으면 기존 구독에서 플랜 버전을 조회합니다.
 
 ## 멱등성
 
@@ -91,7 +92,7 @@ row를 발견하면 새 primary key insert를 건너뛰어 배포 전후 replay�
 
 billing 이벤트가 metric으로 기록되지 못하는 경우를 성공처럼 숨기지 않습니다.
 `BillingEventHandler`는 필요한 account, subscription, plan evidence가 없으면
-`BillingMetricDroppedProblem`을 throw합니다. repository 기록이 실패하면
+`BillingMetricDroppedProblem`을 throw합니다. 취소 이벤트에 `planVersionRef`가 있으면 account나 subscription 조회는 필요하지 않지만, 해당 플랜 버전은 유지되어야 합니다. repository 기록이 실패하면
 `BillingMetricRecordingProblem`을 throw합니다.
 
 | Problem                         | Code                               | Recovery                                                                                                                        |

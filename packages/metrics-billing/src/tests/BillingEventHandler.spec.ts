@@ -637,6 +637,87 @@ describe("BillingEventHandler", () => {
       );
     });
 
+    it.each([
+      [mockPlan, 2900],
+      [mockPlanYearly, 29000 / 12],
+      [{ ...mockPlan, amount: 5800, intervalCount: 2 }, 2900],
+    ])(
+      "should record churn from the event plan after subscription deletion: %j",
+      async (plan, amount) => {
+        const ref = planVersionRef(`${plan.id}@v1`);
+        const event = new SubscriptionCanceledEvent(
+          "tenant-1",
+          "sub-stripe",
+          false,
+          "cancel-1",
+          ref,
+        );
+        vi.mocked(billingStore.findSubscriptionByExternalId).mockResolvedValue(null);
+        vi.mocked(planRegistry.getPlanVersion).mockResolvedValue(asPlanVersion(plan));
+
+        await handler.handle(event);
+
+        expect(billingStore.findSubscriptionByExternalId).not.toHaveBeenCalled();
+        expect(planRegistry.getPlanVersion).toHaveBeenCalledWith(ref);
+        expect(metricsRepository.recordMRRMovement).toHaveBeenCalledWith(
+          "tenant-1",
+          expect.objectContaining({
+            churned: { amount, currency: plan.currency },
+            net: { amount: -amount, currency: plan.currency },
+          }),
+          event.timestamp,
+          primaryEventKey(event),
+          [legacyTimestampEventKey(event)],
+        );
+      },
+    );
+
+    it("should prefer the cancellation plan over a subsequently changed subscription", async () => {
+      const ref = planVersionRef("plan-pro@v1");
+      const event = new SubscriptionCanceledEvent("tenant-1", "sub-stripe", false, undefined, ref);
+      vi.mocked(billingStore.findSubscriptionByExternalId).mockResolvedValue({
+        ...mockSubscription,
+        planVersionRef: planVersionRef("plan-pro@v2"),
+      });
+      vi.mocked(planRegistry.getPlanVersion).mockResolvedValue(asPlanVersion(mockPlan));
+
+      await handler.handle(event);
+
+      expect(planRegistry.getPlanVersion).toHaveBeenCalledWith(ref);
+      expect(billingStore.findSubscriptionByExternalId).not.toHaveBeenCalled();
+    });
+
+    it("should report a missing event plan without substituting the current subscription plan", async () => {
+      const ref = planVersionRef("plan-pro@v0");
+      const event = new SubscriptionCanceledEvent("tenant-1", "sub-stripe", false, undefined, ref);
+      vi.mocked(billingStore.findSubscriptionByExternalId).mockResolvedValue(mockSubscription);
+      vi.mocked(planRegistry.getPlanVersion).mockResolvedValue(null);
+
+      await expect(handler.handle(event)).rejects.toMatchObject({
+        code: "metrics-billing/metric-dropped",
+        extensions: expect.objectContaining({ reason: "plan_not_found", resourceId: ref }),
+      });
+      expect(billingStore.findSubscriptionByExternalId).not.toHaveBeenCalled();
+      expect(metricsRepository.recordMRRMovement).not.toHaveBeenCalled();
+    });
+
+    it("should surface repository failures when recording cancellation from its event plan", async () => {
+      const event = new SubscriptionCanceledEvent(
+        "tenant-1",
+        "sub-stripe",
+        false,
+        undefined,
+        mockSubscription.planVersionRef,
+      );
+      vi.mocked(planRegistry.getPlanVersion).mockResolvedValue(asPlanVersion(mockPlan));
+      vi.mocked(metricsRepository.recordMRRMovement).mockRejectedValue(
+        new Error("repository unavailable"),
+      );
+
+      await expect(handler.handle(event)).rejects.toBeInstanceOf(BillingMetricRecordingProblem);
+      expect(billingStore.findSubscriptionByExternalId).not.toHaveBeenCalled();
+    });
+
     it("should pass event key to repository for cancellation events", async () => {
       const event = new SubscriptionCanceledEvent("tenant-1", "sub-stripe", false);
 

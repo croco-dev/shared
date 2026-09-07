@@ -175,22 +175,26 @@ describe("PolarEventMapper", () => {
       });
     });
 
-    it("subscription.canceled → SubscriptionCanceledEvent", () => {
-      const events = mapper.mapSubscriptionEvent("subscription.canceled", "tenant-123", {
-        id: "sub-123",
-        productId: "plan-pro",
-        planVersionRef: planVersionRef("plan-pro@v1"),
-        status: "canceled",
-        cancelAtPeriodEnd: true,
-      });
+    it.each([false, true])(
+      "subscription.canceled preserves the plan (cancelAtPeriodEnd=%s)",
+      (cancelAtPeriodEnd) => {
+        const events = mapper.mapSubscriptionEvent("subscription.canceled", "tenant-123", {
+          id: "sub-123",
+          productId: "plan-pro",
+          planVersionRef: planVersionRef("plan-pro@v1"),
+          status: "canceled",
+          cancelAtPeriodEnd,
+        });
 
-      expect(events).toHaveLength(1);
-      expect(events[0]).toBeInstanceOf(SubscriptionCanceledEvent);
-      const event = events[0] as SubscriptionCanceledEvent;
-      expect(event.tenantId).toBe("tenant-123");
-      expect(event.externalSubscriptionId).toBe("sub-123");
-      expect(event.cancelAtPeriodEnd).toBe(true);
-    });
+        expect(events).toHaveLength(1);
+        expect(events[0]).toBeInstanceOf(SubscriptionCanceledEvent);
+        const event = events[0] as SubscriptionCanceledEvent;
+        expect(event.tenantId).toBe("tenant-123");
+        expect(event.externalSubscriptionId).toBe("sub-123");
+        expect(event.cancelAtPeriodEnd).toBe(cancelAtPeriodEnd);
+        expect(event.planVersionRef).toBe(planVersionRef("plan-pro@v1"));
+      },
+    );
 
     it("subscription.revoked → SubscriptionRevokedEvent", () => {
       const events = mapper.mapSubscriptionEvent("subscription.revoked", "tenant-123", {

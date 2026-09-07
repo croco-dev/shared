@@ -1,4 +1,5 @@
 import { DomainEvent } from "@croco/events-core";
+import type { PlanVersionRef } from "../../types";
 
 export class SubscriptionCanceledEvent extends DomainEvent {
   static readonly eventName = "billing.subscription_canceled";
@@ -7,6 +8,8 @@ export class SubscriptionCanceledEvent extends DomainEvent {
       payload.tenantId as string,
       payload.externalSubscriptionId as string,
       payload.cancelAtPeriodEnd as boolean,
+      undefined,
+      payload.planVersionRef as PlanVersionRef | undefined,
     );
   }
 
@@ -15,6 +18,7 @@ export class SubscriptionCanceledEvent extends DomainEvent {
     public readonly externalSubscriptionId: string,
     public readonly cancelAtPeriodEnd: boolean,
     eventId?: string,
+    public readonly planVersionRef?: PlanVersionRef,
   ) {
     super();
     if (eventId) {

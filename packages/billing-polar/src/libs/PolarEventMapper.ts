@@ -74,6 +74,8 @@ export class PolarEventMapper {
             tenantId,
             subscription.id,
             subscription.cancelAtPeriodEnd ?? true,
+            undefined,
+            subscription.planVersionRef,
           ),
         );
         break;

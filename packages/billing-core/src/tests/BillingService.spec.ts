@@ -782,46 +782,56 @@ describe("BillingService", () => {
       ).rejects.toThrow("No subscription found for tenant 'tenant-1'");
     });
 
-    it("should publish SubscriptionCanceledEvent when eventPublisher is provided", async () => {
-      const mockEventPublisher = {
-        publishIdempotently: vi.fn(),
-      };
+    it.each([false, true])(
+      "should publish the pinned plan after cancellation (immediate=%s)",
+      async (immediate) => {
+        const mockEventPublisher = {
+          publishIdempotently: vi.fn(),
+        };
 
-      const serviceWithPublisher = new BillingService({
-        store,
-        gateway: mockGateway,
-        checkoutIdempotencyStore: new InMemoryIdempotencyStore(),
-        eventPublisher: mockEventPublisher as BillingLifecycleEventPublisher,
-      });
+        const serviceWithPublisher = new BillingService({
+          store,
+          gateway: mockGateway,
+          checkoutIdempotencyStore: new InMemoryIdempotencyStore(),
+          eventPublisher: mockEventPublisher as BillingLifecycleEventPublisher,
+        });
 
-      await saveBillingAccount("tenant-1");
+        await saveBillingAccount("tenant-1");
 
-      const subscription: Subscription = {
-        id: "sub-1",
-        billingAccountId: "tenant-1",
-        externalSubscriptionId: "ext-sub-1",
-        planId: "plan-pro",
-        planVersionRef: PLAN_VERSION_REF,
-        status: "active",
-        currentPeriodEnd: new Date(),
-        cancelAtPeriodEnd: false,
-        lastSyncedAt: new Date(),
-      };
-      await store.saveSubscription(subscription);
-
-      await serviceWithPublisher.cancelSubscription({
-        tenantId: "tenant-1",
-        idempotencyKey: "cancel-event-1",
-      });
-
-      expect(mockEventPublisher.publishIdempotently).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tenantId: "tenant-1",
+        const subscription: Subscription = {
+          id: "sub-1",
+          billingAccountId: "tenant-1",
           externalSubscriptionId: "ext-sub-1",
-          cancelAtPeriodEnd: true,
-        }),
-      );
-    });
+          planId: "plan-pro",
+          planVersionRef: PLAN_VERSION_REF,
+          status: "active",
+          currentPeriodEnd: new Date(),
+          cancelAtPeriodEnd: false,
+          lastSyncedAt: new Date(),
+        };
+        await store.saveSubscription(subscription);
+
+        await serviceWithPublisher.cancelSubscription({
+          tenantId: "tenant-1",
+          idempotencyKey: "cancel-event-1",
+          immediate,
+        });
+
+        if (immediate) {
+          expect(await store.findSubscriptionByExternalId("ext-sub-1")).toBeNull();
+        }
+
+        expect(mockEventPublisher.publishIdempotently).toHaveBeenCalledWith(
+          expect.objectContaining({
+            tenantId: "tenant-1",
+            externalSubscriptionId: "ext-sub-1",
+            cancelAtPeriodEnd: !immediate,
+            eventId: "billing-lifecycle:cancel-event-1",
+            planVersionRef: PLAN_VERSION_REF,
+          }),
+        );
+      },
+    );
 
     it("should retry ambiguous event delivery through an idempotent publisher", async () => {
       const deliveredEventIds = new Set<string>();
@@ -882,6 +892,9 @@ describe("BillingService", () => {
       expect(mockEventPublisher.publishIdempotently.mock.calls[1]?.[0].eventId).toBe(
         "billing-lifecycle:cancel-event-retry-1",
       );
+      for (const [event] of mockEventPublisher.publishIdempotently.mock.calls) {
+        expect(event).toMatchObject({ planVersionRef: PLAN_VERSION_REF });
+      }
       expect(deliveredSideEffects).toBe(1);
     });
 
