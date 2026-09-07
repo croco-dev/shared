@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { Container } from "@croco/framework-context";
 import { InvalidKeyProblem, storageStreamFromBytes } from "@croco/storage-core";
@@ -68,6 +69,13 @@ const cases = [
     contentType: "image/jpeg",
   },
   { key: "files/avatar", resource: "image", publicId: "files/avatar", contentType: "image/png" },
+  { key: "files/report.", resource: "image", publicId: "files/report.", contentType: "image/png" },
+  {
+    key: "files/report.pdf.",
+    resource: "image",
+    publicId: "files/report.pdf.",
+    contentType: "image/png",
+  },
   {
     key: "files/live.m3u8",
     resource: "raw",
@@ -147,7 +155,7 @@ function useNamespaceBackend(actualVideoFormat?: string) {
           .digest("hex");
         expect(form.get("signature")).toBe(expectedSignature);
         const file = form.get("file");
-        if (file === null || typeof file === "string") throw new Error("Missing upload file");
+        assert(file !== null && typeof file !== "string", "Missing upload file");
         const data = new Uint8Array(await file.arrayBuffer());
         objects.set(`${resource}:${publicId}`, { data, publicId });
         return Response.json({ public_id: publicId });
@@ -177,7 +185,7 @@ function useNamespaceBackend(actualVideoFormat?: string) {
         ? new Response(new Uint8Array(object.data))
         : new Response(null, { status: 404 });
     }
-    throw new Error(`Unexpected request: ${url}`);
+    assert.fail(`Unexpected request: ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
   return { objects, fetchMock };
@@ -391,6 +399,17 @@ describe("Cloudinary resource namespaces", () => {
       });
       expect(intent.publicUrl).toBe(new CloudinaryProvider(config).getPublicUrl(key));
       expect(new URL(intent.publicUrl).pathname).toContain(`/${resource}/upload/`);
+    },
+  );
+
+  it.each(["files/report.", "files/report.pdf."])(
+    "preserves the image upload intent key restriction for %s",
+    async (key) => {
+      const backend = useNamespaceBackend();
+      await expect(new CloudinaryProvider(config).getUploadIntent(key)).rejects.toThrow(
+        InvalidKeyProblem,
+      );
+      expect(backend.fetchMock).not.toHaveBeenCalled();
     },
   );
 
