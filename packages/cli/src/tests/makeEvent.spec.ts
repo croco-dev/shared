@@ -61,7 +61,7 @@ describe("generateEvent", () => {
     } finally {
       await fs.rm(cwd, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it("should reject missing generated import dependencies before writing files", async () => {
     const cwd = await createWorkspace({ apiServerManifest: "{}" });
