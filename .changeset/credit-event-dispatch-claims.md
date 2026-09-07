@@ -1,6 +1,6 @@
 ---
-"@croco/credits-core": patch
-"@croco/credits-drizzle": patch
+"@croco/credits-core": minor
+"@croco/credits-drizzle": minor
 ---
 
 Claim credit outbox events atomically so concurrent workers and command replays share one publication lease. Expired leases can be reclaimed, and stale workers cannot acknowledge or release replacement claims.

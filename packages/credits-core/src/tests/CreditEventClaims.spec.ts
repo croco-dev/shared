@@ -1,3 +1,4 @@
+import { ProblemFactory } from "@croco/problems-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   creditAmount,
@@ -52,13 +53,15 @@ describe("credit event dispatch claims", () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
     const [first] = await store.claimPendingEventIntents(1, 100);
     expect(first).toBeDefined();
-    if (!first) throw new Error("missing first claim");
+    if (!first)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing first claim");
     clock.mockReturnValue(1099);
     expect(await store.claimPendingEventIntents()).toEqual([]);
     clock.mockReturnValue(1100);
     expect(await store.markEventIntentPublished(first.eventId, first.claimToken)).toBe(false);
     const [replacement] = await store.claimPendingEventIntents(1, 100);
-    if (!replacement) throw new Error("missing replacement claim");
+    if (!replacement)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing replacement claim");
     expect(replacement.claimToken).not.toBe(first.claimToken);
     expect(await store.releaseEventIntentClaim(first.eventId, first.claimToken)).toBe(false);
     expect(await store.markEventIntentPublished(first.eventId, first.claimToken)).toBe(false);
@@ -79,7 +82,8 @@ describe("credit event dispatch claims", () => {
         onAfterCommit() {},
         async publishIdempotently(event) {
           dispatched.push(event.eventId);
-          if (dispatched.length === 1) throw new Error("transport failure");
+          if (dispatched.length === 1)
+            throw ProblemFactory.internalServerError("test/transport-failure", "transport failure");
         },
       },
     });
@@ -92,7 +96,10 @@ describe("credit event dispatch claims", () => {
 
   it("preserves publication and claim-release failures together", async () => {
     const { store } = await seed();
-    const publicationFailure = new Error("transport failed");
+    const publicationFailure = ProblemFactory.internalServerError(
+      "test/transport-failure",
+      "transport failed",
+    );
     const releaseFailure = new InvalidCreditCommandProblem("release failed");
     vi.spyOn(store, "releaseEventIntentClaim").mockRejectedValue(releaseFailure);
     const service = new CreditLedgerService({
@@ -166,7 +173,8 @@ describe("credit event dispatch claims", () => {
     await started.promise;
     clock.mockReturnValue(1100);
     const [replacement] = await store.claimPendingEventIntents(1, 100);
-    if (!replacement) throw new Error("missing replacement claim");
+    if (!replacement)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing replacement claim");
     finish.resolve();
     await failure;
     expect(await store.claimPendingEventIntents()).toEqual([]);

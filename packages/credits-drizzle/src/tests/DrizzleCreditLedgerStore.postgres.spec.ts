@@ -1,3 +1,4 @@
+import { ProblemFactory } from "@croco/problems-core";
 import {
   createCreditLedgerStoreConformanceSuite,
   CreditAccountMismatchProblem,
@@ -115,7 +116,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
   it("shares live ownership across after-commit callbacks, immediate replay, and recovery", async () => {
     const store = await seedClaimIntents(0);
     const [account] = await db.select().from(creditAccounts);
-    if (!account) throw new Error("missing account fixture");
+    if (!account)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing account fixture");
     let signalStarted: () => void = () => {};
     let finishPublish: () => void = () => {};
     const started = new Promise<void>((resolve) => {
@@ -176,7 +178,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
   it("reclaims expired leases and fences stale acknowledgement and release", async () => {
     const store = await seedClaimIntents(1);
     const [original] = await store.claimPendingEventIntents();
-    if (!original) throw new Error("missing claim fixture");
+    if (!original)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing claim fixture");
     await db
       .update(creditLedgerEventIntents)
       .set({ claimExpiresAt: sql`clock_timestamp() - interval '1 millisecond'` })
@@ -184,7 +187,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
     expect(await store.markEventIntentPublished(original.eventId, original.claimToken)).toBe(false);
     expect(await store.releaseEventIntentClaim(original.eventId, original.claimToken)).toBe(false);
     const [replacement] = await store.claimPendingEventIntents(1, 60_000, original.eventId);
-    if (!replacement) throw new Error("missing reclaimed fixture");
+    if (!replacement)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing reclaimed fixture");
     expect(replacement.claimToken).not.toBe(original.claimToken);
     expect(replacement.eventId).toBe(original.eventId);
     expect(await store.markEventIntentPublished(original.eventId, original.claimToken)).toBe(false);
@@ -193,7 +197,11 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
       true,
     );
     const [finalClaim] = await store.claimPendingEventIntents();
-    if (!finalClaim) throw new Error("missing final claim fixture");
+    if (!finalClaim)
+      throw ProblemFactory.internalServerError(
+        "test/missing-fixture",
+        "missing final claim fixture",
+      );
     expect(await store.markEventIntentPublished(finalClaim.eventId, finalClaim.claimToken)).toBe(
       true,
     );
@@ -206,7 +214,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
   it("skips locked pending rows without waiting for their transaction", async () => {
     const store = await seedClaimIntents(2);
     const [locked] = await store.listPendingEventIntents();
-    if (!locked) throw new Error("missing locked fixture");
+    if (!locked)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing locked fixture");
     await db.transaction(async (tx) => {
       await tx
         .select()
@@ -234,7 +243,8 @@ describePostgres("DrizzleCreditLedgerStore PostgreSQL conformance", () => {
   it("adds lease columns to existing rows idempotently while preserving publication state", async () => {
     const store = await seedClaimIntents(2);
     const [published] = await store.claimPendingEventIntents(1);
-    if (!published) throw new Error("missing migration fixture");
+    if (!published)
+      throw ProblemFactory.internalServerError("test/missing-fixture", "missing migration fixture");
     await store.markEventIntentPublished(published.eventId, published.claimToken);
     await db.execute(
       sql`alter table credit_ledger_event_intents drop column claim_token, drop column claim_expires_at`,
