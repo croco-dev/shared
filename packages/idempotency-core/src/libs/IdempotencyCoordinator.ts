@@ -139,7 +139,10 @@ export class IdempotencyCoordinator<TResult = unknown> {
         key: request.key,
         reservationId,
         problem: toProblemSummary(error),
-        retryable: phase !== "commit",
+        retryable:
+          phase === "handler"
+            ? (request.isRetryable ?? isRetryableHandlerFailure)(error)
+            : phase === "reserved-audit",
         ttlMs: request.ttlMs,
         metadata: createFailureMetadata(failureMetadata, phase),
       });
@@ -240,9 +243,37 @@ function toProblemSummary(error: unknown): {
   };
 }
 
+function isRetryableHandlerFailure(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return true;
+  }
+
+  const retryable = readDiagnosticProperty(error, "retryable");
+  if (typeof retryable === "boolean") {
+    return retryable;
+  }
+
+  const extensions = readDiagnosticProperty(error, "extensions");
+  if (typeof extensions === "object" && extensions !== null) {
+    const extensionRetryable = readDiagnosticProperty(extensions, "retryable");
+    if (typeof extensionRetryable === "boolean") {
+      return extensionRetryable;
+    }
+  }
+
+  const status = readDiagnosticProperty(error, "status");
+  return !(
+    typeof status === "number" &&
+    status >= 400 &&
+    status < 500 &&
+    status !== 408 &&
+    status !== 429
+  );
+}
+
 function readDiagnosticProperty(
   error: object,
-  property: "code" | "status" | "detail" | "message",
+  property: "code" | "status" | "detail" | "message" | "retryable" | "extensions",
 ): unknown {
   try {
     return (error as Record<string, unknown>)[property];

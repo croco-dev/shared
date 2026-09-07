@@ -227,6 +227,160 @@ describe("IdempotencyCoordinator", () => {
     expect(duplicate.outcome).toBe("replayed");
   });
 
+  it.each([
+    new InvalidIdempotencyKeyProblem("invalid input"),
+    { code: "REJECTED", status: 422, detail: "business rule rejected" },
+    { code: "TERMINAL", status: 503, retryable: false, extensions: { retryable: true } },
+    { code: "TERMINAL_EXTENSION", status: 503, extensions: { retryable: false } },
+  ])("caches non-retryable handler failure %j until expiry", async (failure) => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const store = new InMemoryIdempotencyStore<string>({ now: () => now });
+    const events: IdempotencyAuditEvent[] = [];
+    const coordinator = createIdempotencyCoordinator({
+      store,
+      auditSink: {
+        recordIdempotency: (event) => {
+          events.push(event);
+        },
+      },
+    });
+    const key = deriveIdempotencyKey({
+      namespace: "terminal-failure",
+      source: { kind: "explicit", key: "key-1", fingerprint: "payload-a" },
+    });
+    const handler = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue("recovered");
+
+    await expect(coordinator.execute({ key, ttlMs: 1000 }, handler)).rejects.toBe(failure);
+    const duplicate = await coordinator.execute({ key, ttlMs: 1000 }, handler);
+    expect(duplicate).toMatchObject({
+      outcome: "failed",
+      record: {
+        retryable: false,
+        problem: { code: failure.code, status: failure.status },
+        metadata: { idempotencyFailurePhase: "handler" },
+      },
+    });
+    if ("detail" in failure) {
+      expect(duplicate.record).toMatchObject({ problem: { detail: failure.detail } });
+    }
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(events.map((event) => event.type)).toEqual([
+      "idempotency.reserved",
+      "idempotency.failed",
+    ]);
+
+    now = new Date("2026-01-01T00:00:01.000Z");
+    await expect(coordinator.execute({ key, ttlMs: 1000 }, handler)).resolves.toMatchObject({
+      outcome: "executed",
+      response: "recovered",
+    });
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { status: 408 },
+    { status: 429 },
+    { status: 503 },
+    { status: 400, retryable: true, extensions: { retryable: false } },
+    new InvalidIdempotencyKeyProblem("temporarily blocked", { retryable: true }),
+    new Error("connection reset"),
+  ])("allows another attempt after retryable handler failure %j", async (failure) => {
+    const coordinator = createIdempotencyCoordinator({
+      store: new InMemoryIdempotencyStore<string>(),
+    });
+    const key = deriveIdempotencyKey({
+      namespace: "retryable-failure",
+      source: { kind: "explicit", key: "key-1", fingerprint: "payload-a" },
+    });
+    const handler = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue("recovered");
+    await expect(coordinator.execute({ key }, handler)).rejects.toBe(failure);
+    await expect(coordinator.execute({ key }, handler)).resolves.toMatchObject({
+      outcome: "executed",
+      response: "recovered",
+    });
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([true, false])(
+    "uses the request retry policy result %s before error metadata",
+    async (retryable) => {
+      const failure = {
+        code: "DOMAIN_FAILURE",
+        status: retryable ? 400 : 503,
+        retryable: !retryable,
+      };
+      const isRetryable = vi.fn(() => retryable);
+      const coordinator = createIdempotencyCoordinator({
+        store: new InMemoryIdempotencyStore<string>(),
+      });
+      const key = deriveIdempotencyKey({
+        namespace: "failure-policy",
+        source: { kind: "explicit", key: "key-1", fingerprint: "payload-a" },
+      });
+      const handler = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue("recovered");
+      await expect(coordinator.execute({ key, isRetryable }, handler)).rejects.toBe(failure);
+      await expect(coordinator.execute({ key, isRetryable }, handler)).resolves.toMatchObject({
+        outcome: retryable ? "executed" : "failed",
+      });
+      expect(handler).toHaveBeenCalledTimes(retryable ? 2 : 1);
+      expect(isRetryable).toHaveBeenCalledExactlyOnceWith(failure);
+    },
+  );
+
+  it("preserves the handler error when its retry policy throws", async () => {
+    const failure = new InvalidIdempotencyKeyProblem("invalid input");
+    const policyFailure = new Error("policy failed");
+    const store = new InMemoryIdempotencyStore<string>();
+    const fail = vi.spyOn(store, "fail");
+    const coordinator = createIdempotencyCoordinator({ store });
+    const key = deriveIdempotencyKey({
+      namespace: "failure-policy",
+      source: { kind: "explicit", key: "throwing-policy", fingerprint: "payload-a" },
+    });
+    await expect(
+      coordinator.execute(
+        {
+          key,
+          isRetryable: () => {
+            throw policyFailure;
+          },
+        },
+        () => {
+          throw failure;
+        },
+      ),
+    ).rejects.toBe(failure);
+    expect(fail).not.toHaveBeenCalled();
+    expect(Object.getOwnPropertyDescriptor(failure, "idempotencyFailureRecordError")?.value).toBe(
+      policyFailure,
+    );
+    expect((await store.reserve(key)).outcome).toBe("in-flight");
+  });
+
+  it("caches client errors even when their retryable getter throws", async () => {
+    const failure = new InvalidIdempotencyKeyProblem("invalid input");
+    Object.defineProperty(failure, "retryable", {
+      get: () => {
+        throw new Error("unreadable retryability");
+      },
+    });
+    const coordinator = createIdempotencyCoordinator({
+      store: new InMemoryIdempotencyStore<string>(),
+    });
+    const key = deriveIdempotencyKey({
+      namespace: "failure-policy",
+      source: { kind: "explicit", key: "hostile-retryable", fingerprint: "payload-a" },
+    });
+    const handler = vi.fn(() => {
+      throw failure;
+    });
+    await expect(coordinator.execute({ key }, handler)).rejects.toBe(failure);
+    await expect(coordinator.execute({ key }, handler)).resolves.toMatchObject({
+      outcome: "failed",
+    });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   it("stores failure evidence and allows retry after a transient Problem", async () => {
     const store = new InMemoryIdempotencyStore<string>();
     const fail = vi.spyOn(store, "fail");
@@ -240,9 +394,9 @@ describe("IdempotencyCoordinator", () => {
     await expect(
       coordinator.execute({ key }, () => {
         calls += 1;
-        throw new InvalidIdempotencyKeyProblem("fixture problem");
+        throw Object.assign(new Error("temporarily unavailable"), { status: 503 });
       }),
-    ).rejects.toThrow(InvalidIdempotencyKeyProblem);
+    ).rejects.toThrow("temporarily unavailable");
 
     const retry = await coordinator.execute({ key }, () => {
       calls += 1;
@@ -286,7 +440,17 @@ describe("IdempotencyCoordinator", () => {
       const handler = vi.fn(() => "created");
 
       await expect(
-        coordinator.execute({ key, ttlMs, metadata: { operation: "create" } }, handler),
+        coordinator.execute(
+          {
+            key,
+            ttlMs,
+            metadata: { operation: "create" },
+            isRetryable: () => {
+              throw new Error("handler policy must not classify audit failures");
+            },
+          },
+          handler,
+        ),
       ).rejects.toBe(auditFailure);
 
       expect(handler).not.toHaveBeenCalled();
@@ -495,7 +659,17 @@ describe("IdempotencyCoordinator", () => {
     });
     const handler = vi.fn(() => "created");
 
-    await expect(coordinator.execute({ key }, handler)).rejects.toBe(commitFailure);
+    await expect(
+      coordinator.execute(
+        {
+          key,
+          isRetryable: () => {
+            throw new Error("handler policy must not classify commit failures");
+          },
+        },
+        handler,
+      ),
+    ).rejects.toBe(commitFailure);
 
     expect(fail).toHaveBeenCalledWith({
       key,

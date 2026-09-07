@@ -9,6 +9,24 @@ title: "IdempotencyExecutionRequest"
 
 ## Properties
 
+### isRetryable?
+
+> `readonly` `optional` **isRetryable?**: (`error`) => `boolean`
+
+Overrides handler failure retryability; audit and commit recovery are unchanged.
+
+#### Parameters
+
+##### error
+
+`unknown`
+
+#### Returns
+
+`boolean`
+
+---
+
 ### key
 
 > `readonly` **key**: [`DerivedIdempotencyKey`](/api/idempotency-core/src/type-aliases/derivedidempotencykey/)

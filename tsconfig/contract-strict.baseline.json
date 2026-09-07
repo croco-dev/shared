@@ -1099,7 +1099,7 @@
     {
       "packageName": "@croco/idempotency-core",
       "file": "packages/idempotency-core/src/libs/IdempotencyCoordinator.ts",
-      "line": 236,
+      "line": 239,
       "column": 3,
       "code": "TS2375",
       "message": "Type '{ detail: string | undefined; status?: number; code: string; }' is not assignable to type '{ readonly code: string; readonly status?: number; readonly detail?: string; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties."
