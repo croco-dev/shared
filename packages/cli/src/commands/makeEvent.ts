@@ -48,7 +48,7 @@ export async function generateEvent(
   );
   const content = `import { DomainEvent } from "@croco/events-core";
 
-export class ${className}Event extends DomainEvent<{ payload: { [key: string]: unknown } }> {
+export class ${className}Event extends DomainEvent {
   static eventName = "${eventName}";
 
   constructor(public readonly payload: { [key: string]: unknown }) {

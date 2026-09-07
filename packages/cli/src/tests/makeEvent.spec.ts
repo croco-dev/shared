@@ -1,8 +1,11 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Project, ts } from "ts-morph";
 import { describe, expect, it } from "vitest";
 import { generateEvent } from "../commands/makeEvent.js";
+import { generateListener } from "../commands/makeListener.js";
 
 describe("generateEvent", () => {
   it("should create an event file", async () => {
@@ -15,9 +18,7 @@ describe("generateEvent", () => {
     expect(result?.status).toBe("created");
     expect(result?.path).toBe(filePath);
     expect(content).toContain('import { DomainEvent } from "@croco/events-core";');
-    expect(content).toContain(
-      "export class UserProfileEvent extends DomainEvent<{ payload: { [key: string]: unknown } }>",
-    );
+    expect(content).toContain("export class UserProfileEvent extends DomainEvent {");
     expect(content).toContain('static eventName = "user-profile";');
     expect(content).toContain("constructor(public readonly payload: { [key: string]: unknown })");
   });
@@ -27,6 +28,40 @@ describe("generateEvent", () => {
 
     await expect(generateEvent("123User", { cwd })).rejects.toThrow("Invalid name: 123User");
   });
+
+  it("should generate an event and listener that typecheck against events-core", async () => {
+    const cwd = await createWorkspace();
+
+    try {
+      const event = await generateEvent("Foo", { cwd });
+      const listener = await generateListener("Foo", { cwd });
+
+      expect(event?.status).toBe("created");
+      expect(listener?.status).toBe("created");
+
+      const project = new Project({
+        compilerOptions: {
+          experimentalDecorators: true,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          noEmit: true,
+          paths: {
+            "@croco/*": [fileURLToPath(new URL("../../../*/src/index.ts", import.meta.url))],
+          },
+          skipLibCheck: true,
+          strict: true,
+          strictPropertyInitialization: false,
+          target: ts.ScriptTarget.ES2017,
+        },
+      });
+      project.addSourceFilesAtPaths(path.join(cwd, "apps/api-server/src/**/*.ts"));
+
+      const diagnostics = project.getPreEmitDiagnostics();
+      expect(project.formatDiagnosticsWithColorAndContext(diagnostics)).toBe("");
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   it("should reject missing generated import dependencies before writing files", async () => {
     const cwd = await createWorkspace({ apiServerManifest: "{}" });
