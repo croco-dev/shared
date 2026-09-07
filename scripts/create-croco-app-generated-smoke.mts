@@ -112,6 +112,7 @@ const GENERATED_SMOKE_WORKSPACE_BUILD_ROOTS = [
   "@croco/problems-core",
   "@croco/preset-cloudflare",
   "@croco/preset-lambda",
+  "@croco/preset-node",
   "@croco/repository-core",
   "@croco/retry-core",
   "@croco/rpc-codegen",
@@ -332,31 +333,57 @@ export function selectCompletedGeneratedTestEntries(
   });
 }
 
+export function materializeGeneratedTestEvidence(
+  sourceRoot: string,
+  projectDir: string,
+  materializedRoot: string,
+  entries: readonly TestInventoryEntry[],
+  executedPaths: ReadonlySet<string>,
+  inventoryDigest: string,
+): readonly MaterializationEvidence[] {
+  return selectCompletedGeneratedTestEntries(projectDir, entries, executedPaths).flatMap(
+    (entry) => {
+      if (!entry.generated) return [];
+      const generatedPath = join(projectDir, entry.generated.generatedPath);
+      const sourceDigest = fileSha256(join(sourceRoot, entry.path));
+      const generatedDigest = fileSha256(generatedPath);
+      if (sourceDigest !== generatedDigest) return [];
+      const materializedPath = entry.path;
+      const reportPath = join(materializedRoot, materializedPath);
+      mkdirSync(dirname(reportPath), { recursive: true });
+      copyFileSync(generatedPath, reportPath);
+      return [
+        {
+          sourcePath: entry.path,
+          sourceDigest,
+          generatedPath: entry.generated.generatedPath,
+          materializedPath,
+          generatedDigest,
+          inventoryDigest,
+          commandId: entry.generated.commandId,
+        },
+      ];
+    },
+  );
+}
+
 function recordGeneratedTestMaterialization(
   projectDir: string,
   executedPaths: ReadonlySet<string>,
 ): void {
   const materializedRoot = join(generatedSmokeReportDir, "materialized-tests");
-  const generatedEntries = testInventory.tests.filter(({ lane }) => lane === "generated-app");
-  for (const entry of selectCompletedGeneratedTestEntries(
+  const generatedEntries = testInventory.tests.filter(
+    ({ lane, path }) => lane === "generated-app" && !generatedMaterializationEvidence.has(path),
+  );
+  for (const evidence of materializeGeneratedTestEvidence(
+    rootDir,
     projectDir,
+    materializedRoot,
     generatedEntries,
     executedPaths,
+    testInventoryDigest,
   )) {
-    if (!entry.generated || generatedMaterializationEvidence.has(entry.path)) continue;
-    const generatedPath = join(projectDir, entry.generated.generatedPath);
-    if (!existsSync(generatedPath)) continue;
-    const reportPath = join(materializedRoot, entry.generated.generatedPath);
-    mkdirSync(dirname(reportPath), { recursive: true });
-    copyFileSync(generatedPath, reportPath);
-    generatedMaterializationEvidence.set(entry.path, {
-      sourcePath: entry.path,
-      sourceDigest: fileSha256(join(rootDir, entry.path)),
-      generatedPath: entry.generated.generatedPath,
-      generatedDigest: fileSha256(reportPath),
-      inventoryDigest: testInventoryDigest,
-      commandId: entry.generated.commandId,
-    });
+    generatedMaterializationEvidence.set(evidence.sourcePath, evidence);
   }
 }
 
@@ -471,7 +498,7 @@ export function prepareGeneratedUnitEvidenceCapture(
   projectDir: string,
   inventoryEntries: readonly TestInventoryEntry[] = testInventory.tests,
 ): GeneratedUnitEvidenceCapture {
-  const grouped = new Map<string, string[]>();
+  const grouped = new Map<string, readonly string[]>();
   for (const entry of inventoryEntries.filter(({ lane }) => lane === "generated-app")) {
     const generatedPath = entry.generated?.generatedPath;
     if (
@@ -482,7 +509,7 @@ export function prepareGeneratedUnitEvidenceCapture(
       continue;
     }
     const packageDir = findGeneratedTestPackageDirectory(projectDir, generatedPath);
-    grouped.set(packageDir, [...(grouped.get(packageDir) ?? []), generatedPath]);
+    grouped.set(packageDir, normalizedPaths([...(grouped.get(packageDir) ?? []), generatedPath]));
   }
 
   const originals = new Map<string, string>();
@@ -664,11 +691,45 @@ const apiWorkerFetchSmokeScript = [
   "const fetchHandler = typeof worker === 'function' ? worker : worker && typeof worker.fetch === 'function' " +
     "? worker.fetch.bind(worker) : undefined;",
   'if (typeof fetchHandler !== "function") throw new Error("API worker default export must be a fetch handler or Worker object");',
-  "const executionContext = { waitUntil: () => {}, passThroughOnException: () => {} };",
+  "const executionContext = { waitUntil: () => {}, passThroughOnException: () => {}, props: undefined };",
   'const response = await fetchHandler(new Request("http://localhost/health", { headers: { origin: "http://localhost:5173", "cf-connecting-ip": "203.0.113.10" } }), { WEB_ORIGIN: "http://localhost:5173" }, executionContext);',
   "const body = await response.json();",
   "if (response.status !== 200) throw new Error(`Expected /health status 200, received ${response.status}`);",
   'if (body.status !== "up" || !Array.isArray(body.results) || body.results.length !== 0) throw new Error(`Expected empty aggregate /health body, received ${JSON.stringify(body)}`);',
+  "})();",
+].join(" ");
+const nodeApplicationHostSmokeScript = [
+  'process.env.TELEMETRY_ENABLED = "false";',
+  'const { startNodeApplication } = require("./dist/index.js");',
+  "void (async () => {",
+  'const running = await startNodeApplication({ port: 0, hostname: "127.0.0.1" });',
+  "try {",
+  "const address = running.host.server?.address();",
+  'if (!address || typeof address === "string") throw new Error(`Expected a bound Node host address, received ${String(address)}`);',
+  "const response = await fetch(`http://127.0.0.1:${address.port}/users`);",
+  "if (response.status !== 200) throw new Error(`Expected built Node host /users status 200, received ${response.status}`);",
+  "const users = await response.json();",
+  'if (!Array.isArray(users) || !users.some((user) => user.id === "user-1")) throw new Error(`Expected seeded users from built Node host, received ${JSON.stringify(users)}`);',
+  "} finally {",
+  "await running.close();",
+  "}",
+  "})();",
+].join(" ");
+const adminNodeApplicationHostSmokeScript = [
+  'process.env.TELEMETRY_ENABLED = "false";',
+  'const { startNodeApplication } = require("./dist/index.js");',
+  "void (async () => {",
+  'const running = await startNodeApplication({ port: 0, hostname: "127.0.0.1" });',
+  "try {",
+  "const address = running.host.server?.address();",
+  'if (!address || typeof address === "string") throw new Error(`Expected a bound Node host address, received ${String(address)}`);',
+  "const response = await fetch(`http://127.0.0.1:${address.port}/admin/users?tenantId=tenant_acme`);",
+  "if (response.status !== 200) throw new Error(`Expected built Node host /admin/users status 200, received ${response.status}`);",
+  "const users = await response.json();",
+  'if (!Array.isArray(users) || users.length === 0 || !users.every((user) => user.tenantId === "tenant_acme")) throw new Error(`Expected tenant-scoped admin users from built Node host, received ${JSON.stringify(users)}`);',
+  "} finally {",
+  "await running.close();",
+  "}",
   "})();",
 ].join(" ");
 const graphqlProtectedRouteSmokeBaseScriptLines = [
@@ -842,6 +903,17 @@ const runtimeCapabilitySmokeSupport = {
     shutdown: false,
   },
 } as const satisfies Record<RuntimeCapabilitySmokePlatform, Record<string, boolean>>;
+const saasCloudflareWorkerRuntimeSmokeScript = [
+  'import { unstable_dev } from "wrangler";',
+  'const worker = await unstable_dev("src/worker.ts", { config: "wrangler.toml", local: true, logLevel: "error", experimental: { disableExperimentalWarning: true, disableDevRegistry: true, watch: false } });',
+  "try {",
+  '  const response = await worker.fetch("http://example.com/ops/health");',
+  "  const body = await response.text();",
+  '  if (response.status !== 500 || !body.includes("CROCO_SAAS_PROFILE_RUNTIME_UNAVAILABLE")) throw new Error(`Expected unsupported SaaS provider failure, received ${response.status}: ${body}`);',
+  "} finally {",
+  "  await worker.stop();",
+  "}",
+].join(" ");
 const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "advisory">[] = [
   {
     name: "blank-basic",
@@ -897,7 +969,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
           },
         },
       },
-      runtimeCapabilityManifestValidation("node"),
+      runtimeCapabilityManifestValidation("saas-node"),
       { label: "contract:snapshot", args: ["contract:snapshot"] },
       {
         label: "codegen",
@@ -912,7 +984,11 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
       },
       { label: "doctor", args: ["doctor"] },
       { label: "typecheck", args: ["typecheck"] },
-      { label: "build", args: ["build"] },
+      {
+        label: "build",
+        args: ["build"],
+        paths: ["apps/api-server/dist/index.js", "apps/api-server/dist/index.mjs"],
+      },
       { label: "test", args: ["test"] },
       { label: "demo:smoke", args: ["demo:smoke"] },
       {
@@ -988,12 +1064,12 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
           },
         },
       },
-      runtimeCapabilityManifestValidation("node"),
+      runtimeCapabilityManifestValidation("node-application"),
       { label: "dev:smoke", args: ["dev:smoke"] },
       { label: "Chromium install", args: ["test:browser:install"] },
       { label: "test", args: ["test"] },
       { label: "typecheck", args: ["typecheck"] },
-      { label: "build", args: ["build"] },
+      { label: "build", args: ["build"], paths: ["apps/api-server/dist/index.js"] },
       { label: "contract:snapshot", args: ["contract:snapshot"] },
       {
         label: "codegen",
@@ -1036,7 +1112,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
           },
         },
       },
-      runtimeCapabilityManifestValidation("cloudflare-workers"),
+      runtimeCapabilityManifestValidation("cloudflare-workers-workspace"),
       { label: "typecheck", args: ["typecheck"] },
       { label: "build", args: ["build"] },
       {
@@ -1082,12 +1158,12 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
           },
         },
       },
-      runtimeCapabilityManifestValidation("node"),
+      runtimeCapabilityManifestValidation("node-application"),
       { label: "admin:smoke", args: ["admin:smoke"] },
       { label: "Chromium install", args: ["test:browser:install"] },
       { label: "test", args: ["test"] },
       { label: "typecheck", args: ["typecheck"] },
-      { label: "build", args: ["build"] },
+      { label: "build", args: ["build"], paths: ["apps/api-server/dist/index.js"] },
       { label: "contract:snapshot", args: ["contract:snapshot"] },
       {
         label: "codegen",
@@ -1121,6 +1197,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
     runtimeTarget: "node",
     matrixTargets: ["base-ddd"],
     validations: [
+      runtimeCapabilityManifestValidation("graphql-node-application"),
       {
         label: GRAPHQL_CONTRACT_CHECK_LABEL,
         packagePath: GRAPHQL_STANDALONE_CONTRACT_PACKAGE_PATH,
@@ -1138,7 +1215,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
         packagePath: ["apps", "graphql-api"],
         args: ["exec", "tsx", "--eval", graphqlStandaloneProtectedRouteSmokeScript],
       },
-      { label: "build", args: ["build"] },
+      { label: "build", args: ["build"], paths: ["apps/graphql-api/dist/index.js"] },
     ],
   },
   {
@@ -1162,6 +1239,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
     runtimeTarget: "lambda",
     matrixTargets: ["base-ddd"],
     validations: [
+      runtimeCapabilityManifestValidation("graphql-lambda"),
       {
         label: GRAPHQL_CONTRACT_CHECK_LABEL,
         packagePath: GRAPHQL_STANDALONE_CONTRACT_PACKAGE_PATH,
@@ -1179,7 +1257,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
         packagePath: ["apps", "graphql-api"],
         args: ["exec", "tsx", "--eval", graphqlLambdaProtectedRouteSmokeScript],
       },
-      { label: "build", args: ["build"] },
+      { label: "build", args: ["build"], paths: ["apps/graphql-api/dist/handler.js"] },
       { label: "test", args: ["test"] },
     ],
   },
@@ -1393,6 +1471,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
     runtimeTarget: "cloudflare-workers+browser",
     matrixTargets: ["base-ddd"],
     validations: [
+      runtimeCapabilityManifestValidation("graphql-node-application"),
       {
         label: GRAPHQL_CONTRACT_CHECK_LABEL,
         packagePath: GRAPHQL_STANDALONE_CONTRACT_PACKAGE_PATH,
@@ -1403,6 +1482,12 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
         packagePath: GRAPHQL_STANDALONE_CONTRACT_PACKAGE_PATH,
         args: ["contract:snapshot"],
         paths: [GRAPHQL_CONTRACT_SNAPSHOT_PATH],
+      },
+      {
+        label: "apps/graphql-api host build",
+        packagePath: ["apps", "graphql-api"],
+        args: ["build"],
+        paths: ["dist/index.js"],
       },
       {
         label: "apps/web vite config load",
@@ -1453,7 +1538,7 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
       {
         label: "api-worker secure fetch smoke",
         packagePath: ["ssr-worker"],
-        args: ["exec", "tsx", "--eval", apiWorkerFetchSmokeScript],
+        args: ["exec", "tsx", "--input-type=module", "--eval", apiWorkerFetchSmokeScript],
       },
       {
         label: "ssr-worker vite config load",
@@ -1500,6 +1585,11 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
       { label: "test", args: ["test"] },
       { label: "typecheck", args: ["typecheck"] },
       { label: "build", args: ["build"] },
+      {
+        label: "built Node host smoke",
+        packagePath: ["apps", "api-server"],
+        args: ["exec", "node", "--eval", nodeApplicationHostSmokeScript],
+      },
       {
         label: "browser journeys",
         args: ["test:journey"],
@@ -1585,6 +1675,11 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
       { label: "test", args: ["test"] },
       { label: "typecheck", args: ["typecheck"] },
       { label: "build", args: ["build"] },
+      {
+        label: "built Node host smoke",
+        packagePath: ["apps", "api-server"],
+        args: ["exec", "node", "--eval", adminNodeApplicationHostSmokeScript],
+      },
       {
         label: "browser journeys",
         args: ["test:journey", "tests/journeys/plan-release.spec.ts"],
@@ -1873,9 +1968,21 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
           "apps/api-server/src/generatedTenantModel.ts",
         ],
       },
-      runtimeCapabilityManifestValidation("cloudflare-workers"),
+      runtimeCapabilityManifestValidation("saas-cloudflare"),
       { label: "typecheck", args: ["typecheck"] },
-      { label: "build", args: ["build"] },
+      { label: "build", args: ["build"], paths: ["apps/api-server/dist/worker.mjs"] },
+      { label: "advertised Worker build", args: ["build:worker"] },
+      {
+        label: "Wrangler workerd runtime smoke",
+        packagePath: ["apps", "api-server"],
+        args: [
+          "exec",
+          "tsx",
+          "--input-type=module",
+          "--eval",
+          saasCloudflareWorkerRuntimeSmokeScript,
+        ],
+      },
       {
         label: "Contract snapshot",
         args: ["contract:snapshot"],
@@ -1930,9 +2037,13 @@ const smokeCaseDefinitionsWithoutLint: readonly Omit<SmokeCase, "tier" | "adviso
           "apps/api-server/src/generatedTenantModel.ts",
         ],
       },
-      runtimeCapabilityManifestValidation("lambda"),
+      runtimeCapabilityManifestValidation("saas-lambda"),
       { label: "typecheck", args: ["typecheck"] },
-      { label: "build", args: ["build"] },
+      {
+        label: "advertised Lambda build",
+        args: ["build:lambda"],
+        paths: ["apps/api-server/dist/lambda.js"],
+      },
       {
         label: "Contract snapshot",
         args: ["contract:snapshot"],
@@ -3003,17 +3114,126 @@ function readSmokeCasePreset(smokeCase: SmokeCase): string {
   return goal ? `goal:${goal}` : "unknown";
 }
 
+type RuntimeCompositionSmokeProfile =
+  | "saas-node"
+  | "saas-lambda"
+  | "saas-cloudflare"
+  | "node-application"
+  | "cloudflare-workers-workspace"
+  | "graphql-node-application"
+  | "graphql-lambda";
+
 function runtimeCapabilityManifestValidation(
-  platform: RuntimeCapabilitySmokePlatform,
+  profile: RuntimeCompositionSmokeProfile,
 ): SmokeValidation {
+  const compositionByProfile = {
+    "saas-node": {
+      platform: "node",
+      host: { platform: "node", lifecycle: "process", packageName: "@croco/preset-node" },
+      transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
+      buildTarget: {
+        name: "node-application",
+        format: "dual",
+        outputDirectory: "apps/api-server/dist",
+      },
+    },
+    "saas-lambda": {
+      platform: "lambda",
+      host: { platform: "lambda", lifecycle: "invocation", packageName: "@croco/preset-lambda" },
+      transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
+      buildTarget: {
+        name: "lambda-function",
+        format: "cjs",
+        outputDirectory: "apps/api-server/dist",
+      },
+    },
+    "saas-cloudflare": {
+      platform: "cloudflare-workers",
+      host: {
+        platform: "cloudflare-workers",
+        lifecycle: "fetch",
+        packageName: "@croco/preset-cloudflare",
+      },
+      transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
+      buildTarget: {
+        name: "cloudflare-worker",
+        format: "esm",
+        outputDirectory: "apps/api-server/dist",
+        constraints: ["cloudflare-nodejs-compat", "web-standard-apis"],
+      },
+    },
+    "node-application": {
+      platform: "node",
+      host: { platform: "node", lifecycle: "process", packageName: "@croco/preset-node" },
+      transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
+      buildTarget: {
+        name: "node-application",
+        format: "cjs",
+        outputDirectory: "apps/api-server/dist",
+      },
+    },
+    "cloudflare-workers-workspace": {
+      platform: "cloudflare-workers",
+      host: {
+        platform: "cloudflare-workers",
+        lifecycle: "fetch",
+        packageName: "@croco/preset-cloudflare",
+      },
+      transports: [{ protocol: "http", packageName: "@croco/transports-http" }],
+      buildTarget: {
+        name: "cloudflare-workers-workspace",
+        format: "esm",
+        constraints: ["cloudflare-nodejs-compat", "web-standard-apis"],
+      },
+    },
+    "graphql-node-application": {
+      platform: "node",
+      host: { platform: "node", lifecycle: "process", packageName: "@apollo/server" },
+      transports: [{ protocol: "graphql", packageName: "@apollo/server" }],
+      buildTarget: {
+        name: "node-application",
+        format: "cjs",
+        outputDirectory: "apps/graphql-api/dist",
+      },
+    },
+    "graphql-lambda": {
+      platform: "lambda",
+      host: {
+        platform: "lambda",
+        lifecycle: "invocation",
+        packageName: "@as-integrations/aws-lambda",
+      },
+      transports: [{ protocol: "graphql", packageName: "@apollo/server" }],
+      buildTarget: {
+        name: "lambda-function",
+        format: "cjs",
+        outputDirectory: "apps/graphql-api/dist",
+      },
+    },
+  } as const satisfies Record<
+    RuntimeCompositionSmokeProfile,
+    {
+      platform: RuntimeCapabilitySmokePlatform;
+      host: Record<string, string>;
+      transports: readonly Record<string, string>[];
+      buildTarget: Record<string, string | readonly string[]>;
+    }
+  >;
+  const composition = compositionByProfile[profile];
+
   return {
     label: "runtime capability manifest",
     json: {
       path: "croco-runtime-capability.manifest.json",
       matches: {
         version: "croco.runtime-capability.manifest.v1",
-        platform,
-        capabilities: runtimeCapabilitySmokeSupport[platform],
+        platform: composition.platform,
+        composition: {
+          host: composition.host,
+          transports: composition.transports,
+          buildTarget: composition.buildTarget,
+        },
+        capabilities: runtimeCapabilitySmokeSupport[composition.platform],
         diagnostics: [],
       },
     },
@@ -3325,9 +3545,9 @@ function runValidation(
             : run(corepackCommand, commandArgs, rootDir, commandEnv),
         );
         if (unitCapture) {
-          const expected = unitCapture.reports
-            .flatMap(({ generatedPaths }) => generatedPaths)
-            .sort();
+          const expected = normalizedPaths(
+            unitCapture.reports.flatMap(({ generatedPaths }) => generatedPaths),
+          );
           const executed = [...new Set(readGeneratedUnitEvidence(unitCapture))].sort();
           if (JSON.stringify(executed) !== JSON.stringify(expected)) {
             throw new Error(
@@ -3337,7 +3557,7 @@ function runValidation(
           step.executedTestPaths = executed;
         }
         if (journeyReportPath) {
-          const expected = (
+          const expected = normalizedPaths(
             validation.paths
               ? [...validation.paths]
               : testInventory.tests
@@ -3347,8 +3567,8 @@ function runValidation(
                       entry.generated?.generatedPath.startsWith("tests/journeys/") &&
                       existsSync(join(projectDir, entry.generated.generatedPath)),
                   )
-                  .flatMap((entry) => (entry.generated ? [entry.generated.generatedPath] : []))
-          ).sort();
+                  .flatMap((entry) => (entry.generated ? [entry.generated.generatedPath] : [])),
+          );
           const executed = existsSync(journeyReportPath)
             ? reconcileGeneratedTestPaths(
                 readCompletedPlaywrightPaths(journeyReportPath, projectDir),

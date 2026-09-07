@@ -37,8 +37,8 @@ pnpm dev:web
 
 - `apps/api-server/src/app.ts`: 보안 헤더, CORS, 본문 크기 제한, rate limit middleware와 `HttpExceptionFilter`를 기본 적용합니다.
 - `apps/api-server/src/env.ts`: `PORT`, `WEB_ORIGIN`, telemetry 관련 env를 zod로 검증하고 잘못된 값은 `InvalidEnvironmentProblem`으로 실패합니다.
-- `apps/api-server/src/index.ts`: local Node 서버 시작 전에 `TelemetryRuntime.init()`을 호출합니다. 기본값은 zero-credential 실행을 위해 tracing off이며, `TELEMETRY_ENABLED=true` 또는 OTLP endpoint가 있으면 trace export를 켭니다.
-- `apps/api-server/src/lambda.ts`: `createCrocoApp().lambdaHandler()`를 내보내고 Lambda 응답 전 `TelemetryRuntime.forceFlush()`를 호출합니다.
+- `apps/api-server/src/index.ts`: `@croco/preset-node`의 `createNodeHost()`로 Node 수명주기를 소유하고, 시작 전에 `TelemetryRuntime.init()`을 호출합니다. 종료 시에는 host를 닫고 telemetry를 flush/shutdown한 뒤 application runtime을 dispose합니다. 기본값은 zero-credential 실행을 위해 tracing off이며, `TELEMETRY_ENABLED=true` 또는 OTLP endpoint가 있으면 trace export를 켭니다.
+- `apps/api-server/src/lambda.ts`: `@croco/preset-lambda`의 `createLambdaHost()`를 내보내고 Lambda 응답 전 `TelemetryRuntime.forceFlush()`를 호출합니다.
 - `apps/api-server/src/users.ts`: `@croco/repository-core` 계약, `RetryTemplate`, `EventPublisher` + `InMemoryEventBus`, `recordEvent`를 하나의 사용자 생성 loop에 연결합니다.
 - `apps/console-web/src/api/client.ts`: API 실패를 status-only `Error`로 숨기지 않고 `@croco/frontend-problems`의 `ProblemClientError`로 보존합니다.
 
@@ -94,7 +94,7 @@ function readProblemCode(error: unknown): string | null {
 ## 구조
 
 ```text
-apps/api-server        Croco transports-http + protocols-rest Node 서버
+apps/api-server        preset-node/preset-lambda Host + transports-http + protocols-rest API
 apps/console-web       Vite + React SPA
 tests/journeys         Playwright full-stack 성공/Problem 여정
 libs/sample-domain     service/domain/datasource/feature/page/ui 예시 경계
@@ -141,7 +141,8 @@ pnpm di:verify
 
 ### API
 
-기본 템플릿은 Node 서버와 Lambda 엔트리포인트를 모두 포함합니다.
+기본 템플릿은 Node와 Lambda Host 엔트리포인트를 모두 포함하고, 두 Host가 같은 HTTP Transport와 `ApplicationRuntime` 범위를 바인딩합니다.
+`croco-runtime-capability.manifest.json`은 기본 실행 경로인 Node Host와 그 build target을 기록합니다. `lambda.ts`와 SST 설정은 명시적으로 선택할 수 있는 대체 배포 엔트리이며, 이 manifest는 선택된 기본 runtime 계약이지 모든 선택적 엔트리의 목록이 아닙니다.
 
 - AWS Lambda: `sst.config.ts`가 `apps/api-server/src/lambda.handler`를 가리킵니다. Lambda에서는 telemetry force flush가 활성화됩니다.
 - Cloudflare Workers: Workers 전송 어댑터를 사용하는 API 엔트리를 추가해 배포합니다.

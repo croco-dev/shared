@@ -1,4 +1,4 @@
-export type CrocoPresetConfig = {
+export type CrocoBuildTargetConfig = {
   readonly name: string;
   readonly entry: string;
   readonly output: {
@@ -8,20 +8,20 @@ export type CrocoPresetConfig = {
   readonly hooks?: HookMap;
 };
 
-export type CrocoPresetOverride = {
-  readonly name?: CrocoPresetConfig["name"];
-  readonly entry?: CrocoPresetConfig["entry"];
+export type CrocoBuildTargetOverride = {
+  readonly name?: CrocoBuildTargetConfig["name"];
+  readonly entry?: CrocoBuildTargetConfig["entry"];
   readonly output?: {
-    readonly dir?: CrocoPresetConfig["output"]["dir"];
-    readonly format?: CrocoPresetConfig["output"]["format"];
+    readonly dir?: CrocoBuildTargetConfig["output"]["dir"];
+    readonly format?: CrocoBuildTargetConfig["output"]["format"];
   };
   readonly hooks?: HookMap;
 };
 
 export type HookMap = {
   readonly "build:before"?: (
-    config: CrocoPresetConfig,
-  ) => Promise<CrocoPresetConfig> | CrocoPresetConfig;
+    config: CrocoBuildTargetConfig,
+  ) => Promise<CrocoBuildTargetConfig> | CrocoBuildTargetConfig;
   readonly "build:after"?: (result: {
     readonly success: boolean;
     readonly outputDir: string;
@@ -29,9 +29,18 @@ export type HookMap = {
   readonly "dev:start"?: () => Promise<void> | void;
 };
 
-export type CrocoPreset = {
-  readonly config: Readonly<CrocoPresetConfig>;
+export type CrocoBuildTarget = {
+  readonly config: Readonly<CrocoBuildTargetConfig>;
   readonly name: string;
   readonly hooks: Readonly<HookMap>;
-  readonly extend: (override: CrocoPresetOverride) => CrocoPreset;
+  readonly extend: (override: CrocoBuildTargetOverride) => CrocoBuildTarget;
 };
+
+/** @deprecated Use `CrocoBuildTargetConfig`. */
+export type CrocoPresetConfig = CrocoBuildTargetConfig;
+
+/** @deprecated Use `CrocoBuildTargetOverride`. */
+export type CrocoPresetOverride = CrocoBuildTargetOverride;
+
+/** @deprecated Use `CrocoBuildTarget`. */
+export type CrocoPreset = CrocoBuildTarget;

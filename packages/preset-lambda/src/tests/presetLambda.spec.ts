@@ -1,7 +1,12 @@
-import type { LambdaContext, LambdaEvent } from "@croco/transports-http";
+import type { LambdaContext, LambdaEvent, RuntimeContextInit } from "@croco/transports-http";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import { createLambdaHandler, createLambdaPreset } from "../index";
+import {
+  createLambdaBuildTarget,
+  createLambdaHandler,
+  createLambdaHost,
+  createLambdaPreset,
+} from "../index";
 
 const lambdaContext: LambdaContext = {
   callbackWaitsForEmptyEventLoop: false,
@@ -49,6 +54,11 @@ function createLambdaEvent(overrides: Partial<LambdaEvent> = {}): LambdaEvent {
 }
 
 describe("createLambdaPreset", () => {
+  it("exposes separate canonical host and build-target entry points", () => {
+    expect(createLambdaPreset).toBe(createLambdaBuildTarget);
+    expect(createLambdaHandler).toBe(createLambdaHost);
+  });
+
   it("returns a lambda preset", () => {
     const preset = createLambdaPreset();
 
@@ -105,6 +115,35 @@ describe("createLambdaHandler", () => {
       },
       body: "ok",
       isBase64Encoded: false,
+    });
+  });
+
+  it("preserves the Lambda runtime context for fetch applications", async () => {
+    const handler = createLambdaHandler({
+      fetch: async (_request: Request, runtimeContext?: RuntimeContextInit) => {
+        expect(runtimeContext).toMatchObject({
+          platform: "lambda",
+          requestId: "gateway-req-123",
+          native: {
+            event: expect.objectContaining({ version: "2.0" }),
+            lambdaContext,
+          },
+          capabilities: {
+            deadline: true,
+            env: true,
+            flush: true,
+            requestLifecycle: true,
+            waitUntil: true,
+          },
+        });
+
+        return new Response("ok");
+      },
+    });
+
+    await expect(handler(createLambdaEvent(), lambdaContext)).resolves.toMatchObject({
+      statusCode: 200,
+      body: "ok",
     });
   });
 

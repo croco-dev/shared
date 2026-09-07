@@ -183,6 +183,7 @@ describe("benchmark workflow", () => {
     expect(workflow).toContain("pull_request:");
     expect(workflow).not.toContain("pull_request_target:");
     expect(benchmark).toContain("contents: read");
+    expect(benchmark).toContain("timeout-minutes: 20");
     expect(benchmark).not.toContain("pull-requests: write");
     expect(benchmark).toContain("ref: ${{ github.event.pull_request.head.sha || github.sha }}");
     expect(benchmark).toContain("persist-credentials: false");

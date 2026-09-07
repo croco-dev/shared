@@ -1812,7 +1812,7 @@ export function buildProductionReadyMarkdown(report: ProductionReadyReport): str
     "- Keep deterministic fast tests in the default `test` script and route integration, published-package, and live tests through explicit lane scripts.",
     "- Keep production package `build`, `typecheck`, and `test` scripts wired into Turbo summaries before CI runs this gate with required task summaries.",
     "- Run `pnpm public-api:write` when a publishable package entrypoint is intentionally added to the public API snapshot.",
-    "- Link adapter, provider, integration, transport, or presentation production evidence from the relevant reference docs before promotion.",
+    "- Link adapter, provider, integration, transport, host, or presentation production evidence from the relevant reference docs before promotion.",
     "- Map one public positive and one public negative test for every production-ready spine package under `spine.behavioralEvidence.packages`.",
   ];
 

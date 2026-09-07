@@ -11,7 +11,7 @@
 | Missing package README         |     0 |
 | Missing generated API docs     |     0 |
 | Missing package test directory |     0 |
-| Extension matrix packages      |    45 |
+| Extension matrix packages      |    48 |
 | Certification records          |     8 |
 | Croco 1.0 spine packages       |    18 |
 
@@ -61,7 +61,7 @@ Certification scope is defined by `docs/package-catalog.json` `certification.pol
 
 | Policy field                   | Value                                                                                                                                           |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Extension groups in scope      | Provider<br>Integration<br>Transport<br>Presentation                                                                                            |
+| Extension groups in scope      | Provider<br>Integration<br>Transport<br>Host<br>Presentation                                                                                    |
 | Certified record required when | Extension package maturity is `production`, or public docs make a Croco compatibility claim.                                                    |
 | `certified-required`           | A certified record is required because the package is production-ready in the extension matrix or public docs make a Croco compatibility claim. |
 | `candidate-optional`           | A pre-production certification record exists for an extension package; state candidate requires present liveSmoke evidence.                     |
@@ -107,14 +107,16 @@ None.
 
 | Group        | Packages |
 | ------------ | -------: |
-| Core         |       24 |
+| Core         |       23 |
 | Domain       |       31 |
 | Provider     |       28 |
 | Integration  |        5 |
 | Protocol     |       10 |
-| Transport    |        3 |
+| Transport    |        2 |
+| Host         |        4 |
+| Build Target |        1 |
 | Presentation |        9 |
-| Tooling      |       10 |
+| Tooling      |        7 |
 
 | Maturity            | Packages |
 | ------------------- | -------: |
@@ -131,5 +133,6 @@ Extension matrix metadata is maintained in `docs/package-catalog.json` and rende
 | ------------ | -------: | --------------------: |
 | Provider     |       28 |                     0 |
 | Integration  |        5 |                     0 |
-| Transport    |        3 |                     0 |
+| Transport    |        2 |                     0 |
+| Host         |        4 |                     0 |
 | Presentation |        9 |                     0 |

@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { Component } from "@croco/framework-context";
+import { createApplicationRuntime } from "@croco/framework-module";
 import {
   createSlidingWindowPolicy,
   RateLimiter,
@@ -16,9 +17,12 @@ import {
   rateLimitHttpMiddleware,
   securityHeadersMiddleware,
 } from "@croco/transports-http";
+import type { ApplicationRuntime } from "@croco/framework-module";
 import type { Constructor } from "@croco/protocols-rest";
+import type { CrocoApp, MiddlewareFunction } from "@croco/transports-http";
 import { UserController } from "./controllers/UserController";
 import { readEnv } from "./env";
+import { initializeUserRuntime } from "./users";
 
 const OPERATIONAL_RATE_LIMIT_BYPASS_PATHS = new Set(["/ops/health", "/ops/metrics"]);
 const controllers = [UserController];
@@ -27,6 +31,12 @@ Component()(HttpExceptionFilter);
 
 export type CreateCrocoAppOptions = {
   readonly extraControllers?: readonly Constructor[];
+  readonly extraMiddlewares?: readonly MiddlewareFunction[];
+};
+
+export type RuntimeOwnedCrocoApp = CrocoApp & {
+  readonly applicationRuntime: ApplicationRuntime;
+  readonly disposeApplicationRuntime: () => Promise<void>;
 };
 
 function createControllerList(options: CreateCrocoAppOptions = {}): Constructor[] {
@@ -39,27 +49,87 @@ export function createCrocoDiGraphRoots(
   return createControllerList(options);
 }
 
-export function createCrocoApp(options: CreateCrocoAppOptions = {}) {
-  const env = readEnv();
-  const rateLimiter = new RateLimiter(
-    new SlidingWindowInMemoryStore(),
-    new RateLimitKeyBuilder(["ip"]),
-  );
-  const appControllers = createControllerList(options);
+export function createCrocoApp(options: CreateCrocoAppOptions = {}): RuntimeOwnedCrocoApp {
+  const runtime = createApplicationRuntime();
 
-  return createApp({
-    controllers: appControllers,
-    globalFilters: [HttpExceptionFilter],
-    middlewares: [
-      securityHeadersMiddleware(),
-      corsMiddleware({ origins: [env.WEB_ORIGIN] }),
-      bodyLimitMiddleware({ limit: mb(1) }),
-      rateLimitHttpMiddleware({
-        rateLimiter,
-        policy: createSlidingWindowPolicy("api", 100, 60_000),
-        clientIdentity: createRuntimeAwareRateLimitClientIdentityPolicy(),
-        skip: (ctx) => OPERATIONAL_RATE_LIMIT_BYPASS_PATHS.has(ctx.req.path),
+  return runtime.run(() => {
+    initializeUserRuntime();
+    const env = readEnv();
+    const rateLimiter = new RateLimiter(
+      new SlidingWindowInMemoryStore(),
+      new RateLimitKeyBuilder(["ip"]),
+    );
+    const appControllers = createControllerList(options);
+
+    return bindApplicationRuntime(
+      createApp({
+        controllers: appControllers,
+        globalFilters: [HttpExceptionFilter],
+        middlewares: [
+          securityHeadersMiddleware(),
+          corsMiddleware({ origins: [env.WEB_ORIGIN] }),
+          bodyLimitMiddleware({ limit: mb(1) }),
+          rateLimitHttpMiddleware({
+            rateLimiter,
+            policy: createSlidingWindowPolicy("api", 100, 60_000),
+            clientIdentity: createRuntimeAwareRateLimitClientIdentityPolicy(),
+            skip: (ctx) => OPERATIONAL_RATE_LIMIT_BYPASS_PATHS.has(ctx.req.path),
+          }),
+          ...(options.extraMiddlewares ?? []),
+        ],
       }),
-    ],
+      runtime,
+    );
   });
+}
+
+function bindApplicationRuntime(app: CrocoApp, runtime: ApplicationRuntime): RuntimeOwnedCrocoApp {
+  bindHostCallbacks(app, runtime);
+  const boundMethods = new Map<PropertyKey, (...args: never[]) => unknown>();
+
+  return new Proxy(app, {
+    get(target, property) {
+      if (property === "applicationRuntime") {
+        return runtime;
+      }
+      if (property === "disposeApplicationRuntime") {
+        return () => runtime.dispose();
+      }
+
+      const value = Reflect.get(target, property, target) as unknown;
+      if (typeof value !== "function") {
+        return value;
+      }
+
+      const existing = boundMethods.get(property);
+      if (existing) {
+        return existing;
+      }
+
+      const bound = (...args: never[]) => runtime.run(() => Reflect.apply(value, target, args));
+      boundMethods.set(property, bound);
+      return bound;
+    },
+  }) as RuntimeOwnedCrocoApp;
+}
+
+function bindHostCallbacks(app: CrocoApp, runtime: ApplicationRuntime): void {
+  const createNodeHandler = app.nodeHandler.bind(app);
+  app.nodeHandler = () => runtime.bindHostCallback(createNodeHandler());
+
+  const createLambdaHandler = app.lambdaHandler.bind(app);
+  app.lambdaHandler = (options) => runtime.bindHostCallback(createLambdaHandler(options));
+
+  const getHono = app.getHono.bind(app);
+  let runtimeBoundHono: ReturnType<CrocoApp["getHono"]> | undefined;
+  app.getHono = () => {
+    if (runtimeBoundHono) {
+      return runtimeBoundHono;
+    }
+
+    const hono = getHono();
+    hono.fetch = runtime.bindHostCallback(hono.fetch.bind(hono));
+    runtimeBoundHono = hono;
+    return hono;
+  };
 }

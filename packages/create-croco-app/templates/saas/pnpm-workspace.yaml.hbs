@@ -4,6 +4,7 @@ packages:
 
 overrides:
   postcss: 8.5.18
+  sharp: 0.35.4
 
 patchedDependencies:
   tsup@8.5.1: patches/tsup@8.5.1.patch
@@ -16,6 +17,9 @@ allowBuilds:
   protobufjs: true
   sharp: true
   unrs-resolver: true
+  # {{#if saasCloudflare}}
+  workerd: true
+  # {{/if}}
 
 onlyBuiltDependencies:
   - "@apollo/protobufjs"
@@ -25,3 +29,6 @@ onlyBuiltDependencies:
   - protobufjs
   - sharp
   - unrs-resolver
+  # {{#if saasCloudflare}}
+  - workerd
+  # {{/if}}

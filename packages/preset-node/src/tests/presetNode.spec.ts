@@ -2,7 +2,12 @@ import { EventEmitter } from "node:events";
 import { serve } from "@hono/node-server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createNodeEntry, createNodeServerPreset } from "../index";
+import {
+  createNodeBuildTarget,
+  createNodeEntry,
+  createNodeHost,
+  createNodeServerPreset,
+} from "../index";
 
 vi.mock("@hono/node-server", () => ({
   serve: vi.fn((_options, callback?: () => void) => {
@@ -24,6 +29,11 @@ beforeEach(() => {
 });
 
 describe("createNodeServerPreset", () => {
+  it("exposes separate canonical host and build-target entry points", () => {
+    expect(createNodeServerPreset).toBe(createNodeBuildTarget);
+    expect(createNodeEntry).toBe(createNodeHost);
+  });
+
   it("returns a node preset", () => {
     const preset = createNodeServerPreset();
 

@@ -210,22 +210,6 @@
     },
     {
       "packageName": "@croco/framework-context",
-      "file": "packages/framework-context/src/libs/runtimeCapabilities.ts",
-      "line": 141,
-      "column": 5,
-      "code": "TS2379",
-      "message": "Argument of type '{ requirements: readonly RuntimeCapabilityRequirement[] | undefined; }' is not assignable to parameter of type '{ readonly requirements?: readonly RuntimeCapabilityRequirement[]; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties."
-    },
-    {
-      "packageName": "@croco/framework-context",
-      "file": "packages/framework-context/src/libs/runtimeCapabilities.ts",
-      "line": 188,
-      "column": 3,
-      "code": "TS2375",
-      "message": "Type '{ code: \"CROCO_RUNTIME_CAPABILITY_001\"; severity: \"error\"; platform: RuntimePlatform; capability: keyof RuntimeCapabilities; message: string; source: DependencySourceLocation | undefined; }' is not assignable to type 'RuntimeCapabilityDiagnostic' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties."
-    },
-    {
-      "packageName": "@croco/framework-context",
       "file": "packages/framework-context/src/libs/RuntimeInspector.ts",
       "line": 190,
       "column": 11,
@@ -2663,14 +2647,6 @@
       "column": 20,
       "code": "TS4111",
       "message": "Property 'platform' comes from an index signature, so it must be accessed with ['platform']."
-    },
-    {
-      "packageName": "@croco/cli",
-      "file": "packages/cli/src/commands/doctor.ts",
-      "line": 4155,
-      "column": 22,
-      "code": "TS4111",
-      "message": "Property 'capabilities' comes from an index signature, so it must be accessed with ['capabilities']."
     },
     {
       "packageName": "@croco/cli",

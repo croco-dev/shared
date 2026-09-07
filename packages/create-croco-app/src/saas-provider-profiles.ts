@@ -309,6 +309,7 @@ export const SAAS_PROVIDER_PROFILES = {
     description:
       "Node API profile with Postgres-backed domain state, Polar billing, Upstash queues, Cloudinary storage, and OTLP telemetry.",
     packages: [
+      "@croco/preset-node",
       ...new Set(
         SAAS_NODE_POSTGRES_PLUGINS.flatMap((pluginDefinition) => [
           pluginDefinition.packageName,
@@ -460,6 +461,7 @@ export const SAAS_PROVIDER_PROFILES = {
     zeroCredentialSmoke: "pnpm demo:smoke",
     realProviderSmoke: "SAAS_PROVIDER_PROFILE=saas-cloudflare pnpm profile:smoke:real",
     deployNotes: [
+      "Keep the generated wrangler.toml nodejs_compat flag because the demo composition imports Node-compatible modules.",
       "Keep generated smoke local; use pnpm profile:smoke:real only after Worker secrets are bound.",
       "Verify Polar and QStash signatures before Worker handlers mutate billing, metering, or task state.",
       "Flush telemetry through the Worker request lifecycle instead of AWS exec-wrapper style boot hooks.",

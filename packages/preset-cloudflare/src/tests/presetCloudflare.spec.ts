@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CloudflareFetchEnv, ExecutionContext } from "../fetch";
+import type {
+  CloudflareFetchEnv,
+  CloudflareHostExecutionContext,
+  CloudflareHostRawHonoFetch,
+  ExecutionContext,
+} from "../fetch";
 import {
+  createCloudflareBuildTarget,
+  createCloudflareWorkersHost,
   createCloudflarePreset,
   createRawHonoWorkerFetchHandler,
   createWorkerFetchHandler,
@@ -9,6 +16,12 @@ import {
 const createExecutionContext = (): ExecutionContext => ({
   waitUntil: vi.fn(),
   passThroughOnException: vi.fn(),
+});
+
+const createHostExecutionContext = (): CloudflareHostExecutionContext => ({
+  waitUntil: vi.fn(),
+  passThroughOnException: vi.fn(),
+  props: {},
 });
 
 type PreviousExecutionContext = {
@@ -23,6 +36,11 @@ type PreviousCloudflareFetchHandler = (
 ) => Response | Promise<Response>;
 
 describe("createCloudflarePreset", () => {
+  it("exposes separate canonical host and build-target entry points", () => {
+    expect(createCloudflarePreset).toBe(createCloudflareBuildTarget);
+    expect(createWorkerFetchHandler).not.toBe(createCloudflareWorkersHost);
+  });
+
   it("returns a cloudflare preset", () => {
     const preset = createCloudflarePreset();
 
@@ -79,7 +97,7 @@ describe("createWorkerFetchHandler", () => {
         native: {
           executionContext: ctx,
         },
-        capabilities: expect.objectContaining({
+        capabilities: {
           env: true,
           filesystem: false,
           nodeApi: false,
@@ -90,7 +108,7 @@ describe("createWorkerFetchHandler", () => {
           deadline: false,
           abortSignal: true,
           shutdown: false,
-        }),
+        },
       }),
       { env, executionContext: expect.objectContaining({ props: undefined }) },
     );
@@ -141,6 +159,57 @@ describe("createWorkerFetchHandler", () => {
       value: "users-kv",
     });
     expect(ctx.waitUntil).toHaveBeenCalledWith(pending);
+  });
+
+  it("preserves the app receiver when invoking fetch", async () => {
+    const response = new Response("ok");
+    const app = {
+      response,
+      fetch() {
+        return this.response;
+      },
+    };
+    const handler = createCloudflareWorkersHost(app);
+
+    await expect(
+      handler(new Request("https://example.com/health"), {}, createHostExecutionContext()),
+    ).resolves.toBe(response);
+  });
+
+  it("passes initialization context through the canonical host", async () => {
+    const request = new Request("https://example.com/users");
+    const response = new Response("ok");
+    const env: CloudflareFetchEnv = {};
+    const ctx = createHostExecutionContext();
+    const fetch = vi.fn(async () => response);
+    const handler = createCloudflareWorkersHost({ fetch });
+
+    await expect(handler(request, env, ctx)).resolves.toBe(response);
+    expect(fetch).toHaveBeenCalledWith(
+      request,
+      expect.objectContaining({
+        platform: "cloudflare-workers",
+        env,
+        abortSignal: request.signal,
+        waitUntil: expect.any(Function),
+      }),
+      { env, executionContext: ctx },
+    );
+  });
+
+  it("requires raw Hono forwarding to select the explicit dispatch mode", async () => {
+    const request = new Request("https://example.com/users");
+    const response = new Response("ok");
+    const env: CloudflareFetchEnv = {};
+    const ctx = createHostExecutionContext();
+    const fetch: CloudflareHostRawHonoFetch = vi.fn(async () => response);
+
+    // @ts-expect-error Raw Hono callbacks must opt into raw-Hono argument dispatch.
+    createCloudflareWorkersHost({ fetch });
+    const handler = createCloudflareWorkersHost({ fetch }, { mode: "raw-hono" });
+
+    await expect(handler(request, env, ctx)).resolves.toBe(response);
+    expect(fetch).toHaveBeenCalledWith(request, env, ctx);
   });
 
   it("keeps raw Hono forwarding behind an explicit compatibility helper", async () => {

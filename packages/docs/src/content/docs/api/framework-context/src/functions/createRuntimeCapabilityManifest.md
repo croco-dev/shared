@@ -21,6 +21,10 @@ title: "createRuntimeCapabilityManifest"
 
 ### options?
 
+#### composition?
+
+[`RuntimeCompositionManifest`](/api/framework-context/src/type-aliases/runtimecompositionmanifest/)\<`TPlatform`\>
+
 #### requirements?
 
 readonly [`RuntimeCapabilityRequirement`](/api/framework-context/src/type-aliases/runtimecapabilityrequirement/)[]

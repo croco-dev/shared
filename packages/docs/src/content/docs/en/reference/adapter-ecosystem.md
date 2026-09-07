@@ -12,47 +12,59 @@ before an adapter can be treated as compatible or certified.
 
 ## Adapter Categories
 
-| Category             | Responsibility                                                                                          | Must not own                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Transport adapter    | Converts runtime requests into Croco protocol execution and returns runtime responses.                  | Domain rules, storage, billing, auth provider behavior, or application-specific middleware decisions. |
-| Provider adapter     | Implements a domain/core contract through a concrete datastore, SaaS provider, or external service SDK. | Contract definitions that belong in `*-core` packages or runtime bootstrap owned by the application.  |
-| Integration adapter  | Connects cross-cutting systems such as telemetry, analytics, feature flags, and metrics to Croco APIs.  | Business-domain state or transport request conversion.                                                |
-| Presentation adapter | Connects frontend, SSR, build output, generated clients, and edge/frontend runtimes to Croco contracts. | Server-side secrets, provider SDK ownership, or hidden backend API drift.                             |
-| Community adapter    | Implements the same contracts outside the first-party package set.                                      | Compatibility claims without named Croco contract, runtime, and conformance evidence.                 |
+| Category              | Responsibility                                                                                          | Must not own                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Host adapter          | Owns the lifecycle of a Node process/server, Lambda invocation, or Workers fetch event.                 | Protocol execution, domain behavior, or build artifact configuration.                                |
+| Transport adapter     | Executes a protocol/application surface and returns its protocol response.                              | Deployment lifecycle, artifact packaging, or domain behavior.                                        |
+| Build-target contract | Describes entrypoint, output, format, hooks, and bundling constraints.                                  | Runtime invocation, request handling, or application lifecycle.                                      |
+| Provider adapter      | Implements a domain/core contract through a concrete datastore, SaaS provider, or external service SDK. | Contract definitions that belong in `*-core` packages or runtime bootstrap owned by the application. |
+| Integration adapter   | Connects cross-cutting systems such as telemetry, analytics, feature flags, and metrics to Croco APIs.  | Business-domain state or transport request conversion.                                               |
+| Presentation adapter  | Connects frontend, SSR, build output, generated clients, and edge/frontend runtimes to Croco contracts. | Server-side secrets, provider SDK ownership, or hidden backend API drift.                            |
+| Community adapter     | Implements the same contracts outside the first-party package set.                                      | Compatibility claims without named Croco contract, runtime, and conformance evidence.                |
 
-Transport, provider, integration, and presentation adapters may compose with each other, but each
-package must declare the single boundary it owns. A package that needs to own multiple boundaries
-should be split before it can be promoted.
+Hosts bind transports, and build targets may package host entrypoints, but the responsibilities do
+not overlap. Provider, integration, and presentation adapters may compose with those runtime
+boundaries while keeping their own contracts explicit.
+
+The current `preset-*` packages are intentional host-primary compatibility facades: canonical
+`create*Host` APIs own lifecycle and canonical `create*BuildTarget` APIs expose build configuration.
+Deprecated preset and entry/handler aliases preserve existing consumers. This is a migration of the
+public model, not a package rename.
 
 ## Official Priorities
 
 Priority indicates product focus, not current maturity. Maturity still comes from
 `docs/package-catalog.json` and the reference gates linked from the extension matrix.
 
-| Priority | Adapter surface                                       | Current first-party package or candidate                                                 | Boundary decision                                                                                                                                             |
-| -------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0       | Hono-backed HTTP on Node and Lambda                   | `@croco/transports-http`                                                                 | Official production path for REST route execution, Lambda conversion, diagnostics endpoints, and Problem mapping.                                             |
-| P0       | OpenTelemetry app API and Node runtime SDK            | `@croco/telemetry-api`, `@croco/telemetry-sdk-node`                                      | Application code records spans through the API package; SDK initialization and Lambda `forceFlush()` stay in the Node SDK/runtime layer.                      |
-| P0       | Drizzle-backed transaction and repository persistence | `@croco/tx-drizzle`, `@croco/*-drizzle` providers                                        | Drizzle implementations stay outside `*-core` contract packages and must not leak Drizzle types into core contracts.                                          |
-| P1       | Cloudflare Workers HTTP and SSR                       | `@croco/transports-cloudflare-workers`, `@croco/frontend-cloudflare`, `@croco/meta-vite` | Worker adapters own fetch/env/context conversion and Worker-safe cache constraints; core packages must not import Worker-only APIs.                           |
-| P1       | OpenAPI and typed RPC artifacts                       | `@croco/openapi-spec`, `@croco/rpc-codegen`                                              | Protocol artifacts are generated from server contracts and consumed by clients/tests without hand-maintained drift.                                           |
-| P1       | React and React Query consumption                     | `@croco/frontend-react` plus future React Query client adapter                           | React packages own hooks/client consumption and cache integration; they must not own server route metadata or provider secrets.                               |
-| P1       | Serverless data and workflow providers                | `@croco/*-upstash`, `@croco/*-qstash` packages                                           | Upstash/QStash packages adapt serverless storage, rate-limit, task, batch, and trigger behavior to Croco contracts with explicit retry/idempotency semantics. |
-| P2       | Express and Fastify transport adapters                | Future `@croco/transports-express` and `@croco/transports-fastify` candidates            | Community-compatible targets after the transport contract is stable; adapters own request/response conversion only.                                           |
-| P2       | SaaS/vendor providers                                 | Clerk, Better Auth, Polar, PostHog, Resend, Cloudinary, R2, Meilisearch packages         | Vendor packages remain provider/integration adapters and must normalize upstream failure into Croco Problems before promotion.                                |
-| P2       | Community adapters                                    | External packages targeting Croco contracts                                              | Compatibility depends on the community checklist below; naming should not imply first-party support unless the package is owned by `@croco`.                  |
+| Priority | Adapter surface                                       | Current first-party package or candidate                                                                             | Boundary decision                                                                                                                                             |
+| -------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0       | HTTP transport and Node/Lambda hosts                  | `@croco/transports-http`, `@croco/preset-node`, `@croco/preset-lambda`                                               | HTTP route execution stays in the transport; Node server and Lambda invocation lifecycles use explicit host APIs.                                             |
+| P0       | OpenTelemetry app API and Node runtime SDK            | `@croco/telemetry-api`, `@croco/telemetry-sdk-node`                                                                  | Application code records spans through the API package; SDK initialization and Lambda `forceFlush()` stay in the Node SDK/runtime layer.                      |
+| P0       | Drizzle-backed transaction and repository persistence | `@croco/tx-drizzle`, `@croco/*-drizzle` providers                                                                    | Drizzle implementations stay outside `*-core` contract packages and must not leak Drizzle types into core contracts.                                          |
+| P1       | Cloudflare Workers host and SSR                       | `@croco/preset-cloudflare`, `@croco/transports-cloudflare-workers`, `@croco/frontend-cloudflare`, `@croco/meta-vite` | The preset facade provides the canonical Workers host; the legacy-named transport package remains a compatibility host adapter.                               |
+| P1       | OpenAPI and typed RPC artifacts                       | `@croco/openapi-spec`, `@croco/rpc-codegen`                                                                          | Protocol artifacts are generated from server contracts and consumed by clients/tests without hand-maintained drift.                                           |
+| P1       | React and React Query consumption                     | `@croco/frontend-react` plus future React Query client adapter                                                       | React packages own hooks/client consumption and cache integration; they must not own server route metadata or provider secrets.                               |
+| P1       | Serverless data and workflow providers                | `@croco/*-upstash`, `@croco/*-qstash` packages                                                                       | Upstash/QStash packages adapt serverless storage, rate-limit, task, batch, and trigger behavior to Croco contracts with explicit retry/idempotency semantics. |
+| P2       | Express and Fastify transport adapters                | Future `@croco/transports-express` and `@croco/transports-fastify` candidates                                        | Community-compatible targets after the transport contract is stable; adapters own request/response conversion only.                                           |
+| P2       | SaaS/vendor providers                                 | Clerk, Better Auth, Polar, PostHog, Resend, Cloudinary, R2, Meilisearch packages                                     | Vendor packages remain provider/integration adapters and must normalize upstream failure into Croco Problems before promotion.                                |
+| P2       | Community adapters                                    | External packages targeting Croco contracts                                                                          | Compatibility depends on the community checklist below; naming should not imply first-party support unless the package is owned by `@croco`.                  |
 
 ## Package Naming
 
 Use package names to expose the boundary:
 
-| Package shape                                                  | Meaning                                                                                                                              | Examples                                                                                      |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `@croco/<domain>-core`                                         | Contract package: types, interfaces, value objects, Problems, and in-memory/test defaults when they are part of the domain contract. | `@croco/storage-core`, `@croco/metering-core`, `@croco/repository-core`                       |
-| `@croco/<domain>-<provider>`                                   | Provider adapter for a datastore, SaaS provider, or external SDK.                                                                    | `@croco/storage-r2`, `@croco/metering-upstash`, `@croco/billing-polar`                        |
-| `@croco/transports-<runtime-or-protocol>`                      | Runtime/protocol transport adapter.                                                                                                  | `@croco/transports-http`, `@croco/transports-cloudflare-workers`, `@croco/transports-graphql` |
-| `@croco/frontend-<runtime>` or `@croco/<presentation-runtime>` | Presentation/runtime integration.                                                                                                    | `@croco/frontend-react`, `@croco/frontend-cloudflare`, `@croco/meta-vite`                     |
-| `@croco/<protocol>-codegen` or `<artifact>-spec`               | Generated contract artifact tooling.                                                                                                 | `@croco/rpc-codegen`, `@croco/openapi-spec`                                                   |
+| Package shape                                                  | Meaning                                                                                                                              | Examples                                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `@croco/<domain>-core`                                         | Contract package: types, interfaces, value objects, Problems, and in-memory/test defaults when they are part of the domain contract. | `@croco/storage-core`, `@croco/metering-core`, `@croco/repository-core`   |
+| `@croco/<domain>-<provider>`                                   | Provider adapter for a datastore, SaaS provider, or external SDK.                                                                    | `@croco/storage-r2`, `@croco/metering-upstash`, `@croco/billing-polar`    |
+| `@croco/transports-<protocol>`                                 | Protocol transport adapter.                                                                                                          | `@croco/transports-http`, `@croco/transports-graphql`                     |
+| `@croco/preset-<host>`                                         | Host-primary compatibility facade with separate host and build-target APIs.                                                          | `@croco/preset-node`, `@croco/preset-lambda`, `@croco/preset-cloudflare`  |
+| `@croco/frontend-<runtime>` or `@croco/<presentation-runtime>` | Presentation/runtime integration.                                                                                                    | `@croco/frontend-react`, `@croco/frontend-cloudflare`, `@croco/meta-vite` |
+| `@croco/<protocol>-codegen` or `<artifact>-spec`               | Generated contract artifact tooling.                                                                                                 | `@croco/rpc-codegen`, `@croco/openapi-spec`                               |
+
+`@croco/transports-cloudflare-workers` predates the host/transport distinction. Its name remains a
+compatibility surface, while its catalog role and documentation classify it as a Workers host
+adapter. Do not infer a package rename from the canonical naming guidance.
 
 Contract packages must not import provider SDKs, concrete ORM libraries, runtime-only globals, or
 adapter packages. For example, `@croco/repository-core` must not import `drizzle-orm`,
@@ -81,8 +93,13 @@ state.
 Runtime compatibility claims are represented by `RuntimeCapabilityManifest` artifacts. Generated
 apps write `croco-runtime-capability.manifest.json` with `version:
 "croco.runtime-capability.manifest.v1"`, a `platform` of `node`, `lambda`, or
-`cloudflare-workers`, the deterministic capability map for that platform, and any diagnostics
-found while comparing route/provider requirements against the manifest.
+`cloudflare-workers`, the deterministic capability map for that platform, optional `composition`,
+and any diagnostics found while comparing route/provider requirements against the manifest.
+
+When present, `composition.host` records platform and lifecycle, `composition.transports` records
+protocols independently, and `composition.buildTarget` records artifact format/output/constraints.
+The manifest is evidence, not executable composition: it does not start a host, execute a transport,
+or run a build.
 
 The shared capability vocabulary is owned by `@croco/framework-context` and includes environment
 bindings, filesystem access, Node APIs, request lifecycle hooks, tracing, `waitUntil`, flush,
@@ -116,7 +133,7 @@ The certification source of truth for first-party packages is `docs/package-cata
 evidence linked from package README, tests, docs, and release notes. The extension matrix renders the
 runtime and maturity metadata, but maturity alone is not certification.
 `pnpm provider-certification:check` enforces this record in CI before a provider, integration,
-transport, or presentation package can remain production-ready with a certification claim.
+transport, host, or presentation package can remain production-ready with a certification claim.
 The catalog policy marks production-ready extension packages and public Croco compatibility claims as
 `certified-required`, pre-production tracking records as `candidate-optional`, and extension packages
 without those triggers as `not-applicable`. A record may use `state: "candidate"` only after
@@ -153,7 +170,7 @@ new official adapter package is:
   changesets for publishable behavior.
 
 This minimum is intentionally lower than production-ready maturity. Production-ready still requires
-the provider, presentation, transport, or integration-specific maturity gates linked from the
+the provider, presentation, transport, host, or integration-specific maturity gates linked from the
 extension matrix.
 
 ### Badge and Metadata Policy

@@ -1,3 +1,5 @@
+import type { RuntimeContextInit } from "@croco/transports-http";
+
 export type CloudflareFetchEnv = {
   readonly [key: string]: unknown;
 };
@@ -11,12 +13,26 @@ type HonoExecutionContext = ExecutionContext & {
   readonly props: unknown;
 };
 
+export type CloudflareHostExecutionContext = ExecutionContext & {
+  readonly props: unknown;
+  readonly exports?: unknown;
+};
+
 export type CloudflareFetchHandler = (
   request: Request,
   env: CloudflareFetchEnv,
   ctx: ExecutionContext,
 ) => Response | Promise<Response>;
 
+export type CloudflareHostFetchHandler = (
+  request: Request,
+  env: CloudflareFetchEnv,
+  ctx: CloudflareHostExecutionContext,
+) => Response | Promise<Response>;
+
+export type CloudflareHostRuntimeContext = RuntimeContextInit<"cloudflare-workers">;
+
+/** @deprecated Runtime callbacks should accept `CloudflareHostRuntimeContext`. */
 export type CloudflareRuntimeContext = {
   readonly platform: "cloudflare-workers";
   readonly requestId?: string;
@@ -49,16 +65,63 @@ export type CloudflareAppFetch<TExecutionContext extends ExecutionContext = Exec
   },
 ) => Response | Promise<Response>;
 
+export type CloudflareHostAppFetch = (
+  request: Request,
+  runtimeContext?: CloudflareHostRuntimeContext,
+  options?: {
+    readonly env?: CloudflareFetchEnv;
+    readonly executionContext?: CloudflareHostExecutionContext;
+  },
+) => Response | Promise<Response>;
+
 export type RawHonoFetch = (
   request: Request,
   env: CloudflareFetchEnv,
   ctx: ExecutionContext,
 ) => Response | Promise<Response>;
 
+export type CloudflareHostRawHonoFetch = (
+  request: Request,
+  env: CloudflareFetchEnv,
+  ctx: CloudflareHostExecutionContext,
+) => Response | Promise<Response>;
+
 export type WorkerFetchHandlerOptions = {
   readonly mode?: "runtime" | "raw-hono";
 };
 
+export function createCloudflareWorkersHost(
+  honoApp: { readonly fetch: CloudflareHostAppFetch },
+  options?: { readonly mode?: "runtime" },
+): CloudflareHostFetchHandler;
+export function createCloudflareWorkersHost(
+  honoApp: { readonly fetch: CloudflareHostRawHonoFetch },
+  options: { readonly mode: "raw-hono" },
+): CloudflareHostFetchHandler;
+export function createCloudflareWorkersHost(
+  honoApp: {
+    readonly fetch: CloudflareHostAppFetch | CloudflareHostRawHonoFetch;
+  },
+  options: WorkerFetchHandlerOptions = {},
+): CloudflareHostFetchHandler {
+  if (options.mode === "raw-hono") {
+    const rawHonoApp = honoApp as { readonly fetch: CloudflareHostRawHonoFetch };
+    return async (request, env, ctx) => rawHonoApp.fetch(request, env, ctx);
+  }
+
+  return async (
+    request: Request,
+    env: CloudflareFetchEnv,
+    ctx: CloudflareHostExecutionContext,
+  ): Promise<Response> => {
+    const runtimeContext = createHostRuntimeContext(request, env, ctx);
+    const fetch = honoApp.fetch as CloudflareHostAppFetch;
+
+    return fetch.call(honoApp, request, runtimeContext, { env, executionContext: ctx });
+  };
+}
+
+/** @deprecated Use `createCloudflareWorkersHost`. */
 export function createWorkerFetchHandler(
   honoApp: {
     readonly fetch: CloudflareAppFetch | RawHonoFetch;
@@ -90,7 +153,7 @@ export function createWorkerFetchHandler(
     env: CloudflareFetchEnv,
     ctx: ExecutionContext,
   ): Promise<Response> => {
-    const runtimeContext = createRuntimeContext(request, env, ctx);
+    const runtimeContext = createLegacyRuntimeContext(request, env, ctx);
     const executionContext = toHonoExecutionContext(ctx);
     const fetch = honoApp.fetch as CloudflareAppFetch<HonoExecutionContext>;
 
@@ -110,7 +173,24 @@ export function createRawHonoWorkerFetchHandler(honoApp: {
   };
 }
 
-function createRuntimeContext(
+function createHostRuntimeContext(
+  request: Request,
+  env: CloudflareFetchEnv,
+  ctx: CloudflareHostExecutionContext,
+): CloudflareHostRuntimeContext {
+  return {
+    platform: "cloudflare-workers",
+    requestId: request.headers.get("x-request-id") ?? undefined,
+    abortSignal: request.signal,
+    env: env as Record<string, unknown>,
+    native: {
+      executionContext: ctx,
+    },
+    waitUntil: (promise) => ctx.waitUntil(promise),
+  };
+}
+
+function createLegacyRuntimeContext(
   request: Request,
   env: CloudflareFetchEnv,
   ctx: ExecutionContext,

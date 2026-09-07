@@ -1,6 +1,6 @@
 # @croco/frontend-cloudflare
 
-> Croco Presentation Tier - Framework -> Protocols -> Transports -> Integrations -> Presentation
+> Croco Presentation adapter — Host 생명주기, Transport 프로토콜 실행, Build Target 산출물 계약과 독립적으로 조합됩니다.
 
 Cloudflare Workers에서 meta-vite `RenderServer` 기반 SSR을 실행하는 Worker 핸들러입니다.
 서비스 바인딩 API 라우팅, Worker assets fallback, streaming `Response` 보존, 그리고

@@ -9,6 +9,10 @@ title: "createWorkerFetchHandler"
 
 > **createWorkerFetchHandler**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
 
+:::caution[Deprecated]
+Use `createCloudflareWorkersHost`.
+:::
+
 ### Parameters
 
 #### honoApp
@@ -28,6 +32,10 @@ title: "createWorkerFetchHandler"
 ## Call Signature
 
 > **createWorkerFetchHandler**(`honoApp`, `options?`): [`CloudflareFetchHandler`](/api/preset-cloudflare/src/type-aliases/cloudflarefetchhandler/)
+
+:::caution[Deprecated]
+Use `createCloudflareWorkersHost`.
+:::
 
 ### Parameters
 

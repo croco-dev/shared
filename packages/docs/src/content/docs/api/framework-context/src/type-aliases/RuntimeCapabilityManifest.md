@@ -15,6 +15,12 @@ title: "RuntimeCapabilityManifest"
 
 ---
 
+### composition?
+
+> `readonly` `optional` **composition?**: [`RuntimeCompositionManifest`](/api/framework-context/src/type-aliases/runtimecompositionmanifest/)
+
+---
+
 ### diagnostics
 
 > `readonly` **diagnostics**: readonly [`RuntimeCapabilityDiagnostic`](/api/framework-context/src/type-aliases/runtimecapabilitydiagnostic/)[]

@@ -1,5 +1,76 @@
 import { Problem, ProblemCategory } from "@croco/problems-core";
 
+export type ApplicationCleanupFailure = {
+  readonly phase: "telemetry-force-flush" | "application-runtime-dispose";
+  readonly cause: unknown;
+};
+
+export type ApplicationCleanupDiagnostic = {
+  readonly phase: ApplicationCleanupFailure["phase"];
+  readonly detail: string;
+};
+
+export class ApplicationCleanupProblem extends Problem {
+  readonly code = "saas-demo/application-cleanup-failed";
+  readonly category = ProblemCategory.InternalServerError;
+  readonly cleanupFailures: readonly ApplicationCleanupDiagnostic[];
+
+  constructor(failures: readonly ApplicationCleanupFailure[]) {
+    const cleanupFailures = failures.map(({ phase, cause }) => ({
+      phase,
+      detail: describeFailure(cause),
+    }));
+    const firstCause = failures.find(({ cause }) => cause instanceof Error)?.cause;
+
+    super(undefined, undefined, "Application lifecycle cleanup failed.", {
+      extensions: { cleanupFailures },
+      ...(firstCause instanceof Error ? { cause: firstCause } : {}),
+    });
+    this.cleanupFailures = cleanupFailures;
+  }
+}
+
+export class ApplicationBootstrapProblem extends Problem {
+  readonly code = "saas-demo/application-bootstrap-failed";
+  readonly category = ProblemCategory.InternalServerError;
+
+  constructor(bootstrapFailure: unknown, cleanupFailure: unknown) {
+    super(undefined, undefined, "Application bootstrap and runtime disposal both failed.", {
+      extensions: {
+        bootstrapFailure: describeFailure(bootstrapFailure),
+        cleanupFailures: [
+          {
+            phase: "application-runtime-dispose",
+            detail: describeFailure(cleanupFailure),
+          },
+        ],
+      },
+      ...(bootstrapFailure instanceof Error ? { cause: bootstrapFailure } : {}),
+    });
+  }
+}
+
+export class NodeHostLifecycleProblem extends Problem {
+  readonly code = "saas-demo/node-host-lifecycle-failed";
+  readonly category = ProblemCategory.InternalServerError;
+
+  constructor(operation: "start" | "close", hostFailure: unknown, cleanupFailure: unknown) {
+    const cleanupFailures =
+      cleanupFailure instanceof ApplicationCleanupProblem
+        ? cleanupFailure.cleanupFailures
+        : [{ phase: "application-runtime-dispose", detail: describeFailure(cleanupFailure) }];
+
+    super(undefined, undefined, `Node host ${operation} and application cleanup both failed.`, {
+      extensions: {
+        operation,
+        hostFailure: describeFailure(hostFailure),
+        cleanupFailures,
+      },
+      ...(hostFailure instanceof Error ? { cause: hostFailure } : {}),
+    });
+  }
+}
+
 export class DemoEndpointDisabledProblem extends Problem {
   readonly code = "saas-demo/demo-endpoint-disabled";
   readonly category = ProblemCategory.Forbidden;
@@ -109,4 +180,8 @@ export class SqliteFixtureStateProblem extends Problem {
   constructor() {
     super(undefined, undefined, "SQLite fixture state must be an object.");
   }
+}
+
+function describeFailure(cause: unknown): string {
+  return cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
 }

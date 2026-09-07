@@ -1,17 +1,33 @@
 # @croco/transports-http
 
-Croco의 HTTP 실행 계층입니다. `@croco/protocols-rest`로 정의한 컨트롤러를 Hono 기반 앱, Node 서버, AWS Lambda 핸들러로 연결합니다.
+Croco의 HTTP transport입니다. `@croco/protocols-rest`로 정의한 컨트롤러를 Hono 기반 HTTP 실행
+surface로 연결합니다. Node 프로세스와 AWS Lambda invocation의 lifecycle은 각각
+`@croco/preset-node`와 `@croco/preset-lambda`의 host API가 소유합니다.
 HTTP 실패 응답은 Croco [Failure Semantics](../../packages/docs/src/content/docs/en/guides/failure-semantics.mdx)를 기준으로 `Problem`은 RFC 7807 응답으로 보존하고, generic `Error`는 unhandled internal fault로 취급합니다.
+
+## 역할 경계
+
+- **Host**는 Node server start/close, Lambda invocation, Workers fetch/waitUntil 같은 환경
+  lifecycle을 소유합니다.
+- **HTTP transport**는 request를 route pipeline으로 실행하고 response를 반환합니다.
+- **Build target**은 entrypoint, output directory, module format, build hook을 기술합니다.
+
+`CrocoApp.fetch()`와 route/pipeline API가 이 패키지의 canonical transport surface입니다.
+`CrocoApp.listen()`, `CrocoApp.lambdaHandler()`, `nodeHandler()`, `startServer()`,
+`toLambdaHandler()`는 기존 소비자를 위한 host convenience compatibility surface로 유지됩니다.
+새 runtime composition에서는 `@croco/preset-node`의 `createNodeHost()` 또는
+`@croco/preset-lambda`의 `createLambdaHost()`에 HTTP app을 명시적으로 bind합니다. 기존 package
+이름이나 API가 rename되었다고 해석해서는 안 됩니다.
 
 ## 설치
 
 ```bash
-pnpm add @croco/transports-http @croco/protocols-rest reflect-metadata
+pnpm add @croco/framework-module @croco/preset-lambda @croco/preset-node @croco/protocols-rest @croco/transports-http reflect-metadata
 ```
 
 ## 사용법
 
-### 앱 생성과 Lambda 핸들러 노출
+### 앱 생성과 Lambda host 연결
 
 ```typescript
 import "reflect-metadata";
@@ -21,6 +37,8 @@ import {
   RateLimiter,
   SlidingWindowInMemoryStore,
 } from "@croco/ratelimit-core";
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createLambdaHost } from "@croco/preset-lambda";
 import { Controller, Get } from "@croco/protocols-rest";
 import {
   bodyLimitMiddleware,
@@ -44,20 +62,25 @@ const rateLimiter = new RateLimiter(
   new RateLimitKeyBuilder(["ip"]),
 );
 
-const app = createApp({
-  controllers: [UserController],
-  middlewares: [
-    securityHeadersMiddleware(),
-    corsMiddleware({ origins: ["https://example.com"] }),
-    bodyLimitMiddleware({ limit: mb(1) }),
-    rateLimitHttpMiddleware({
-      rateLimiter,
-      policy: createSlidingWindowPolicy("http", 100, 60_000),
-    }),
-  ],
-});
+const runtime = createApplicationRuntime();
+await runtime.initialize();
 
-export const handler = app.lambdaHandler();
+const app = runtime.run(() =>
+  createApp({
+    controllers: [UserController],
+    middlewares: [
+      securityHeadersMiddleware(),
+      corsMiddleware({ origins: ["https://example.com"] }),
+      bodyLimitMiddleware({ limit: mb(1) }),
+      rateLimitHttpMiddleware({
+        rateLimiter,
+        policy: createSlidingWindowPolicy("http", 100, 60_000),
+      }),
+    ],
+  }),
+);
+
+export const handler = runtime.bindHostCallback(createLambdaHost(app));
 ```
 
 ### Repeated query and header parameters
@@ -129,7 +152,7 @@ Lambda handler는 API Gateway v2 이벤트를 Fetch `Request`로 변환합니다
 `getLambdaContext()`로 읽을 수 있습니다.
 
 Lambda에서 OpenTelemetry span export까지 보장하려면 `@croco/telemetry-sdk-node`의
-`TelemetryRuntime.forceFlush()`를 handler flush callback으로 연결합니다. 이 callback이 실패하면 Lambda
+`TelemetryRuntime.forceFlush()`를 Lambda host의 flush callback으로 연결합니다. 이 callback이 실패하면 Lambda
 handler도 실패하므로 관측 실패가 성공 응답으로 숨겨지지 않습니다.
 Lambda handler는 요청 실행을 `finally` 경계로 감싸므로 Hono fetch 또는 route 실행이 응답 생성 전에
 실패해도 queued `waitUntil` 작업을 먼저 drain하고 handler flush callback을 실행한 뒤 실패를 전파합니다.
@@ -142,11 +165,12 @@ import {
   TelemetryRuntime,
   lambdaPreset,
 } from "@croco/telemetry-sdk-node";
+import { createLambdaHost } from "@croco/preset-lambda";
 
 const telemetry = TelemetryRuntime.getInstance();
 await telemetry.init(lambdaPreset({ serviceName: "orders" }));
 
-export const handler = app.lambdaHandler({
+const lambdaHost = createLambdaHost(app, {
   flush: async () => {
     const result = await telemetry.forceFlush(5000);
     if (result.outcome === "failed") {
@@ -157,6 +181,8 @@ export const handler = app.lambdaHandler({
     }
   },
 });
+
+export const handler = runtime.bindHostCallback(lambdaHost);
 ```
 
 ## Application module plugin
@@ -218,8 +244,18 @@ JSON 응답은 문자열 body와 `isBase64Encoded: false`를 유지하고, binar
 ### Node 서버 실행
 
 ```typescript
-await app.listen(3000);
+import { createNodeHost } from "@croco/preset-node";
+
+const host = createNodeHost({
+  fetch: runtime.bindHostCallback((request) => app.fetch(request)),
+});
+
+await host.start();
 ```
+
+종료 시에는 먼저 `host.close()`로 새 HTTP 연결을 중단하고, application/module cleanup이 끝난 뒤
+`runtime.dispose()`를 호출합니다. `app.listen()`은 기존 entrypoint와 migration을 위해 계속
+지원되는 compatibility convenience입니다.
 
 ### 헬스체크와 readiness 등록
 

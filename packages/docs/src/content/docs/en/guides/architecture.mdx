@@ -1,95 +1,130 @@
 ---
 title: Architecture Overview
-description: Understand Croco's layered architecture, DI container, and event-driven core.
+description: Understand Croco's package boundaries, runtime composition, DI container, and event-driven core.
 ---
 
 ## Introduction
 
-Croco uses an opinionated architecture to keep large codebases consistent and maintainable. The framework separates concerns into five current layers, then connects them with dependency injection and event-driven patterns.
+Croco classifies packages by the boundary they own. Framework, protocol, integration, and
+presentation packages are ecosystem groups, not a sequential runtime pipeline. Runtime composition
+uses three independent concepts: Host, Transport, and Build Target.
 
-This guide explains how each layer works, how the DI container wires components, and how domain events help you model complex business workflows.
+## Host, Transport, And Build Target
 
-## Five-Layer Architecture Diagram
+| Concept      | Owns                                                                                 | Does not own                                                    |
+| ------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| Host         | The environment lifecycle: Node process/server, Lambda invocation, or Workers fetch. | Protocol route execution or build output configuration.         |
+| Transport    | A protocol/application surface such as HTTP, GraphQL, or RPC.                        | Deployment environment lifecycle or artifact packaging.         |
+| Build Target | Entrypoint, output directory, module format, build hooks, and bundling constraints.  | Runtime invocation, request handling, or application lifecycle. |
 
-Croco follows a five-layer architecture focused on separation of concerns:
+A host may bind one or more transports. A build target may package a host entrypoint. Neither
+relationship merges their responsibilities.
 
 ```mermaid
-flowchart TD
-  framework[Framework<br/>framework-context, framework-module]
-  protocols[Protocols<br/>protocols-rest, protocols-graphql, protocols-trpc]
-  transports[Transports<br/>transports-http, transports-graphql, transports-cloudflare-workers]
-  integrations[Integrations<br/>integrations-posthog, telemetry-api, telemetry-sdk-node]
-  presentation[Presentation<br/>frontend-react, frontend-vite, frontend-cloudflare, meta-vite, presentation-preset]
-
-  framework --> protocols
-  protocols --> transports
-  transports --> integrations
-  transports --> presentation
-  integrations --> presentation
+flowchart LR
+  buildTarget[Build Target<br/>framework-preset] -. packages entrypoint .-> host
+  host[Host<br/>preset-node, preset-lambda, preset-cloudflare]
+  host --> transport[Transport<br/>transports-http, transports-graphql]
+  transport --> protocol[Protocol<br/>protocols-rest, protocols-graphql, protocols-trpc]
+  framework[Application Runtime<br/>framework-context, framework-module] --> host
+  framework --> transport
 ```
 
-## Layer Details
+The current `preset-*` packages are host-primary compatibility facades. Their canonical
+`create*Host` APIs own runtime lifecycle, while `create*BuildTarget` APIs describe artifacts through
+`@croco/framework-preset`. Deprecated preset and entry/handler aliases remain available for
+compatibility; no package rename is required by this model.
 
-### 1. Framework Layer
+## Ecosystem Boundaries
 
-The foundation of the ecosystem.
+### Framework
 
-- **`framework-context`** provides shared context interfaces.
-- **`framework-module`** supports module composition and package-level wiring.
-- Includes the DI container and metadata storage used by decorators.
-- Establishes the core contracts used by upper layers.
+The framework packages own application composition and shared runtime contracts.
 
-### 2. Protocols Layer
+- **`framework-context`** provides DI, request context, and runtime capability contracts.
+- **`framework-module`** provides module composition, provider visibility, lifecycle hooks, and
+  `ApplicationRuntime`.
+- **`ApplicationRuntime.bindHostCallback()`** re-enters the owning application scope when a host
+  invokes a retained callback and fences that callback after disposal.
 
-Defines application-facing interfaces and contracts.
+### Protocols
 
-- **`protocols-rest`** offers decorators like `@Controller` and `@Get`.
+Protocol packages define application-facing contracts without choosing a deployment host.
+
+- **`protocols-rest`** offers decorators such as `@Controller` and `@Get`.
 - **`protocols-graphql`** supports code-first GraphQL definitions on Yoga.
 - **`protocols-trpc`** provides tRPC-oriented protocol contracts.
-- **`openapi-spec`** and **`rpc-codegen`** turn protocol metadata into generated contracts and clients.
+- **`openapi-spec`** and **`rpc-codegen`** turn protocol metadata into generated contracts and
+  clients.
 
-### 3. Transports Layer
+### Transports
 
-Executes protocol definitions in runtime environments.
+Transport packages execute protocol surfaces independently from the deployment host.
 
-- **`transports-http`** runs REST definitions on a Hono-based engine.
-- **`transports-graphql`** runs GraphQL schemas through the Croco transport surface.
-- **`transports-cloudflare-workers`** adapts Croco applications to Cloudflare Workers.
+- **`transports-http`** executes REST routes through the Hono-backed HTTP engine.
+- **`transports-graphql`** executes GraphQL schemas through the Croco transport surface.
+- `CrocoApp.listen()` and `CrocoApp.lambdaHandler()` remain host convenience compatibility methods
+  on `@croco/transports-http`; canonical composition binds the HTTP app to an explicit host.
 
-### 4. Integrations Layer
+`@croco/transports-cloudflare-workers` has a legacy transport-shaped name but owns the Workers fetch
+lifecycle and runtime-context bridge. It remains a supported compatibility surface rather than being
+renamed. New composition uses `@croco/preset-cloudflare`'s `createCloudflareWorkersHost()` API.
 
-Connects Croco to external systems.
+### Hosts
+
+Host packages own environment lifecycle and bind transport callbacks.
+
+- **`preset-node`** owns Node server start and close through `createNodeHost()`.
+- **`preset-lambda`** owns Lambda invocation conversion and flush boundaries through
+  `createLambdaHost()`.
+- **`preset-cloudflare`** owns Workers fetch, env, and `waitUntil` binding through
+  `createCloudflareWorkersHost()`.
+
+The same packages also export build-target factories as a compatibility facade, but build metadata
+does not initialize or execute a host.
+
+### Build Targets
+
+**`framework-preset`** is the canonical build-target contract. `defineCrocoBuildTarget()` describes
+entrypoint, output format, output directory, and hooks. The deprecated `defineCrocoPreset()` name is
+an alias for that build-time contract; it does not imply runtime composition.
+
+### Integrations
+
+Integration packages connect Croco to external systems.
 
 - **`integrations-posthog`** integrates with PostHog-backed analytics and feature workflows.
-- **`telemetry-api`** and **`telemetry-sdk-node`** provide OpenTelemetry-based tracing APIs and runtime setup.
-- Keeps external platform wiring separate from domain logic.
+- **`telemetry-api`** and **`telemetry-sdk-node`** provide OpenTelemetry-based tracing APIs and
+  runtime setup.
+- External platform wiring stays separate from domain logic and protocol execution.
 
-### 5. Presentation Layer
+### Presentation
 
-Connects Croco backends to frontend and SSR application surfaces.
+Presentation packages connect Croco backends to frontend and SSR application surfaces.
 
 - **`frontend-react`** provides React integration helpers.
 - **`frontend-vite`** provides Vite configuration helpers.
 - **`frontend-cloudflare`** provides Cloudflare SSR handling.
-- **`meta-vite`** provides the Meta Vite runtime for routing, server actions, and SSR/RSC streaming.
-- **`presentation-preset`** composes backend and frontend presets for generated applications.
+- **`meta-vite`** provides routing, server actions, and SSR/RSC streaming.
+- **`presentation-preset`** composes backend and frontend build configuration for generated apps.
 
 ## DI Container
 
-Croco's Dependency Injection (DI) container is defined in the framework layer and reused across the stack.
+Croco's DI container is defined in the framework boundary and reused across the ecosystem. It
+registers and resolves components, supports singleton, request, and transient scopes, and keeps
+protocol definitions separate from concrete transports and hosts.
 
-- Registers and resolves components from shared metadata.
-- Supports common scopes such as singleton, request, and transient.
-- Enables decoupling between protocol definitions and concrete runtime implementations.
-
-By centralizing lifecycle management in the container, Croco keeps modules composable and testable.
+`ApplicationRuntime` owns one DI scope and module runtime. Create the application inside
+`runtime.run()` and wrap retained host entry callbacks with `runtime.bindHostCallback()` so every
+invocation uses that scope and cannot execute after disposal.
 
 ## Event-Driven Architecture
 
-Croco includes event-driven architecture (EDA) as a core pattern for complex domains.
+Croco includes event-driven architecture as a core pattern for complex domains.
 
 - Domain events are emitted from aggregate roots.
-- Handlers consume events in a type-safe way.
-- Works naturally with Unit of Work boundaries and transactional flows.
+- Handlers consume events through type-safe contracts.
+- Unit of Work boundaries coordinate transactional delivery.
 
-This model helps teams separate command execution from side effects, reduce coupling, and evolve business logic safely over time.
+This model separates command execution from side effects without coupling event handlers to a host,
+transport, or build target.

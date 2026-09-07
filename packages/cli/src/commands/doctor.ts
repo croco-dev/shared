@@ -4152,7 +4152,7 @@ function isRuntimeCapabilityManifestRecord(value: Record<string, unknown>): bool
   if (value.version === "croco.runtime-capability.manifest.v1") {
     return (
       typeof value.platform === "string" &&
-      isRecord(value.capabilities) &&
+      hasRuntimeCapabilitiesAndComposition(value) &&
       Array.isArray(value.diagnostics)
     );
   }
@@ -4551,11 +4551,17 @@ function isPresetLambdaHandlerFactory(
     if (Node.isIdentifier(factory)) {
       return declaration.getNamedImports().some((namedImport) => {
         const localName = namedImport.getAliasNode()?.getText() ?? namedImport.getName();
-        return namedImport.getName() === "createLambdaHandler" && localName === factory.getText();
+        return (
+          ["createLambdaHandler", "createLambdaHost"].includes(namedImport.getName()) &&
+          localName === factory.getText()
+        );
       });
     }
 
-    if (!Node.isPropertyAccessExpression(factory) || factory.getName() !== "createLambdaHandler") {
+    if (
+      !Node.isPropertyAccessExpression(factory) ||
+      !["createLambdaHandler", "createLambdaHost"].includes(factory.getName())
+    ) {
       return false;
     }
     const namespace = declaration.getNamespaceImport();
@@ -4711,15 +4717,72 @@ function exportedHandlerDelegatesTo(
     handlerNodes.push(handlerFunction);
   }
 
-  return handlerNodes.some((handlerNode) =>
-    handlerNode.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+  return handlerNodes.some((handlerNode) => {
+    const calls = [
+      ...(Node.isCallExpression(handlerNode) ? [handlerNode] : []),
+      ...handlerNode.getDescendantsOfKind(SyntaxKind.CallExpression),
+    ];
+
+    return calls.some((call) => {
       if (hasNestedFunctionScope(call, handlerNode)) {
         return false;
       }
       const expression = call.getExpression();
-      return Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers);
-    }),
+      return (
+        (Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers)) ||
+        boundHostCallbackDelegatesTo(call, configuredHandlers)
+      );
+    });
+  });
+}
+
+function boundHostCallbackDelegatesTo(
+  call: Morph.CallExpression,
+  configuredHandlers: ReadonlySet<Morph.VariableDeclaration>,
+): boolean {
+  const expression = call.getExpression();
+  if (!Node.isPropertyAccessExpression(expression) || expression.getName() !== "bindHostCallback") {
+    return false;
+  }
+
+  const callback = call.getArguments()[0];
+  if (!Node.isIdentifier(callback)) {
+    return false;
+  }
+
+  if (identifierResolvesTo(callback, configuredHandlers)) {
+    return true;
+  }
+
+  return Boolean(
+    callback
+      .getSymbol()
+      ?.getDeclarations()
+      .some((declaration) => declarationInvokesConfiguredHandler(declaration, configuredHandlers)),
   );
+}
+
+function declarationInvokesConfiguredHandler(
+  declaration: Node,
+  configuredHandlers: ReadonlySet<Morph.VariableDeclaration>,
+): boolean {
+  const callable = Node.isVariableDeclaration(declaration)
+    ? declaration.getInitializer()
+    : Node.isFunctionDeclaration(declaration)
+      ? declaration
+      : undefined;
+  if (!callable) {
+    return false;
+  }
+
+  return callable.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+    if (hasNestedFunctionScope(call, callable)) {
+      return false;
+    }
+
+    const expression = call.getExpression();
+    return Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers);
+  });
 }
 
 function exportsConfiguredHandlerAlias(
@@ -4750,4 +4813,69 @@ function exportsConfiguredHandlerAlias(
     const expression = assignment.getExpression();
     return Node.isIdentifier(expression) && identifierResolvesTo(expression, configuredHandlers);
   });
+}
+
+function hasRuntimeCapabilitiesAndComposition(value: Record<string, unknown>): boolean {
+  if (!isRecord(value["capabilities"])) {
+    return false;
+  }
+
+  const composition = value["composition"];
+  if (composition === undefined) {
+    return true;
+  }
+  if (!isRecord(composition)) {
+    return false;
+  }
+
+  const host = isRecord(composition["host"]) ? composition["host"] : null;
+  const buildTarget = isRecord(composition["buildTarget"]) ? composition["buildTarget"] : null;
+  const transports = composition["transports"];
+  if (
+    typeof host?.["platform"] !== "string" ||
+    host["platform"].length === 0 ||
+    host["platform"] !== value["platform"] ||
+    typeof host["lifecycle"] !== "string" ||
+    !["process", "invocation", "fetch"].includes(host["lifecycle"]) ||
+    !hasOptionalNonEmptyString(host, "packageName") ||
+    !Array.isArray(transports) ||
+    typeof buildTarget?.["name"] !== "string" ||
+    buildTarget["name"].length === 0 ||
+    !hasOptionalNonEmptyString(buildTarget, "outputDirectory") ||
+    !hasOptionalNonEmptyString(buildTarget, "packageName")
+  ) {
+    return false;
+  }
+
+  if (
+    transports.some(
+      (transport) =>
+        !isRecord(transport) ||
+        typeof transport["protocol"] !== "string" ||
+        transport["protocol"].length === 0 ||
+        !hasOptionalNonEmptyString(transport, "packageName"),
+    )
+  ) {
+    return false;
+  }
+
+  const format = buildTarget["format"];
+  if (
+    format !== undefined &&
+    (typeof format !== "string" || !["esm", "cjs", "dual"].includes(format))
+  ) {
+    return false;
+  }
+
+  const constraints = buildTarget["constraints"];
+  return (
+    constraints === undefined ||
+    (Array.isArray(constraints) &&
+      constraints.every((constraint) => typeof constraint === "string" && constraint.length > 0))
+  );
+}
+
+function hasOptionalNonEmptyString(record: Record<string, unknown>, key: string): boolean {
+  const value = record[key];
+  return value === undefined || (typeof value === "string" && value.length > 0);
 }

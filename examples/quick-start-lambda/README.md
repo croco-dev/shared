@@ -4,22 +4,28 @@ Croco SaaS Backend Demo — Auth + Metering on AWS Lambda, wired with `@croco/au
 
 ## Architecture Map
 
-This example is intentionally small, but the files are arranged so each Croco layer is visible before you run curl commands.
+This example is intentionally small, but the files make each Croco boundary visible before you run
+curl commands.
 
-| Layer        | Example role                                           | Files and packages                                                                                     |
-| ------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| Framework    | Dependency injection, component metadata, logger token | `@croco/framework-context`, `src/app/bootstrap.ts`                                                     |
-| Protocols    | REST controller metadata and parameter decorators      | `@croco/protocols-rest`, `src/protocols/HealthController.ts`, `src/protocols/UserController.ts`        |
-| Transports   | Runtime execution for local HTTP and AWS Lambda        | `@croco/transports-http`, `createApp()` in `src/app/bootstrap.ts`, `lambdaHandler()` in `src/index.ts` |
-| Integrations | Replaceable auth and metering adapters                 | `src/integrations/TestAuthProvider.ts`, `src/integrations/inMemoryMetering.ts`                         |
-| App/domain   | Runtime-agnostic user behavior                         | `src/domain/UserService.ts`                                                                            |
+| Boundary     | Example role                                           | Files and packages                                                                                         |
+| ------------ | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Framework    | Dependency injection, component metadata, logger token | `@croco/framework-context`, `src/app/bootstrap.ts`                                                         |
+| Protocol     | REST controller metadata and parameter decorators      | `@croco/protocols-rest`, `src/protocols/HealthController.ts`, `src/protocols/UserController.ts`            |
+| Transport    | HTTP route and middleware execution                    | `@croco/transports-http`, `createApp()` in `src/app/bootstrap.ts`                                          |
+| Host         | Lambda invocation and local Node server lifecycle      | Canonical owners: `@croco/preset-lambda` and `@croco/preset-node`; compatibility methods in `src/index.ts` |
+| Build target | Entrypoint, output, format, and bundling metadata      | Deployment configuration outside the runtime app; not selected by `createApp()`                            |
+| Integrations | Replaceable auth and metering adapters                 | `src/integrations/TestAuthProvider.ts`, `src/integrations/inMemoryMetering.ts`                             |
+| App/domain   | Runtime-agnostic user behavior                         | `src/domain/UserService.ts`                                                                                |
 
-Core lesson: controllers define protocol metadata, transports execute it, integrations are replaceable, and domain services stay independent of Lambda, Hono, auth provider, or metering storage details.
+Core lesson: controllers define protocol metadata, the HTTP transport executes it, hosts own
+environment lifecycle, build targets describe artifacts, integrations are replaceable, and domain
+services stay independent of Lambda, Hono, auth provider, or metering storage details.
 
 ```mermaid
 flowchart LR
-  request[HTTP request] --> transport["@croco/transports-http"]
-  transport --> metadata["@croco/protocols-rest metadata"]
+  host["Lambda or Node host"] --> transport["@croco/transports-http"]
+  transport --> request[HTTP request pipeline]
+  request --> metadata["@croco/protocols-rest metadata"]
   metadata --> guards["AuthGuard and @Metered"]
   guards --> controller["UserController"]
   controller --> service["UserService"]
@@ -41,7 +47,12 @@ src/
 └── index.ts                            # Metadata import, app creation, Lambda export, local dev start
 ```
 
-`TestAuthProvider` can be replaced with Clerk, Auth0, or custom auth without changing `UserController` or `UserService`. The in-memory metering setup can be replaced with provider-backed storage without changing the controller or domain service. `createApp().lambdaHandler()` is the transport boundary for Lambda; the protocol and domain code remain transport-neutral.
+`TestAuthProvider` can be replaced with Clerk, Auth0, or custom auth without changing
+`UserController` or `UserService`. The in-memory metering setup can be replaced with provider-backed
+storage without changing the controller or domain service. In the checked-in entrypoint,
+`app.lambdaHandler()` and `app.listen()` are host convenience compatibility methods on the HTTP
+transport. The canonical host owners are `@croco/preset-lambda` and `@croco/preset-node`; new
+application-owned composition binds their callbacks with `ApplicationRuntime.bindHostCallback()`.
 
 The HTTP bootstrap uses security headers, an explicit CORS origin, a 1 MB body limit, and an in-memory sliding-window rate limiter. These middlewares satisfy Croco's default security validation without cloud credentials. Disabling security validation is reserved for temporary local migration or test fixtures, not the normal example path.
 
@@ -99,7 +110,9 @@ health, auth, list, and create endpoints without real cloud credentials.
 
 ## Deploy
 
-Export the `handler` from `src/index.ts` as your AWS Lambda entry point.
+Export the `handler` from `src/index.ts` as your AWS Lambda entry point. The current example keeps
+the `app.lambdaHandler()` compatibility path so its existing package surface remains executable; it
+does not treat that method as the canonical Host/Transport boundary.
 
 ## Prerequisites
 

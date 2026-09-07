@@ -167,7 +167,8 @@ function generatedArtifactsRunner(
             );
           }
           const sourcePath = join(rootDir, entry.path);
-          const generatedPath = join(materializedRoot, generated.generatedPath);
+          const materializedPath = entry.path;
+          const generatedPath = join(materializedRoot, materializedPath);
           mkdirSync(dirname(sourcePath), { recursive: true });
           mkdirSync(dirname(generatedPath), { recursive: true });
           writeFileSync(sourcePath, `${entry.path}\n`);
@@ -176,6 +177,7 @@ function generatedArtifactsRunner(
             sourcePath: entry.path,
             sourceDigest: fileDigest(sourcePath),
             generatedPath: generated.generatedPath,
+            materializedPath,
             generatedDigest: fileDigest(generatedPath),
             inventoryDigest: inventoryDigest(inventory),
             commandId: generated.commandId,
@@ -589,7 +591,7 @@ describe("cacheable producer lane evidence", () => {
     expect(hit.cacheHit).toBe(true);
   });
 
-  it("emits seven-case producer facts for 12 executed paths and rejects a missing selected test", async () => {
+  it("emits seven-case producer facts for 14 executed paths and rejects a missing selected test", async () => {
     useCurrentRunEnvironment();
     const rootDir = mkdtempSync(join(tmpdir(), "croco-cacheable-generated-seven-cases-"));
     const selectedPath = (path: string) =>
@@ -611,7 +613,7 @@ describe("cacheable producer lane evidence", () => {
     const facts = JSON.parse(
       readFileSync(join(result.outputDir, "producer-facts.json"), "utf8"),
     ) as { requiredSourcePaths: string[]; executedSourcePaths: string[] };
-    expect(facts.executedSourcePaths).toHaveLength(12);
+    expect(facts.executedSourcePaths).toHaveLength(14);
     expect(facts.requiredSourcePaths).toEqual(facts.executedSourcePaths);
     expect(
       facts.requiredSourcePaths.some((path) => path.includes("/spa-be-split/tests/journeys/")),

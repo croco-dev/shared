@@ -181,11 +181,41 @@ export type RuntimeCapabilityRequirement = {
   readonly source?: DependencySourceLocation;
 };
 
+export type RuntimeHostLifecycle = "process" | "invocation" | "fetch";
+
+export type RuntimeHostManifest<TPlatform extends RuntimePlatform = RuntimePlatform> = {
+  readonly platform: TPlatform;
+  readonly lifecycle: RuntimeHostLifecycle;
+  readonly packageName?: string;
+};
+
+export type RuntimeTransportManifest = {
+  readonly protocol: string;
+  readonly packageName?: string;
+};
+
+export type RuntimeBuildTargetFormat = "esm" | "cjs" | "dual";
+
+export type RuntimeBuildTargetManifest = {
+  readonly name: string;
+  readonly format?: RuntimeBuildTargetFormat;
+  readonly outputDirectory?: string;
+  readonly packageName?: string;
+  readonly constraints?: readonly string[];
+};
+
+export type RuntimeCompositionManifest<TPlatform extends RuntimePlatform = RuntimePlatform> = {
+  readonly host: RuntimeHostManifest<TPlatform>;
+  readonly transports: readonly RuntimeTransportManifest[];
+  readonly buildTarget: RuntimeBuildTargetManifest;
+};
+
 export type RuntimeCapabilityManifest = {
   readonly version: RuntimeCapabilityManifestVersion;
   readonly platform: RuntimePlatform;
   readonly capabilities: RuntimeCapabilities;
   readonly diagnostics: readonly RuntimeCapabilityDiagnostic[];
+  readonly composition?: RuntimeCompositionManifest;
 };
 
 export type RuntimeNativeContext = Record<string, unknown>;

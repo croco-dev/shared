@@ -11,11 +11,21 @@ into production.
 
 ## Runtime choice
 
-| Runtime            | Use when                                                                                      | Croco entry point       | Required operational boundary                                                                                                                               |
-| ------------------ | --------------------------------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AWS Lambda         | You want a request/response HTTP API behind API Gateway or another Lambda-compatible gateway. | `app.lambdaHandler()`   | Initialize SDKs outside the handler, validate env at module load, and call telemetry `forceFlush()` before the invocation returns.                          |
-| Cloudflare Workers | You need an edge fetch handler and Worker bindings.                                           | `toWorkersHandler(app)` | Read config from `env`, use `ctx.waitUntil()` through `Context.getRuntimeContext()`, and avoid Node-only packages unless the package is proven Worker-safe. |
-| Node server        | You run a long-lived process behind a load balancer, container platform, or process manager.  | `app.listen(port)`      | Expose `/health/live` and `/ready`, validate env before listen, and shut down through the hosting platform's normal signal/drain path.                      |
+Every recipe composes three independent boundaries:
+
+- the **Host** owns the environment lifecycle;
+- the HTTP **Transport**, `@croco/transports-http`, owns request and route execution;
+- the **Build Target** describes the deployable artifact and does not execute it.
+
+| Runtime            | Use when                                                                                      | Host package and API                                           | Required operational boundary                                                                                                                               |
+| ------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AWS Lambda         | You want a request/response HTTP API behind API Gateway or another Lambda-compatible gateway. | `@croco/preset-lambda` and `createLambdaHost()`                | Initialize SDKs outside the handler, validate env at module load, and call telemetry `forceFlush()` before the invocation returns.                          |
+| Cloudflare Workers | You need an edge fetch handler and Worker bindings.                                           | `@croco/preset-cloudflare` and `createCloudflareWorkersHost()` | Read config from `env`, use `ctx.waitUntil()` through `Context.getRuntimeContext()`, and avoid Node-only packages unless the package is proven Worker-safe. |
+| Node server        | You run a long-lived process behind a load balancer, container platform, or process manager.  | `@croco/preset-node` and `createNodeHost()`                    | Expose `/health/live` and `/ready`, validate env before start, and close the host during the platform's normal signal/drain path.                           |
+
+The `preset-*` packages are host-primary compatibility facades. Their `create*BuildTarget` APIs
+describe build output through `@croco/framework-preset`; deprecated preset aliases remain available
+but are not the canonical runtime entry points. No package rename is implied.
 
 The shared request contract is documented in [Runtime Contract](/en/guides/runtime-contract/).
 Presentation SSR/runtime support is tracked separately in
@@ -34,14 +44,14 @@ Presentation SSR/runtime support is tracked separately in
 
 ## AWS Lambda HTTP API
 
-This recipe is the copy-ready baseline for a Croco HTTP API on Lambda. It uses API Gateway HTTP API
-style events through `app.lambdaHandler()`, initializes OpenTelemetry once per cold start, and flushes
-before the invocation returns.
+This recipe is the copy-ready baseline for a Croco HTTP API on Lambda. It binds the HTTP transport to
+`createLambdaHost()`, initializes OpenTelemetry once per cold start, and flushes before the
+invocation returns.
 
 Install the runtime dependencies:
 
 ```bash
-pnpm add @croco/problems-core @croco/protocols-rest @croco/ratelimit-core @croco/telemetry-sdk-node @croco/transports-http reflect-metadata
+pnpm add @croco/framework-module @croco/preset-lambda @croco/problems-core @croco/protocols-rest @croco/ratelimit-core @croco/telemetry-sdk-node @croco/transports-http reflect-metadata
 ```
 
 Set these environment variables in the Lambda function configuration:
@@ -188,7 +198,13 @@ Create `src/handler.ts`:
 
 ```typescript no-check
 import "reflect-metadata";
-import { lambdaPreset, TelemetryRuntime } from "@croco/telemetry-sdk-node";
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createLambdaHost } from "@croco/preset-lambda";
+import {
+  lambdaPreset,
+  TelemetryForceFlushUnsupportedProblem,
+  TelemetryRuntime,
+} from "@croco/telemetry-sdk-node";
 import type { LambdaContext, LambdaEvent, LambdaResponse } from "@croco/transports-http";
 import { createDeploymentApp } from "./app";
 import { readDeploymentEnv } from "./runtime/env";
@@ -202,20 +218,26 @@ const telemetryReady = telemetry.init(
     probability: env.traceSampleRate,
   }),
 );
-const crocoHandler = createDeploymentApp(env).lambdaHandler();
+const runtime = createApplicationRuntime();
+const runtimeReady = runtime.initialize();
+
+const app = runtime.run(() => createDeploymentApp(env));
+const lambdaHost = createLambdaHost(app, {
+  flush: async () => {
+    const result = await telemetry.forceFlush(2_500);
+    if (result.outcome === "failed") {
+      throw result.error;
+    }
+    if (result.outcome === "unsupported") {
+      throw new TelemetryForceFlushUnsupportedProblem();
+    }
+  },
+});
+const boundLambdaHost = runtime.bindHostCallback(lambdaHost);
 
 export async function handler(event: LambdaEvent, context: LambdaContext): Promise<LambdaResponse> {
-  await telemetryReady;
-
-  try {
-    return await crocoHandler(event, context);
-  } finally {
-    const flush = await telemetry.forceFlush(2_500);
-
-    if (!flush.success) {
-      console.error("telemetry forceFlush failed", flush.error?.message ?? flush.error);
-    }
-  }
+  await Promise.all([runtimeReady, telemetryReady]);
+  return boundLambdaHost(event, context);
 }
 ```
 
@@ -226,7 +248,7 @@ forwards API Gateway v2 compatible events.
 ### Lambda boundaries
 
 - Do not use `AWS_LAMBDA_EXEC_WRAPPER` for Croco telemetry. Initialize `TelemetryRuntime` in module
-  scope and flush in `finally`.
+  scope and connect `forceFlush()` through the Lambda host's `flush` option.
 - Keep expensive clients and the Croco app in module scope so warm invocations reuse them.
 - `Context.getRuntimeContext().waitUntil()` queues work that Croco drains before response conversion;
   do not use it for unbounded jobs.
@@ -236,13 +258,14 @@ forwards API Gateway v2 compatible events.
 
 ## Cloudflare Workers API
 
-Workers use the fetch contract. Croco exposes the Worker `env` object and `ExecutionContext.waitUntil`
-through the runtime context when you use `toWorkersHandler(app)`.
+Workers use the fetch contract. `createCloudflareWorkersHost()` owns the Workers event lifecycle and
+exposes the Worker `env` object and `ExecutionContext.waitUntil` through the runtime context. The
+HTTP app remains the transport.
 
 Install the Worker adapter and shared HTTP packages:
 
 ```bash
-pnpm add @croco/framework-context @croco/protocols-rest @croco/ratelimit-core @croco/transports-cloudflare-workers @croco/transports-http reflect-metadata
+pnpm add @croco/framework-context @croco/framework-module @croco/preset-cloudflare @croco/protocols-rest @croco/ratelimit-core @croco/transports-http reflect-metadata
 ```
 
 Configure Wrangler with Node.js compatibility before copying the Worker entry point. Croco's request
@@ -258,6 +281,8 @@ compatibility_flags = ["nodejs_compat"]
 
 ```typescript no-check
 import "reflect-metadata";
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createCloudflareWorkersHost } from "@croco/preset-cloudflare";
 import {
   createSlidingWindowPolicy,
   RateLimitKeyBuilder,
@@ -274,7 +299,6 @@ import {
   rateLimitHttpMiddleware,
   securityHeadersMiddleware,
 } from "@croco/transports-http";
-import { toWorkersHandler } from "@croco/transports-cloudflare-workers";
 
 @Controller("/api")
 class WorkerController {
@@ -297,20 +321,26 @@ const rateLimiter = new RateLimiter(
   new RateLimitKeyBuilder(["ip"]),
 );
 
-const app = createApp({
-  controllers: [WorkerController],
-  middlewares: [
-    securityHeadersMiddleware(),
-    corsMiddleware({ origins: ["https://app.example.com"] }),
-    bodyLimitMiddleware({ limit: mb(1) }),
-    rateLimitHttpMiddleware({
-      rateLimiter,
-      policy: createSlidingWindowPolicy("http", 100, 60_000),
-    }),
-  ],
-});
+const runtime = createApplicationRuntime();
+await runtime.initialize();
 
-export default toWorkersHandler(app);
+const app = runtime.run(() =>
+  createApp({
+    controllers: [WorkerController],
+    middlewares: [
+      securityHeadersMiddleware(),
+      corsMiddleware({ origins: ["https://app.example.com"] }),
+      bodyLimitMiddleware({ limit: mb(1) }),
+      rateLimitHttpMiddleware({
+        rateLimiter,
+        policy: createSlidingWindowPolicy("http", 100, 60_000),
+      }),
+    ],
+  }),
+);
+const fetch = runtime.bindHostCallback(createCloudflareWorkersHost(app));
+
+export default { fetch };
 ```
 
 Use Worker bindings and secrets for runtime config. Plain text and JSON environment variables are
@@ -335,13 +365,24 @@ bindings.
 - In-memory rate limits and caches are isolate-local. Use Cloudflare Durable Objects, KV, R2, D1, or
   another Worker-safe durable adapter when the behavior must survive isolate replacement.
 
+`@croco/transports-cloudflare-workers` retains `toWorkersHandler()` as a legacy-named compatibility
+surface. It still owns Workers host lifecycle adaptation despite the `transports-*` package name;
+new examples use the host-primary `@croco/preset-cloudflare` facade.
+
 ## Node server
 
 Node server deployment is a long-lived process. Use it for containers, VMs, local production-like
-smoke, or platforms that route HTTP directly to your process.
+smoke, or platforms that route HTTP directly to your process. `createNodeHost()` owns server start
+and close; the bound `CrocoApp.fetch()` callback owns HTTP execution.
+
+```bash
+pnpm add @croco/framework-module @croco/preset-node @croco/telemetry-sdk-node @croco/transports-http reflect-metadata
+```
 
 ```typescript no-check
 import "reflect-metadata";
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createNodeHost } from "@croco/preset-node";
 import { TelemetryRuntime } from "@croco/telemetry-sdk-node";
 import { createDeploymentApp } from "./app";
 import { readDeploymentEnv } from "./runtime/env";
@@ -358,23 +399,31 @@ await telemetry.init({
   },
 });
 
-const app = createDeploymentApp(env);
-const port = Number(process.env.PORT ?? "3000");
+const runtime = createApplicationRuntime();
+await runtime.initialize();
 
-await app.listen(port);
+const app = runtime.run(() => createDeploymentApp(env));
+const port = Number(process.env.PORT ?? "3000");
+const host = createNodeHost(
+  {
+    fetch: runtime.bindHostCallback((request) => app.fetch(request)),
+  },
+  { port },
+);
+
+await host.start();
 
 async function shutdown(signal: string) {
+  await host.close();
   const flush = await telemetry.forceFlush(5_000);
 
-  if (!flush.success) {
-    console.error(
-      `telemetry forceFlush failed during ${signal}`,
-      flush.error?.message ?? flush.error,
-    );
+  if (flush.outcome === "failed") {
+    console.error(`telemetry forceFlush failed during ${signal}`, flush.error.message);
   }
 
   await telemetry.shutdown();
-  process.exit(flush.success ? 0 : 1);
+  await runtime.dispose();
+  process.exit(flush.outcome === "failed" ? 1 : 0);
 }
 
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
@@ -386,8 +435,9 @@ process.once("SIGINT", () => void shutdown("SIGINT"));
 - Put the process behind a supervisor or platform that sends `SIGTERM` before killing the container.
 - The shared example exposes only `/api/health`. Add explicit `/health/live` and `/health/ready`
   handlers, or map `/ready`, when your load balancer expects those paths.
-- `app.listen()` starts an HTTP server for the current process; it does not create multi-process
-  clustering, zero-downtime deploys, TLS termination, or load balancing by itself.
+- `createNodeHost()` starts one HTTP server for the current process; it does not create multi-process
+  clustering, zero-downtime deploys, TLS termination, or load balancing by itself. `app.listen()`
+  remains a compatibility convenience on the HTTP transport.
 - Use provider-backed stores for any state that must survive a process restart.
 
 ## Validation checklist

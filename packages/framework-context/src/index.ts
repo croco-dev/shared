@@ -451,11 +451,17 @@ export type {
   RuntimeCapabilityManifestVersion,
   RuntimeCapabilityName,
   RuntimeCapabilityRequirement,
+  RuntimeBuildTargetFormat,
+  RuntimeBuildTargetManifest,
+  RuntimeCompositionManifest,
   RuntimeContext,
+  RuntimeHostLifecycle,
+  RuntimeHostManifest,
   RuntimeInspectorRecorder,
   RuntimeInspectorRecorderEventInput,
   RuntimeNativeContext,
   RuntimePlatform,
+  RuntimeTransportManifest,
   RuntimeTraceContext,
 } from "./libs/types";
 export type {

@@ -1,6 +1,6 @@
 # @croco/frontend-vite
 
-> Croco Presentation Tier — 5th layer: Framework → Protocols → Transports → Integrations → Presentation
+> Croco Presentation adapter — Host 생명주기, Transport 프로토콜 실행, Build Target 산출물 계약과 독립적으로 조합됩니다.
 
 Croco Presentation 계층의 Vite 통합 helper 패키지입니다.
 

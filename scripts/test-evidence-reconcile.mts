@@ -69,6 +69,7 @@ const MATERIALIZATION_EVIDENCE_FIELDS = [
   "sourcePath",
   "sourceDigest",
   "generatedPath",
+  "materializedPath",
   "generatedDigest",
   "inventoryDigest",
   "commandId",

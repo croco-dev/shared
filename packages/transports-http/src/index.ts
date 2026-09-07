@@ -69,6 +69,7 @@ export {
   type TypedLambdaHandler,
 } from "./libs/CrocoLambdaAdapter";
 
+export { getRuntimeContextInitFromEnv } from "./libs/runtimeContext";
 export type { RuntimeContextInit } from "./libs/runtimeContext";
 
 export type {

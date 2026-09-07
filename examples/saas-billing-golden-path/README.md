@@ -4,18 +4,20 @@ This example shows one complete Croco SaaS flow: a customer checks out a paid pl
 
 ## Architecture Map
 
-| Layer        | Example role                                          | Files and packages                                                                                  |
-| ------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Framework    | DI, logger token, request/runtime context boundaries  | `@croco/framework-context`, `src/app/bootstrap.ts`                                                  |
-| Protocols    | REST route metadata and parameter binding             | `@croco/protocols-rest`, `src/protocols/BillingController.ts`                                       |
-| Transports   | Local HTTP and AWS Lambda execution                   | `@croco/transports-http`, `createApp()`, `src/index.ts`                                             |
-| Domain       | Checkout orchestration, explicit Problems, repository | `src/domain/CheckoutService.ts`, `src/domain/InMemoryOrderRepository.ts`, `src/domain/Problems.ts`  |
-| Events       | After-commit domain event and projection              | `@croco/events-core`, `@croco/events-inmemory`, `src/events/OrderPaidEvent.ts`                      |
-| Quantity     | Membership seat source and licensed quantity repair   | `@croco/billing-core`, `@croco/membership-core`, `src/integrations/MembershipSeatQuantitySource.ts` |
-| Resilience   | Transient payment retry and terminal decline handling | `@croco/retry-core`, `src/integrations/ScriptedPaymentGateway.ts`                                   |
-| Transactions | Save order and publish event only after commit        | `@croco/tx-core`, `src/integrations/InMemoryTxAdapter.ts`                                           |
-| Telemetry    | Checkout span and lifecycle events                    | `@croco/telemetry-api`, `withSpan()`, `recordEvent()`, Lambda `flush` hook in `src/index.ts`        |
-| Testing      | Executable HTTP harness and Problem assertions        | `@croco/testing`, `src/tests/golden-path.spec.ts`                                                   |
+| Boundary     | Example role                                          | Files and packages                                                                                         |
+| ------------ | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Framework    | DI, logger token, request/runtime context boundaries  | `@croco/framework-context`, `src/app/bootstrap.ts`                                                         |
+| Protocol     | REST route metadata and parameter binding             | `@croco/protocols-rest`, `src/protocols/BillingController.ts`                                              |
+| Transport    | HTTP route and middleware execution                   | `@croco/transports-http`, `createApp()`                                                                    |
+| Host         | Lambda invocation and local Node server lifecycle     | Canonical owners: `@croco/preset-lambda` and `@croco/preset-node`; compatibility methods in `src/index.ts` |
+| Build target | Entrypoint, output, format, and bundling metadata     | Deployment configuration outside the runtime app; not selected by `createApp()`                            |
+| Domain       | Checkout orchestration, explicit Problems, repository | `src/domain/CheckoutService.ts`, `src/domain/InMemoryOrderRepository.ts`, `src/domain/Problems.ts`         |
+| Events       | After-commit domain event and projection              | `@croco/events-core`, `@croco/events-inmemory`, `src/events/OrderPaidEvent.ts`                             |
+| Quantity     | Membership seat source and licensed quantity repair   | `@croco/billing-core`, `@croco/membership-core`, `src/integrations/MembershipSeatQuantitySource.ts`        |
+| Resilience   | Transient payment retry and terminal decline handling | `@croco/retry-core`, `src/integrations/ScriptedPaymentGateway.ts`                                          |
+| Transactions | Save order and publish event only after commit        | `@croco/tx-core`, `src/integrations/InMemoryTxAdapter.ts`                                                  |
+| Telemetry    | Checkout span and lifecycle events                    | `@croco/telemetry-api`, `withSpan()`, `recordEvent()`, Lambda `flush` hook in `src/index.ts`               |
+| Testing      | Executable HTTP harness and Problem assertions        | `@croco/testing`, `src/tests/golden-path.spec.ts`                                                          |
 
 Primary action: `POST /api/checkouts` creates a paid order.
 
@@ -92,6 +94,13 @@ Use `src/index.ts` as the Lambda entry point:
 handler = src/index.handler
 ```
 
-The exported handler awaits the initialized Croco app and passes a Lambda `flush` callback to `app.lambdaHandler({ flush })`. In this self-contained example the flush hook is an in-memory counter; in a deployed service, replace `flushTelemetry` in `src/app/bootstrap.ts` with `TelemetryRuntime.forceFlush()` from `@croco/telemetry-sdk-node` after initializing the SDK at module scope.
+The exported handler awaits the initialized Croco app and passes a Lambda `flush` callback to
+`app.lambdaHandler({ flush })`. This method is the checked-in compatibility host convenience on the
+HTTP transport. The canonical Lambda host owner is `@croco/preset-lambda` through
+`createLambdaHost()`; application-owned composition wraps that retained handler with
+`ApplicationRuntime.bindHostCallback()`. In this self-contained example the flush hook is an
+in-memory counter. In a deployed service, replace `flushTelemetry` in `src/app/bootstrap.ts` with
+`TelemetryRuntime.forceFlush()` from `@croco/telemetry-sdk-node` after initializing the SDK at module
+scope.
 
 No cloud credentials are required for local validation. Production adapters can replace `ScriptedPaymentGateway`, `InMemoryOrderRepository`, `InMemoryEventBus`, and `InMemoryTxAdapter` without changing `BillingController` or the checkout recovery contract.

@@ -33,17 +33,17 @@ title: "HookMap"
 
 ### build:before?
 
-> `readonly` `optional` **build:before?**: (`config`) => `Promise`\<[`CrocoPresetConfig`](/api/framework-preset/src/type-aliases/crocopresetconfig/)\> \| [`CrocoPresetConfig`](/api/framework-preset/src/type-aliases/crocopresetconfig/)
+> `readonly` `optional` **build:before?**: (`config`) => `Promise`\<[`CrocoBuildTargetConfig`](/api/framework-preset/src/type-aliases/crocobuildtargetconfig/)\> \| [`CrocoBuildTargetConfig`](/api/framework-preset/src/type-aliases/crocobuildtargetconfig/)
 
 #### Parameters
 
 ##### config
 
-[`CrocoPresetConfig`](/api/framework-preset/src/type-aliases/crocopresetconfig/)
+[`CrocoBuildTargetConfig`](/api/framework-preset/src/type-aliases/crocobuildtargetconfig/)
 
 #### Returns
 
-`Promise`\<[`CrocoPresetConfig`](/api/framework-preset/src/type-aliases/crocopresetconfig/)\> \| [`CrocoPresetConfig`](/api/framework-preset/src/type-aliases/crocopresetconfig/)
+`Promise`\<[`CrocoBuildTargetConfig`](/api/framework-preset/src/type-aliases/crocobuildtargetconfig/)\> \| [`CrocoBuildTargetConfig`](/api/framework-preset/src/type-aliases/crocobuildtargetconfig/)
 
 ---
 

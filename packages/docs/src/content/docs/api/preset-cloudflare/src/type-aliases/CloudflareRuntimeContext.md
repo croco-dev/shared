@@ -7,89 +7,93 @@ title: "CloudflareRuntimeContext"
 
 > **CloudflareRuntimeContext** = `object`
 
+:::caution[Deprecated]
+Runtime callbacks should accept `CloudflareHostRuntimeContext`.
+:::
+
 ## Properties
 
-### abortSignal
+### ~~abortSignal~~
 
 > `readonly` **abortSignal**: `AbortSignal`
 
 ---
 
-### capabilities
+### ~~capabilities~~
 
 > `readonly` **capabilities**: `object`
 
-#### abortSignal
+#### ~~abortSignal~~
 
 > `readonly` **abortSignal**: `true`
 
-#### deadline
+#### ~~deadline~~
 
 > `readonly` **deadline**: `false`
 
-#### env
+#### ~~env~~
 
 > `readonly` **env**: `true`
 
-#### filesystem
+#### ~~filesystem~~
 
 > `readonly` **filesystem**: `false`
 
-#### flush
+#### ~~flush~~
 
 > `readonly` **flush**: `false`
 
-#### nodeApi
+#### ~~nodeApi~~
 
 > `readonly` **nodeApi**: `false`
 
-#### requestLifecycle
+#### ~~requestLifecycle~~
 
 > `readonly` **requestLifecycle**: `true`
 
-#### shutdown
+#### ~~shutdown~~
 
 > `readonly` **shutdown**: `false`
 
-#### streamingResponse
+#### ~~streamingResponse~~
 
 > `readonly` **streamingResponse**: `true`
 
-#### waitUntil
+#### ~~waitUntil~~
 
 > `readonly` **waitUntil**: `true`
 
 ---
 
-### env
+### ~~env~~
 
 > `readonly` **env**: `Record`\<`string`, `unknown`\>
 
 ---
 
-### native
+### ~~native~~
 
 > `readonly` **native**: `object`
 
-#### executionContext
+#### ~~executionContext~~
 
 > `readonly` **executionContext**: `ExecutionContext`
 
 ---
 
-### platform
+### ~~platform~~
 
 > `readonly` **platform**: `"cloudflare-workers"`
 
 ---
 
-### requestId?
+### ~~requestId?~~
 
 > `readonly` `optional` **requestId?**: `string`
 
 ---
 
-### waitUntil
+### ~~waitUntil~~
 
 > `readonly` **waitUntil**: (`promise`) => `void`
 

@@ -38,6 +38,7 @@ import {
   type GeneratedSaasProfileMode,
 } from "./generatedSaasProviderProfile";
 import { NoopTxAdapter } from "./inMemoryAdapters";
+import { ApplicationBootstrapProblem } from "./problems";
 import {
   DemoBillingGateway,
   SAAS_RUNTIME_STATE_TOKEN,
@@ -56,6 +57,7 @@ const diGraphRootControllers: readonly Constructor[] = controllers;
 export type CreateCrocoAppOptions = {
   readonly additionalMiddlewares?: readonly MiddlewareFunction[];
   readonly profileMode?: GeneratedSaasProfileMode;
+  readonly hostPlatform?: "node" | "lambda" | "cloudflare-workers";
 };
 
 export type RuntimeOwnedCrocoApp = CrocoApp & {
@@ -77,7 +79,9 @@ export async function createCrocoApp(
   const profileMode = options.profileMode ?? "production";
   const logger = new BootstrapLogger();
   const rateLimiter = new RateLimiter(
-    new SlidingWindowInMemoryStore(),
+    options.hostPlatform === "cloudflare-workers"
+      ? new SlidingWindowInMemoryStore({ pruneIntervalMs: 0 })
+      : new SlidingWindowInMemoryStore(),
     new RateLimitKeyBuilder(["ip"]),
   );
   const localProviders =
@@ -110,6 +114,7 @@ export async function createCrocoApp(
     assertGeneratedSaasProfileGraph(runtime.createGraphManifest(), profileMode);
     const gracefulShutdown = createGracefulShutdownController({
       logger,
+      ...(options.hostPlatform === undefined ? {} : { signals: [] }),
       onShutdown: () => runtime.dispose(),
     });
     disposeApplicationRuntime = gracefulShutdown.shutdown;
@@ -155,7 +160,11 @@ export async function createCrocoApp(
       );
     });
   } catch (error) {
-    await disposeApplicationRuntime();
+    try {
+      await disposeApplicationRuntime();
+    } catch (cleanupFailure) {
+      throw new ApplicationBootstrapProblem(error, cleanupFailure);
+    }
     throw error;
   }
 }
@@ -212,10 +221,10 @@ function bindApplicationRuntime(
 
 function bindHostCallbacks(app: CrocoApp, runtime: ApplicationRuntime): void {
   const createNodeHandler = app.nodeHandler.bind(app);
-  app.nodeHandler = () => bindRuntimeCallback(createNodeHandler(), runtime);
+  app.nodeHandler = () => runtime.bindHostCallback(createNodeHandler());
 
   const createLambdaHandler = app.lambdaHandler.bind(app);
-  app.lambdaHandler = (options) => bindRuntimeCallback(createLambdaHandler(options), runtime);
+  app.lambdaHandler = (options) => runtime.bindHostCallback(createLambdaHandler(options));
 
   const getHono = app.getHono.bind(app);
   let runtimeBoundHono: ReturnType<CrocoApp["getHono"]> | undefined;
@@ -225,17 +234,10 @@ function bindHostCallbacks(app: CrocoApp, runtime: ApplicationRuntime): void {
     }
 
     const hono = getHono();
-    hono.fetch = bindRuntimeCallback(hono.fetch.bind(hono), runtime);
+    hono.fetch = runtime.bindHostCallback(hono.fetch.bind(hono));
     runtimeBoundHono = hono;
     return hono;
   };
-}
-
-function bindRuntimeCallback<TArgs extends unknown[], TResult>(
-  callback: (...args: TArgs) => TResult,
-  runtime: ApplicationRuntime,
-): (...args: TArgs) => TResult {
-  return (...args) => runtime.run(() => callback(...args));
 }
 
 class BootstrapLogger implements ILogger {

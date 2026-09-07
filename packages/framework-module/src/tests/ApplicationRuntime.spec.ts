@@ -110,6 +110,17 @@ describe("ApplicationRuntime", () => {
     ]);
   });
 
+  it("binds host callbacks to the owning scope and fences them after disposal", async () => {
+    const runtime = createApplicationRuntime();
+    const callback = runtime.bindHostCallback(() => FrameworkContainer.getActiveScopeId());
+
+    expect(callback()).toBe(runtime.scopeId);
+
+    await runtime.dispose();
+
+    expect(() => callback()).toThrow("has already been disposed");
+  });
+
   it("propagates initialization cancellation through the application-owned lifecycle", async () => {
     const controller = new AbortController();
     let observedDeadline: number | undefined;

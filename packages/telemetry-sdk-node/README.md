@@ -127,13 +127,20 @@ if (result.outcome === "unsupported") {
 }
 ```
 
-`@croco/transports-http`의 Lambda handler와 함께 사용할 때는 handler flush callback에 연결합니다.
+Lambda에서는 `@croco/preset-lambda`의 Host에 flush callback을 연결합니다. Lambda Host는 invocation
+lifecycle과 flush 경계를 소유하고, `@croco/transports-http` 애플리케이션은 HTTP 실행을 소유합니다.
 flush 실패는 handler 실패로 전파되어 trace export 실패가 성공 응답처럼 숨겨지지 않습니다.
 
 ```typescript
+import { createApplicationRuntime } from "@croco/framework-module";
+import { createLambdaHost } from "@croco/preset-lambda";
 import { TelemetryForceFlushUnsupportedProblem } from "@croco/telemetry-sdk-node";
+import { createApp } from "@croco/transports-http";
 
-export const handler = app.lambdaHandler({
+const runtime = createApplicationRuntime();
+const app = runtime.run(() => createApp({ controllers: [] }));
+
+const lambdaHost = createLambdaHost(app, {
   flush: async () => {
     const result = await telemetry.forceFlush(5000);
     if (result.outcome === "failed") {
@@ -144,6 +151,8 @@ export const handler = app.lambdaHandler({
     }
   },
 });
+
+export const handler = runtime.bindHostCallback(lambdaHost);
 ```
 
 ### 초기화 수명주기

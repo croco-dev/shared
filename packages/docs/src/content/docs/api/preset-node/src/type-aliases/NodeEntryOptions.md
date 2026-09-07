@@ -5,16 +5,8 @@ prev: false
 title: "NodeEntryOptions"
 ---
 
-> **NodeEntryOptions** = `object`
+> **NodeEntryOptions** = [`NodeHostOptions`](/api/preset-node/src/type-aliases/nodehostoptions/)
 
-## Properties
-
-### hostname?
-
-> `readonly` `optional` **hostname?**: `string`
-
----
-
-### port?
-
-> `readonly` `optional` **port?**: `number`
+:::caution[Deprecated]
+Use `NodeHostOptions`.
+:::

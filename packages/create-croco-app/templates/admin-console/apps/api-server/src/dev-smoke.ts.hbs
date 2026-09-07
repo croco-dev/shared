@@ -5,57 +5,64 @@ async function main(): Promise<void> {
   resetAdminRuntimeForTests();
 
   const app = createCrocoApp();
-  const usersResponse = await app.fetch(
-    new Request("http://localhost/admin/users?tenantId=tenant_acme"),
-  );
+  try {
+    const usersResponse = await app.fetch(
+      new Request("http://localhost/admin/users?tenantId=tenant_acme"),
+    );
 
-  if (usersResponse.status !== 200) {
-    throw new Error(`Expected /admin/users to return 200, got ${usersResponse.status}`);
-  }
+    if (usersResponse.status !== 200) {
+      throw new Error(`Expected /admin/users to return 200, got ${usersResponse.status}`);
+    }
 
-  const users = (await usersResponse.json()) as Array<{ id: string; name: string }>;
-  if (!users.some((user) => user.id === "admin-user-1" && user.name === "Ada Lovelace")) {
-    throw new Error("Expected seeded admin user data from the admin console API");
-  }
+    const users = (await usersResponse.json()) as Array<{ id: string; name: string }>;
+    if (!users.some((user) => user.id === "admin-user-1" && user.name === "Ada Lovelace")) {
+      throw new Error("Expected seeded admin user data from the admin console API");
+    }
 
-  const createResponse = await app.fetch(
-    new Request("http://localhost/admin/users", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        tenantId: "tenant_acme",
-        name: "Dorothy Vaughan",
-        email: "dorothy@example.com",
-        role: "admin",
+    const createResponse = await app.fetch(
+      new Request("http://localhost/admin/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          tenantId: "tenant_acme",
+          name: "Dorothy Vaughan",
+          email: "dorothy@example.com",
+          role: "admin",
+        }),
       }),
-    }),
-  );
+    );
 
-  if (createResponse.status !== 200) {
-    throw new Error(`Expected admin invite to return 200, got ${createResponse.status}`);
+    if (createResponse.status !== 200) {
+      throw new Error(`Expected admin invite to return 200, got ${createResponse.status}`);
+    }
+
+    const problemResponse = await app.fetch(new Request("http://localhost/admin/users/missing"));
+    const problem = (await problemResponse.json()) as { code?: string; status?: number };
+
+    if (problemResponse.status !== 404 || problem.code !== "admin-console/user-not-found") {
+      throw new Error("Expected missing admin user to return admin-console/user-not-found Problem");
+    }
+
+    const operationsResponse = await app.fetch(
+      new Request("http://localhost/admin/operations?tenantId=tenant_acme"),
+    );
+    const operations = (await operationsResponse.json()) as Array<{
+      action: string;
+      status: string;
+    }>;
+
+    if (!operations.some((operation) => operation.action === "user.invited")) {
+      throw new Error("Expected admin invite to appear in the operations timeline");
+    }
+
+    if (!operations.some((operation) => operation.action === "user.lookup_failed")) {
+      throw new Error("Expected missing-user Problem to appear in the operations timeline");
+    }
+
+    console.log("admin-console smoke passed");
+  } finally {
+    await app.disposeApplicationRuntime();
   }
-
-  const problemResponse = await app.fetch(new Request("http://localhost/admin/users/missing"));
-  const problem = (await problemResponse.json()) as { code?: string; status?: number };
-
-  if (problemResponse.status !== 404 || problem.code !== "admin-console/user-not-found") {
-    throw new Error("Expected missing admin user to return admin-console/user-not-found Problem");
-  }
-
-  const operationsResponse = await app.fetch(
-    new Request("http://localhost/admin/operations?tenantId=tenant_acme"),
-  );
-  const operations = (await operationsResponse.json()) as Array<{ action: string; status: string }>;
-
-  if (!operations.some((operation) => operation.action === "user.invited")) {
-    throw new Error("Expected admin invite to appear in the operations timeline");
-  }
-
-  if (!operations.some((operation) => operation.action === "user.lookup_failed")) {
-    throw new Error("Expected missing-user Problem to appear in the operations timeline");
-  }
-
-  console.log("admin-console smoke passed");
 }
 
 main().catch((error: unknown) => {

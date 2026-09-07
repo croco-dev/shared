@@ -86,7 +86,9 @@ jobs:
     needs: changes
     if: ${{ always() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # The verification profile has a 150-minute internal budget; leave 30 minutes
+    # for setup, changed-test shadow checks, and evidence publication.
+    timeout-minutes: 180
     env:
       NPM_CONFIG_PROVENANCE: "true"
 

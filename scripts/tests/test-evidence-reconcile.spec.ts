@@ -63,6 +63,7 @@ describe("test evidence reconciliation", () => {
           sourcePath: "templates/a.spec.ts",
           sourceDigest: "source-digest",
           generatedPath: "apps/a.spec.ts",
+          materializedPath: "templates/a.spec.ts",
           generatedDigest: "generated-digest",
           inventoryDigest: "inventory-digest",
         },
@@ -75,6 +76,7 @@ describe("test evidence reconciliation", () => {
           sourcePath: "templates/a.spec.ts",
           sourceDigest: "source-digest",
           generatedPath: "apps/a.spec.ts",
+          materializedPath: "templates/a.spec.ts",
           generatedDigest: 42,
           inventoryDigest: "inventory-digest",
           commandId: "generated-app-smoke",
@@ -95,6 +97,7 @@ describe("test evidence reconciliation", () => {
           sourcePath: "templates/a.spec.ts",
           sourceDigest: "source-digest",
           generatedPath: "apps/a.spec.ts",
+          materializedPath: "templates/a.spec.ts",
           generatedDigest: "generated-digest",
           inventoryDigest: "inventory-digest",
           commandId: "generated-app-smoke",
@@ -178,7 +181,7 @@ describe("test evidence reconciliation", () => {
     const executedPaths = allPaths.filter(
       (path) => !path.includes("/base-ddd/") && !path.includes("/spa-be-split/tests/journeys/"),
     );
-    expect(executedPaths).toHaveLength(12);
+    expect(executedPaths).toHaveLength(14);
     const requiredGeneratedPaths = selectGeneratedTestPathsForSmokeCases(
       [
         "goal-saas-api",

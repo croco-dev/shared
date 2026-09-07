@@ -784,6 +784,7 @@ describe("cacheable CI synthesis input", () => {
       sourcePath,
       sourceDigest: "1".repeat(64),
       generatedPath: "ci-reports/generated-apps/materialized-tests/example.spec.ts",
+      materializedPath: "packages/create-croco-app/templates/fixture/src/example.spec.ts",
       generatedDigest: "2".repeat(64),
       inventoryDigest: identity.inventoryDigest,
       commandId: "generated-app-smoke",

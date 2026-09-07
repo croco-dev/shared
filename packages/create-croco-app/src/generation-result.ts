@@ -83,7 +83,7 @@ export function createGenerationResult(
       git: options.initGit ? "initialized" : "skipped",
       dependencies: options.installDeps ? "installed" : "skipped",
     },
-    nextSteps: createGenerationNextSteps(targetDir, options),
+    nextSteps: createGenerationNextSteps(targetDir, options, runtimePlatform),
   };
 }
 
@@ -143,6 +143,7 @@ function createGenerationArtifacts(options: GeneratorOptions): GenerationArtifac
 function createGenerationNextSteps(
   targetDir: string,
   options: GeneratorOptions,
+  runtimePlatform: GenerationRuntimePlatform,
 ): GenerationNextStep[] {
   const commands: GenerationNextStep[] = [];
 
@@ -150,11 +151,15 @@ function createGenerationNextSteps(
     commands.push({ command: "pnpm", args: ["install"], cwd: targetDir });
   }
 
-  commands.push({
-    command: "pnpm",
-    args: [isSaasPreset(options.preset) ? "dev:api" : "dev"],
-    cwd: targetDir,
-  });
+  const nextScript = isSaasPreset(options.preset)
+    ? runtimePlatform === "node"
+      ? "dev:api"
+      : runtimePlatform === "lambda"
+        ? "build:lambda"
+        : "build:worker"
+    : "dev";
+
+  commands.push({ command: "pnpm", args: [nextScript], cwd: targetDir });
 
   return commands;
 }

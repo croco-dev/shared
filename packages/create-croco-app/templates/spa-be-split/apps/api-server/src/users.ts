@@ -167,6 +167,10 @@ export function getUserAuditEntries(): readonly string[] {
 }
 
 export function resetUserRuntimeForTests(): void {
+  initializeUserRuntime();
+}
+
+export function initializeUserRuntime(): void {
   userRuntime = createUserRuntime();
 }
 

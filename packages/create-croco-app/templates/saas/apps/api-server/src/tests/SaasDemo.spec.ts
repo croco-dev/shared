@@ -6,6 +6,7 @@ import { EntitlementManager } from "@croco/entitlements-core";
 import { EventPublisher } from "@croco/events-core";
 import { Container as CrocoContainer, LOGGER_TOKEN } from "@croco/framework-context";
 import type { ILogger } from "@croco/framework-context";
+import { ApplicationRuntime } from "@croco/framework-module";
 import { InMemoryIdempotencyStore } from "@croco/idempotency-core";
 import { DuplicateRecordProblem, IdempotencyManager } from "@croco/metering-core";
 import type { PendingMeteringDelivery } from "@croco/metering-core";
@@ -24,6 +25,7 @@ import { renderDemoMemberHtml } from "../html";
 import { generatedSaasProviderProfileManifest } from "../generatedSaasProviderProfile";
 import { InMemoryRedisClient } from "../inMemoryAdapters";
 import {
+  ApplicationBootstrapProblem,
   DemoEndpointDisabledProblem,
   SaasProviderProfileMismatchProblem,
   SaasProviderProfileRuntimeUnavailableProblem,
@@ -266,6 +268,60 @@ describe("SaaS golden path demo", () => {
 
       expect(server.listening).toBe(false);
       expect(() => app.applicationRuntime.run(() => undefined)).toThrow(/already been disposed/);
+    },
+  );
+
+  executableProfileTest("leaves signal ownership to an explicit Node host", async () => {
+    const sigintListeners = process.listenerCount("SIGINT");
+    const sigtermListeners = process.listenerCount("SIGTERM");
+    const app = await createCrocoApp({ profileMode: "zero-credential", hostPlatform: "node" });
+
+    try {
+      expect(process.listenerCount("SIGINT")).toBe(sigintListeners);
+      expect(process.listenerCount("SIGTERM")).toBe(sigtermListeners);
+    } finally {
+      await app.disposeApplicationRuntime();
+    }
+  });
+
+  executableProfileTest(
+    "preserves bootstrap failure when runtime disposal also rejects",
+    async () => {
+      const bootstrapFailure = new Error("provider initialization failed");
+      const cleanupFailure = new Error("provider shutdown failed");
+      const initialize = vi
+        .spyOn(ApplicationRuntime.prototype, "initialize")
+        .mockRejectedValue(bootstrapFailure);
+      const dispose = vi
+        .spyOn(ApplicationRuntime.prototype, "dispose")
+        .mockRejectedValue(cleanupFailure);
+
+      try {
+        const failure = await createCrocoApp({
+          profileMode: "zero-credential",
+          hostPlatform: "node",
+        }).catch((cause: unknown) => cause);
+
+        expect(failure).toBeInstanceOf(ApplicationBootstrapProblem);
+        expect(failure).toMatchObject({
+          cause: bootstrapFailure,
+          extensions: {
+            bootstrapFailure: "Error: provider initialization failed",
+            cleanupFailures: [
+              {
+                phase: "application-runtime-dispose",
+                detail: "Error: provider shutdown failed",
+              },
+            ],
+          },
+        });
+        expect(dispose).toHaveBeenCalledOnce();
+      } finally {
+        const runtime = initialize.mock.contexts[0] as ApplicationRuntime | undefined;
+        initialize.mockRestore();
+        dispose.mockRestore();
+        await runtime?.dispose();
+      }
     },
   );
 
