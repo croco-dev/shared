@@ -986,33 +986,50 @@ describe("cacheable producer lane evidence", () => {
     ).toThrow(/Unable to read copied artifact/);
   });
 
-  it("never exposes physical prerequisites or legacy mutable paths in the producer bundle", async () => {
-    useCurrentRunEnvironment();
-    const rootDir = mkdtempSync(join(tmpdir(), "croco-cacheable-lane-paths-"));
+  it.each([false, true])(
+    "includes all immutable prerequisite evidence in coverage-security (metadata failure: %s)",
+    async (metadataFails) => {
+      useCurrentRunEnvironment();
+      const rootDir = mkdtempSync(join(tmpdir(), "croco-cacheable-lane-paths-"));
 
-    const result = await runCacheableLane({
-      identity: identity(),
-      lane: "coverage-security",
-      profile: "publish",
-      rootDir,
-      runner: successfulRunner(rootDir),
-      securityPhysical: securityPhysical(),
-    });
-    const serialized = JSON.stringify(result.bundle);
+      const result = await runCacheableLane({
+        identity: identity(),
+        lane: "coverage-security",
+        profile: "publish",
+        rootDir,
+        runner: metadataFails ? failingRunner("release-metadata") : successfulRunner(rootDir),
+        securityPhysical: securityPhysical(),
+      });
+      const serialized = JSON.stringify(result.bundle);
+      const prerequisite = result.report.checks.find(({ id }) => id === "release-metadata");
+      expect(prerequisite?.status).toBe(metadataFails ? "failed" : "passed");
+      expect(result.bundle.checks.some(({ id }) => id === "release-metadata")).toBe(false);
+      const prerequisiteFiles = prerequisite?.artifacts.flatMap(({ copiedPath }) =>
+        copiedPath === null ? [] : regularFiles(join(rootDir, copiedPath)),
+      );
+      expect(prerequisiteFiles).toHaveLength(metadataFails ? 2 : 0);
+      for (const path of prerequisiteFiles ?? []) {
+        expect(result.bundle.artifact.files).toContainEqual({
+          path: relative(rootDir, path).replaceAll("\\", "/"),
+          digest: fileDigest(path),
+          bytes: lstatSync(path).size,
+        });
+      }
 
-    expect(result.bundle.checks.some(({ id }) => id === "build")).toBe(false);
-    expect(serialized).not.toMatch(/(?:^|[\\/])\.turbo(?:[\\/]|$)/);
-    expect(serialized).not.toMatch(/(?:^|[\\/])dist(?:[\\/]|$)/);
-    expect(serialized.toLowerCase()).not.toContain("checkpoint");
-    expect(result.bundle.artifact.files.every(({ path }) => path.startsWith("ci-reports/"))).toBe(
-      true,
-    );
-    const uploadedFiles = regularFiles(result.outputDir)
-      .map((path) => relative(rootDir, path).replaceAll("\\", "/"))
-      .filter((path) => !path.endsWith("/producer-bundle.json"))
-      .sort();
-    expect(result.bundle.artifact.files.map(({ path }) => path).sort()).toEqual(uploadedFiles);
-  });
+      expect(result.bundle.checks.some(({ id }) => id === "build")).toBe(false);
+      expect(serialized).not.toMatch(/(?:^|[\\/])\.turbo(?:[\\/]|$)/);
+      expect(serialized).not.toMatch(/(?:^|[\\/])dist(?:[\\/]|$)/);
+      expect(serialized.toLowerCase()).not.toContain("checkpoint");
+      expect(result.bundle.artifact.files.every(({ path }) => path.startsWith("ci-reports/"))).toBe(
+        true,
+      );
+      const uploadedFiles = regularFiles(result.outputDir)
+        .map((path) => relative(rootDir, path).replaceAll("\\", "/"))
+        .filter((path) => !path.endsWith("/producer-bundle.json"))
+        .sort();
+      expect(result.bundle.artifact.files.map(({ path }) => path).sort()).toEqual(uploadedFiles);
+    },
+  );
 
   it("fails closed when current-run provenance drifts from the strict identity", async () => {
     useCurrentRunEnvironment();

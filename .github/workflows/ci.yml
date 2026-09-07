@@ -901,6 +901,7 @@ jobs:
           VERIFICATION_PROFILE: ${{ needs.changes.outputs.profile }}
         run: |
           cache_args=()
+          lane_args=(--allow-pending-release-metadata)
           failure_args=()
           if [ "$CROCO_CACHEABLE_FAILURE_CLASS" != "none" ]; then
             failure_args+=(--full-selection)
@@ -920,6 +921,7 @@ jobs:
             --root . \
             --base "$VERIFICATION_BASE" \
             --head "$VERIFICATION_CANDIDATE" \
+            "${lane_args[@]}" \
             "${failure_args[@]}" \
             "${cache_args[@]}"
       - name: Upload core verification producer evidence
@@ -1007,6 +1009,7 @@ jobs:
           VERIFICATION_PROFILE: ${{ needs.changes.outputs.profile }}
         run: |
           cache_args=()
+          lane_args=(--allow-pending-release-metadata)
           failure_args=()
           if [ "$CROCO_CACHEABLE_FAILURE_CLASS" != "none" ]; then
             failure_args+=(--full-selection)
@@ -1022,6 +1025,7 @@ jobs:
           node --experimental-strip-types scripts/ci-cacheable-lane-runner.mts \
             --identity ci-reports/cacheable-ci/identity.json --lane generated-apps \
             --profile "$VERIFICATION_PROFILE" --root . --base "$VERIFICATION_BASE" --head "$VERIFICATION_CANDIDATE" \
+            "${lane_args[@]}" \
             "${failure_args[@]}" \
             "${cache_args[@]}"
       - name: Upload generated apps producer evidence
@@ -1219,6 +1223,7 @@ jobs:
           VERIFICATION_CANDIDATE: ${{ needs.changes.outputs.candidate }}
           VERIFICATION_PROFILE: ${{ needs.changes.outputs.profile }}
         run: |
+          lane_args=(--allow-pending-release-metadata)
           failure_args=()
           if [ "$CROCO_CACHEABLE_FAILURE_CLASS" != "none" ]; then
             failure_args+=(--full-selection)
@@ -1235,6 +1240,7 @@ jobs:
             --security-artifact ci-reports/security/gitleaks-smoke.txt \
             --security-artifact ci-reports/security/gitleaks.txt \
             --security-artifact ci-reports/security/gitleaks.sarif \
+            "${lane_args[@]}" \
             "${failure_args[@]}"
       - name: Report advisory physical security failures
         if: always()

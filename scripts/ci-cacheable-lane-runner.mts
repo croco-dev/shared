@@ -837,17 +837,20 @@ function unboundExecutionOutputs(
   rootDir: string,
   outputDir: string,
   report: ReleaseSpineEvidenceReport,
+  ownedIds: readonly string[],
 ): readonly EvidenceOutput[] {
   const copiedFiles = new Set(
-    report.checks.flatMap((check) =>
-      check.artifacts.flatMap((artifact) =>
-        artifact.copiedPath === null
-          ? []
-          : expandImmutableFiles(resolve(rootDir, artifact.copiedPath)).map((path) =>
-              relative(rootDir, path).replaceAll("\\", "/"),
-            ),
+    report.checks
+      .filter((check) => ownedIds.includes(check.id))
+      .flatMap((check) =>
+        check.artifacts.flatMap((artifact) =>
+          artifact.copiedPath === null
+            ? []
+            : expandImmutableFiles(resolve(rootDir, artifact.copiedPath)).map((path) =>
+                relative(rootDir, path).replaceAll("\\", "/"),
+              ),
+        ),
       ),
-    ),
   );
   return expandImmutableFiles(join(outputDir, "execution"))
     .map((path) => outputForFile(rootDir, path))
@@ -1181,7 +1184,7 @@ export async function runCacheableLane(
     outputDir,
     options.securityArtifactPaths ?? [],
   );
-  const executionOutputs = unboundExecutionOutputs(rootDir, outputDir, report);
+  const executionOutputs = unboundExecutionOutputs(rootDir, outputDir, report, plan.ownedIds);
   const bundle = createProducerBundleFromReport({
     identity: options.identity,
     lane: options.lane,

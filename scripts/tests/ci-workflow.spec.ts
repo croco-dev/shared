@@ -384,12 +384,14 @@ describe("Phase B cacheable verification shadow", () => {
     expect(security).not.toContain("--cache-dir");
     expect(security).toContain('NPM_CONFIG_PROVENANCE: "true"');
 
-    const packages = workflowJob("package-artifacts");
-    expect(packages).toContain("lane_args=(--allow-pending-release-metadata)");
-    expect(packages).not.toContain(
-      'if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then\n            lane_args+=(--allow-pending-release-metadata)',
-    );
-    expect(packages).toContain('"${lane_args[@]}"');
+    for (const jobId of producerJobs) {
+      const job = workflowJob(jobId);
+      expect(job).toContain("lane_args=(--allow-pending-release-metadata)");
+      expect(job).not.toContain(
+        'if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then\n            lane_args+=(--allow-pending-release-metadata)',
+      );
+      expect(job).toContain('"${lane_args[@]}"');
+    }
   });
 
   it("downloads the exact four immutable bundles before advisory synthesis", () => {
