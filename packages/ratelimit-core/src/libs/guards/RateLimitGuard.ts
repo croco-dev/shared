@@ -12,16 +12,25 @@ export type RateLimitMetadata = {
 };
 
 export type GuardContext = KeyContext & {
-  getHandler(): (...args: unknown[]) => unknown;
   set<T>(key: string, value: T): void;
-};
+} & (
+    | { getHandler(): (...args: unknown[]) => unknown }
+    | {
+        getClass(): { prototype: object };
+        getHandler(): string | symbol;
+      }
+  );
 
 export class RateLimitGuard {
   constructor(private readonly rateLimiter: RateLimiter) {}
 
   async canActivate(context: GuardContext): Promise<boolean> {
     const handler = context.getHandler();
-    const metadata = Reflect.getMetadata(RATE_LIMIT_METADATA_KEY, handler) as
+    const target =
+      typeof handler !== "function" && "getClass" in context
+        ? Reflect.get(context.getClass().prototype, handler)
+        : handler;
+    const metadata = Reflect.getMetadata(RATE_LIMIT_METADATA_KEY, target) as
       | RateLimitMetadata
       | undefined;
 

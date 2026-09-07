@@ -37,6 +37,28 @@ Guard, Interceptor, Filter가 사용할 REST 실행 컨텍스트 구현체입니
 
 ## Methods
 
+### get()
+
+> **get**\<`T`\>(`key`): `T` \| `undefined`
+
+#### Type Parameters
+
+##### T
+
+`T`
+
+#### Parameters
+
+##### key
+
+`string`
+
+#### Returns
+
+`T` \| `undefined`
+
+---
+
 ### getClass()
 
 > **getClass**(): [`Constructor`](/api/protocols-rest/src/type-aliases/constructor/)
@@ -124,3 +146,29 @@ HTTP 메서드 (GET, POST 등)
 #### Implementation of
 
 [`ExecutionContext`](/api/protocols-rest/src/interfaces/executioncontext/).[`getRequest`](/api/protocols-rest/src/interfaces/executioncontext/#getrequest)
+
+---
+
+### set()
+
+> **set**\<`T`\>(`key`, `value`): `void`
+
+#### Type Parameters
+
+##### T
+
+`T`
+
+#### Parameters
+
+##### key
+
+`string`
+
+##### value
+
+`T`
+
+#### Returns
+
+`void`

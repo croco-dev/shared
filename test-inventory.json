@@ -4145,6 +4145,12 @@
       "owner": "@croco/transports-http"
     },
     {
+      "path": "packages/transports-http/src/tests/RateLimitGuard.spec.ts",
+      "lane": "fast",
+      "qualifiers": ["coverage"],
+      "owner": "@croco/transports-http"
+    },
+    {
       "path": "packages/transports-http/src/tests/RateLimitMiddleware.spec.ts",
       "lane": "fast",
       "qualifiers": ["coverage"],

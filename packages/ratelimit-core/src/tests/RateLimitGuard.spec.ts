@@ -6,6 +6,7 @@ import {
   RateLimitGuard,
   type RateLimitMetadata,
 } from "../libs/guards/RateLimitGuard";
+import { RateLimit } from "../libs/decorators/RateLimit";
 import { RateLimitExceededProblem } from "../libs/problems/RateLimitExceededProblem";
 import type { RateLimiter } from "../libs/RateLimiter";
 import type { RateLimitPolicy, RateLimitResult } from "../libs/types";
@@ -104,5 +105,70 @@ describe("RateLimitGuard", () => {
     await guard.canActivate(context);
 
     expect(store.get("rateLimitResult")).toEqual(successResult);
+  });
+
+  it.each(["limited", Symbol("limited")])("should resolve named handler %s", async (name) => {
+    class Controller {
+      @RateLimit({ limit: 1, window: "1m" })
+      [name]() {}
+    }
+    const context = {
+      ...createContext(() => {}),
+      getClass: () => Controller,
+      getHandler: () => name,
+    };
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockRateLimiter.check).toHaveBeenCalledWith(
+      context,
+      expect.objectContaining({ limit: 1, windowMs: 60000 }),
+    );
+    vi.mocked(mockRateLimiter.check).mockResolvedValue(failedResult);
+    await expect(guard.canActivate(context)).rejects.toThrow(RateLimitExceededProblem);
+  });
+
+  it("should use inherited metadata without applying it to an undecorated override", async () => {
+    class Parent {
+      @RateLimit({ limit: 1 })
+      limited() {}
+    }
+    class Child extends Parent {}
+    class Override extends Parent {
+      override limited() {}
+    }
+    const context = {
+      ...createContext(() => {}),
+      getClass: () => Child,
+      getHandler: () => "limited",
+    };
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockRateLimiter.check).toHaveBeenCalledOnce();
+    vi.mocked(mockRateLimiter.check).mockClear();
+    await expect(guard.canActivate({ ...context, getClass: () => Override })).resolves.toBe(true);
+    expect(mockRateLimiter.check).not.toHaveBeenCalled();
+  });
+
+  it("should allow an undecorated named handler without consuming quota", async () => {
+    class Controller {
+      plain() {}
+    }
+    const context = {
+      ...createContext(() => {}),
+      getClass: () => Controller,
+      getHandler: () => "plain",
+    };
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockRateLimiter.check).not.toHaveBeenCalled();
+  });
+
+  it("should preserve function handlers on contexts that also expose a class", async () => {
+    const handler = () => {};
+    Reflect.defineMetadata(RATE_LIMIT_METADATA_KEY, { policy }, handler);
+    const getClass = vi.fn(() => class Controller {});
+    const context = { ...createContext(handler), getClass };
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockRateLimiter.check).toHaveBeenCalledWith(context, policy);
+    expect(getClass).not.toHaveBeenCalled();
   });
 });
