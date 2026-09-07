@@ -1,7 +1,14 @@
 import { Container } from "@croco/framework-context";
+import { Problem, ProblemCategory } from "@croco/problems-core";
 import { TxManager } from "@croco/tx-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDrizzleTxAdapter, createRlsTxAdapter, SavepointUnsupportedProblem } from "../index";
+
+class NestedWriteProblem extends Problem {
+  constructor() {
+    super("test/nested-write-failed", ProblemCategory.InternalServerError, "inner write failed");
+  }
+}
 
 function createDatabase<TClient>(client: TClient, lifecycle: string[] = []) {
   const transaction = async <T>(fn: (tx: TClient) => Promise<T>): Promise<T> => {
@@ -84,7 +91,7 @@ describe("Savepoint capability", () => {
     const lifecycle: string[] = [];
     const db = createDatabase({ id: "root" }, lifecycle);
     const manager = new TxManager(createDrizzleTxAdapter(db));
-    const failure = new Error("inner write failed");
+    const failure = new NestedWriteProblem();
     const afterCommit = vi.fn();
 
     await expect(
@@ -119,7 +126,7 @@ describe("Savepoint capability", () => {
 
   it("should join without invoking a throwing transaction stub when support is disabled", async () => {
     const transaction = vi.fn(async () => {
-      throw new Error("unsupported driver stub");
+      throw new SavepointUnsupportedProblem();
     });
     const client = { id: "root", transaction };
     const adapter = createDrizzleTxAdapter(createDatabase(client), { supportsSavepoint: false });
@@ -135,7 +142,7 @@ describe("Savepoint capability", () => {
 
   it("should reject direct savepoint calls when support is disabled", async () => {
     const transaction = vi.fn(async () => {
-      throw new Error("unsupported driver stub");
+      throw new SavepointUnsupportedProblem();
     });
     const client = { transaction };
     const adapter = createDrizzleTxAdapter(createDatabase(client), { supportsSavepoint: false });
