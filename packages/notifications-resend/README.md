@@ -135,7 +135,11 @@ pnpm --filter @croco/notifications-resend test -- ResendLiveSmoke
 - 실패 결과는 `success: false`와 정규화된 `problem`을 함께 반환하며, 호출자는 해당 Problem의
   `extensions.retryable`을 사용해 재시도 가능성을 분류할 수 있습니다.
 - `content`를 Resend HTML 본문으로 보냅니다. 템플릿 렌더링은 `@croco/notifications-core`에서 수행합니다.
-- 모든 요청은 idempotency key를 붙여 전송합니다. 호출자가 key를 넘기면 그 값을 사용하고, 직접 provider 호출에서 key가 없으면 호환용 고유 key를 생성합니다.
+- 모든 요청은 idempotency key를 붙여 전송합니다. `send()`는 `options.idempotencyKey`를 우선 사용하고,
+  옵션에 key가 없으면 문자열인 `payload.metadata.idempotencyKey`를 사용합니다. 둘 다 없으면 기존처럼 고유 key를 생성합니다.
+- `sendBatch()` 재시도 시 중복 발송을 방지하려면 각 payload의 `metadata.idempotencyKey`에 메시지별로 고유하고
+  재시도 간 유지되는 key를 지정해야 합니다. 배열 순서가 바뀌어도 각 메시지의 key는 그대로 사용됩니다.
+  key를 지정하지 않은 배치를 다시 호출하면 새 key가 생성되므로 호출 간 중복 발송은 방지되지 않습니다.
 
 ---
 
