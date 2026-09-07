@@ -302,6 +302,7 @@ describe("Lambda adapter API Gateway v2 conformance", () => {
         headers: {
           host: "example.execute-api.ap-northeast-2.amazonaws.com",
           "x-request-header": "header-value",
+          cookie: "a=1",
         },
         cookies: ["session=abc", "theme=dark"],
         authorizer: {
@@ -326,7 +327,7 @@ describe("Lambda adapter API Gateway v2 conformance", () => {
       page: "2",
       encoded: "a b",
       requestHeader: "header-value",
-      cookieHeader: "session=abc; theme=dark",
+      cookieHeader: "a=1; session=abc; theme=dark",
       eventCookies: ["session=abc", "theme=dark"],
       authorizer: {
         jwt: {

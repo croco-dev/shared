@@ -116,14 +116,14 @@ console.log(runtime?.requestId);
 
 Lambda handler는 API Gateway v2 이벤트를 Fetch `Request`로 변환합니다.
 
-| Event field                         | Fetch request behavior                                                                     |
-| ----------------------------------- | ------------------------------------------------------------------------------------------ |
-| `requestContext.http.method`        | Fetch request method. 값이 없으면 `GET`을 사용합니다.                                      |
-| `rawPath`, `rawQueryString`         | `https://lambda.local${rawPath}?${rawQueryString}` 형태의 request URL을 구성합니다.        |
-| `headers`                           | Fetch `Headers`로 복사되며 Fetch 표준에 따라 대소문자 구분 없이 조회할 수 있습니다.        |
-| `headers.cookie` / `headers.Cookie` | 명시된 `Cookie` header가 있으면 그대로 유지하며 `event.cookies`보다 우선합니다.            |
-| `cookies`                           | 명시된 `Cookie` header가 없을 때 `; `로 join해 inbound Fetch `Cookie` header로 설정합니다. |
-| `body`, `isBase64Encoded`           | base64 body는 `Buffer`로 디코딩하고, `GET`/`HEAD` 요청에는 body를 전달하지 않습니다.       |
+| Event field                         | Fetch request behavior                                                                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `requestContext.http.method`        | Fetch request method. 값이 없으면 `GET`을 사용합니다.                                                                        |
+| `rawPath`, `rawQueryString`         | `https://lambda.local${rawPath}?${rawQueryString}` 형태의 request URL을 구성합니다.                                          |
+| `headers`                           | Fetch `Headers`로 복사되며 Fetch 표준에 따라 대소문자 구분 없이 조회할 수 있습니다.                                          |
+| `headers.cookie` / `headers.Cookie` | 같은 쿠키 이름이 `event.cookies`에도 있으면 명시된 header의 값을 우선합니다.                                                 |
+| `cookies`                           | header에 없는 쿠키 이름을 보충하고 `; `로 결합합니다. 이름은 대소문자를 구분하고 첫 값을 유지하며, 값은 디코딩하지 않습니다. |
+| `body`, `isBase64Encoded`           | base64 body는 `Buffer`로 디코딩하고, `GET`/`HEAD` 요청에는 body를 전달하지 않습니다.                                         |
 
 원본 Lambda `event`와 `context`는 Hono env에 그대로 보존되며 `getLambdaEvent()`와
 `getLambdaContext()`로 읽을 수 있습니다.
