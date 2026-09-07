@@ -475,7 +475,7 @@ describe("package-entrypoint-smoke.mts", () => {
 
       const result = runScript(root);
 
-      expect(result.status).toBe(0);
+      expect(result.status, result.stderr || result.stdout).toBe(0);
       expect(result.stdout).toContain(
         "cjs decorator metadata and implicit DI ok @croco/auth-better-auth",
       );
@@ -506,7 +506,19 @@ describe("package-entrypoint-smoke.mts", () => {
 
     expect(result.status).toBe(1);
     expect(`${result.stdout}\n${result.stderr}`).toContain(
-      "BetterAuthProvider design:paramtypes expected [BetterAuthFactory], received [missing]",
+      "BetterAuthProvider design:paramtypes expected [BetterAuthFactory, Object], received [missing]",
+    );
+  });
+
+  it("rejects a packed auth provider that requires an options dependency", () => {
+    const root = createTempRoot();
+    writeDecoratorMetadataPackages(root, { requiredAuthOptions: true });
+
+    const result = runScript(root);
+
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "BetterAuthProvider expected constructor arity 1, received 2",
     );
   });
 
@@ -813,6 +825,7 @@ function writeDecoratorMetadataPackages(
   options: {
     readonly brokenDefaultResolution?: boolean;
     readonly missingAuthMetadata?: boolean;
+    readonly requiredAuthOptions?: boolean;
     readonly missingFeatureMetadata?: boolean;
     readonly missingMemberMetadata?: boolean;
   } = {},
@@ -860,14 +873,15 @@ function writeDecoratorMetadataPackages(
     packageName: "@croco/integrations-posthog",
   });
 
+  const authOptions = options.requiredAuthOptions ? "options" : "options = {}";
   const authMetadata = options.missingAuthMetadata
     ? ""
-    : 'Reflect.defineMetadata("design:paramtypes", [BetterAuthFactory], BetterAuthProvider);\n';
+    : 'Reflect.defineMetadata("design:paramtypes", [BetterAuthFactory, Object], BetterAuthProvider);\n';
   writeImportablePackage(root, "auth-better-auth", {
     cjsContent: [
       'require("@croco/framework-context");',
       "class BetterAuthFactory {}",
-      "class BetterAuthProvider { constructor(factory) { this.factory = factory; } }",
+      `class BetterAuthProvider { constructor(factory, ${authOptions}) { this.factory = factory; } }`,
       authMetadata,
       "exports.BetterAuthFactory = BetterAuthFactory;",
       "exports.BetterAuthProvider = BetterAuthProvider;",
@@ -879,7 +893,7 @@ function writeDecoratorMetadataPackages(
     esmContent: [
       'import "@croco/framework-context";',
       "export class BetterAuthFactory {}",
-      "export class BetterAuthProvider { constructor(factory) { this.factory = factory; } }",
+      `export class BetterAuthProvider { constructor(factory, ${authOptions}) { this.factory = factory; } }`,
       authMetadata,
       "",
     ].join("\n"),

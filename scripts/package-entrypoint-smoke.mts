@@ -85,6 +85,7 @@ type PublishArtifactTarget = {
 };
 
 type DecoratorMetadataSmokeContract = {
+  readonly constructorArity?: number;
   readonly defaults?: Readonly<Record<string, boolean | number | string>>;
   readonly injections?: Readonly<Record<string, number>>;
   readonly memberTypes?: readonly {
@@ -1583,8 +1584,12 @@ function decoratorMetadataContractFor(
 ): DecoratorMetadataSmokeContract | undefined {
   if (packageName === "@croco/auth-better-auth") {
     return {
+      constructorArity: 1,
       injections: { factory: 0 },
-      metadataTypes: [{ className: "BetterAuthFactory", packageName: "@croco/auth-better-auth" }],
+      metadataTypes: [
+        { className: "BetterAuthFactory", packageName: "@croco/auth-better-auth" },
+        { className: "Object" },
+      ],
       serviceClass: "BetterAuthProvider",
       servicePackage: "@croco/auth-better-auth",
     };
@@ -1706,6 +1711,9 @@ function decoratorMetadataVerificationSource(): string {
     "  }",
     "  if (!expectedParamTypes) {",
     "    return;",
+    "  }",
+    "  if (contract.constructorArity !== undefined && Service.length !== contract.constructorArity) {",
+    "    throw new Error(`[${format}] ${contract.serviceClass} expected constructor arity ${contract.constructorArity}, received ${Service.length}`);",
     "  }",
     "  const injectedValues = Object.fromEntries(Object.entries(contract.injections ?? {}).map(([field, metadataIndex]) => {",
     "    const Dependency = expectedParamTypes[metadataIndex];",
