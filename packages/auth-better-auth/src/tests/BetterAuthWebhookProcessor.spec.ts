@@ -1,8 +1,9 @@
 import { createHmac } from "node:crypto";
 import { IdempotencyConflictProblem, InMemoryIdempotencyStore } from "@croco/idempotency-core";
+import { WebhookGateway } from "@croco/webhooks-core";
 import type { WebhookGatewayStoredResult } from "@croco/webhooks-core";
 import "reflect-metadata";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BetterAuthWebhookProcessor } from "../libs/BetterAuthWebhookProcessor";
 import {
   InvalidWebhookPayloadProblem,
@@ -273,12 +274,87 @@ describe("BetterAuthWebhookProcessor", () => {
       expect(idempotencyStore.size).toBe(0);
     });
 
+    describe("fractional-second timestamps", () => {
+      beforeEach(() => {
+        const handle = WebhookGateway.prototype.handle;
+        vi.spyOn(WebhookGateway.prototype, "handle").mockImplementation(
+          function (this: WebhookGateway, request) {
+            return handle.call(this, {
+              ...request,
+              receivedAt: new Date("2026-09-05T12:34:56.123Z"),
+            });
+          },
+        );
+      });
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it.each([
+        "2026-09-05T12:34:56Z",
+        "2026-09-05T12:34:56.1Z",
+        "2026-09-05T12:34:56.12Z",
+        "2026-09-05T12:34:56.123Z",
+        "2026-09-05T12:34:56.1234Z",
+        "2026-09-05T12:34:56.123456Z",
+        "2026-09-05T12:34:56.123456789Z",
+        "2026-09-05T18:04:56.123456+05:30",
+        "2026-09-05T09:04:56.123456789-03:30",
+      ])("should process a signed event with timestamp %s", async (timestamp) => {
+        const eventData = { id: "user-123" };
+        const rawBody = JSON.stringify({ type: "user.created", data: eventData, timestamp });
+
+        await processor.processWebhook(createMockWebhookRequest(rawBody, createSignature(rawBody)));
+
+        expect(mockHandlers["user.created"]).toHaveBeenCalledExactlyOnceWith(eventData);
+      });
+
+      it.each(["2026-09-05T12:29:56.123456Z", "2026-09-05T12:39:56.123999999Z"])(
+        "should accept timestamp %s at the millisecond age boundary",
+        async (timestamp) => {
+          const rawBody = JSON.stringify({ type: "user.created", timestamp });
+
+          await processor.processWebhook(
+            createMockWebhookRequest(rawBody, createSignature(rawBody)),
+          );
+
+          expect(mockHandlers["user.created"]).toHaveBeenCalledTimes(1);
+        },
+      );
+
+      it.each(["2026-09-05T12:29:56.122999999Z", "2026-09-05T12:39:56.124001Z"])(
+        "should reject timestamp %s outside the millisecond age boundary",
+        async (timestamp) => {
+          const rawBody = JSON.stringify({ type: "user.created", timestamp });
+
+          await expect(
+            processor.processWebhook(createMockWebhookRequest(rawBody, createSignature(rawBody))),
+          ).rejects.toBeInstanceOf(InvalidWebhookSignatureProblem);
+          expect(mockHandlers["user.created"]).not.toHaveBeenCalled();
+          expect(idempotencyStore.size).toBe(0);
+        },
+      );
+    });
+
     it.each([
       "2026-08-13T12:00:00",
       "Thu, 13 Aug 2026 12:00:00 GMT",
       "2026-02-31T12:00:00Z",
       "2026-08-13T25:00:00Z",
       "2026-08-13T12:00:00+24:00",
+      "2026-13-05T12:34:56.123456Z",
+      "2026-02-29T12:34:56.123456789Z",
+      "2026-09-31T12:34:56.123456Z",
+      "2026-09-05T24:34:56.123456789Z",
+      "2026-09-05T12:60:56.123456Z",
+      "2026-09-05T12:34:60.123456789Z",
+      "2026-09-05T12:34:56.123456+24:00",
+      "2026-09-05T12:34:56.123456789-03:60",
+      "2026-09-05T12:34:56.123456",
+      "2026-09-05T12:34:56.Z",
+      "2026-09-05T12:34:56.123abcZ",
+      "2026-09-05T12:34:56.1234567890Z",
     ])(
       "should reject non-canonical timestamp %s before reserving idempotency",
       async (timestamp) => {
