@@ -30,6 +30,7 @@
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts",
     "lint": "oxlint .",
     "test": "vitest run --exclude src/tests/DrizzleExecutionStore.postgres.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:live": "vitest run src/tests/DrizzleExecutionStore.postgres.spec.ts",
     "test:postgres": "vitest run src/tests/DrizzleExecutionStore.postgres.spec.ts",
     "typecheck": "tsc --noEmit",

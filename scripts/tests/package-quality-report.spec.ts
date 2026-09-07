@@ -57,34 +57,71 @@ describe("package-quality-report.mts", () => {
     );
   });
 
-  it("binds each task summary to its authoritative check interval", () => {
+  it.each([
+    { exitCode: 0, status: "pass" },
+    { exitCode: 1, status: "fail" },
+  ])("reports newer test:evidence $status without losing task identity", ({ exitCode, status }) => {
     const repo = createTempRepo();
     writePackage(repo, "alpha", "@croco/alpha", { test: "vitest run" });
-    const now = Date.now();
-    writeTurboSummary(repo, "authoritative.json", "turbo run test --summarize", now, [
-      task("@croco/alpha", "test", 0, "packages/alpha/.turbo/turbo-test.log"),
+    writeTurboSummary(repo, "old-test.json", "turbo run test --summarize", 100, [
+      task("@croco/alpha", "test", 1 - exitCode, "packages/alpha/.turbo/turbo-test.log"),
     ]);
-    writeTurboSummary(repo, "later-nested.json", "turbo run test --summarize", now + 10_000, [
-      task("@croco/alpha", "test", 1, "packages/alpha/.turbo/turbo-test.log"),
+    writeTurboSummary(repo, "evidence.json", "turbo run test:evidence --summarize", 200, [
+      task(
+        "@croco/alpha",
+        "test:evidence",
+        exitCode,
+        "packages/alpha/.turbo/turbo-test:evidence.log",
+      ),
     ]);
 
     const report = createPackageQualityReport({
       rootDir: repo,
       summaryDir: join(repo, ".turbo", "runs"),
-      summaryWindows: {
-        test: {
-          startedAt: new Date(now - 1_000).toISOString(),
-          completedAt: new Date(now + 1_000).toISOString(),
-        },
-      },
     });
 
     expect(
       report.rows.find(({ packageName }) => packageName === "@croco/alpha")?.tasks.test,
-    ).toMatchObject({
-      status: "pass",
+    ).toEqual({
+      task: "test",
+      status,
+      taskId: "@croco/alpha#test:evidence",
+      logFile: "packages/alpha/.turbo/turbo-test:evidence.log",
+      cacheStatus: exitCode === 0 ? "HIT" : "MISS",
     });
   });
+
+  it.each(["test", "test:evidence"])(
+    "binds %s summary to its authoritative check interval",
+    (taskName) => {
+      const repo = createTempRepo();
+      writePackage(repo, "alpha", "@croco/alpha", { test: "vitest run" });
+      const now = Date.now();
+      writeTurboSummary(repo, "authoritative.json", `turbo run ${taskName} --summarize`, now, [
+        task("@croco/alpha", taskName, 0, `packages/alpha/.turbo/turbo-${taskName}.log`),
+      ]);
+      writeTurboSummary(repo, "later-nested.json", "turbo run test --summarize", now + 10_000, [
+        task("@croco/alpha", "test", 1, "packages/alpha/.turbo/turbo-test.log"),
+      ]);
+
+      const report = createPackageQualityReport({
+        rootDir: repo,
+        summaryDir: join(repo, ".turbo", "runs"),
+        summaryWindows: {
+          test: {
+            startedAt: new Date(now - 1_000).toISOString(),
+            completedAt: new Date(now + 1_000).toISOString(),
+          },
+        },
+      });
+
+      expect(
+        report.rows.find(({ packageName }) => packageName === "@croco/alpha")?.tasks.test,
+      ).toMatchObject({
+        status: "pass",
+      });
+    },
+  );
 
   it("rejects invalid authoritative summary timestamps", () => {
     const repo = createTempRepo();

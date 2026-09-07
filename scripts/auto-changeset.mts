@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { env, exit, stdout } from "node:process";
 
-import { isDocsApiModelScriptOnlyManifestChange } from "./package-manifest-contracts.mjs";
+import { isCiScriptOnlyManifestChange } from "./package-manifest-contracts.mjs";
 
 type BumpType = "major" | "minor" | "patch";
 
@@ -317,10 +317,7 @@ function resolveChangedPackageNames(baseRef: string, changedFiles: readonly stri
     if (owner && !owner.private) {
       if (
         file === `${owner.directory}/package.json` &&
-        isDocsApiModelScriptOnlyManifestChange(
-          readJsonAtRef(baseRef, file),
-          readJsonAtRef("HEAD", file),
-        )
+        isCiScriptOnlyManifestChange(readJsonAtRef(baseRef, file), readJsonAtRef("HEAD", file))
       ) {
         continue;
       }

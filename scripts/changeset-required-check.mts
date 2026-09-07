@@ -18,7 +18,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { env, exit, stdout } from "node:process";
 
-import { isDocsApiModelScriptOnlyManifestChange } from "./package-manifest-contracts.mjs";
+import { isCiScriptOnlyManifestChange } from "./package-manifest-contracts.mjs";
 
 type CheckOptions = {
   readonly baseRef: string;
@@ -999,7 +999,7 @@ function getReleaseSignificantChanges(
     const packageRelativeFile = file.slice(`${pkg.relativeDir}/`.length);
     if (
       packageRelativeFile === "package.json" &&
-      isDocsApiModelScriptOnlyManifestChange(
+      isCiScriptOnlyManifestChange(
         readJsonObjectAtRef(options, options.baseRef, file),
         readJsonObjectAtRef(options, options.headRef, file),
       )

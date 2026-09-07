@@ -97,6 +97,21 @@
       "cache": true,
       "outputs": [".turbo/croco-test-evidence.json"]
     },
+    "test:evidence": {
+      "cache": true,
+      "dependsOn": ["build", "^build"],
+      "env": ["NODE_ENV"],
+      "outputs": [".turbo/croco-test-evidence.json"]
+    },
+    "@croco/docs#test:evidence": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "outputs": [".turbo/croco-test-evidence.json"]
+    },
+    "@croco/oxlint-rules#test:evidence": {
+      "cache": true,
+      "outputs": [".turbo/croco-test-evidence.json"]
+    },
     "typecheck": {
       "cache": true,
       "dependsOn": ["build", "^build", "^typecheck"]

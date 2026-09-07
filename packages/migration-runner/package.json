@@ -44,6 +44,7 @@
     "build": "tsup src/index.ts src/cli.ts --format esm,cjs --minify --clean --dts",
     "lint": "oxlint .",
     "test": "vitest run --exclude src/tests/MigrationStatusPostgres.spec.ts --exclude src/tests/PublishedCli.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:live": "vitest run src/tests/MigrationStatusPostgres.spec.ts",
     "test:published": "vitest run src/tests/PublishedCli.spec.ts",
     "typecheck": "tsc --noEmit",

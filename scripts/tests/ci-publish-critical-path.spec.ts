@@ -91,7 +91,7 @@ describe("publish validate critical path", () => {
       commands: createVerificationManifest("publish"),
       workflow: readFileSync(resolve(ROOT_DIR, ".github/workflows/ci.yml"), "utf8"),
       testLaneRunnerSource:
-        'return ["turbo", "run", "test", "--concurrency=4", "--only", "--", "--maxWorkers=1"];',
+        'return ["turbo", "run", "test:evidence", "--concurrency=4", "--only"];',
     });
 
     expect(evaluation.diagnostics).toContain(
@@ -103,8 +103,7 @@ describe("publish validate critical path", () => {
     const evaluation = evaluatePublishCriticalPath({
       commands: createVerificationManifest("publish"),
       workflow: readFileSync(resolve(ROOT_DIR, ".github/workflows/ci.yml"), "utf8"),
-      testLaneRunnerSource:
-        'return ["turbo", "run", "test", "--concurrency=4", "--", "--maxWorkers=1"];',
+      testLaneRunnerSource: 'return ["turbo", "run", "test:evidence", "--concurrency=4"];',
     });
 
     expect(evaluation.diagnostics).not.toContain(

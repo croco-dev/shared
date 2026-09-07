@@ -44,6 +44,7 @@
     "lint": "oxlint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude src/tests/e2e.spec.ts --exclude src/tests/real-app.e2e.spec.ts --exclude src/tests/PublishedCli.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:integration": "vitest run src/tests/e2e.spec.ts src/tests/real-app.e2e.spec.ts",
     "test:published": "vitest run src/tests/PublishedCli.spec.ts",
     "docs:api:model": "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts"

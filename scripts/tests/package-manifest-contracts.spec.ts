@@ -7,10 +7,45 @@ import {
   exportConditionOrderDiagnostics,
   exportConditionSequenceParityDiagnostics,
   fieldMatchesPath,
+  isCiScriptOnlyManifestChange,
   packageLicenseDiagnostics,
 } from "../package-manifest-contracts.mjs";
 
 describe("package-manifest-contracts", () => {
+  it("exempts only additions of canonical CI scripts while preserving all existing scripts", () => {
+    const base = { name: "@croco/example", scripts: { test: "vitest run" } };
+    const head = {
+      ...base,
+      scripts: {
+        ...base.scripts,
+        "test:evidence":
+          "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
+      },
+    };
+    expect(isCiScriptOnlyManifestChange(base, head)).toBe(true);
+    expect(isCiScriptOnlyManifestChange(base, base)).toBe(false);
+    expect(isCiScriptOnlyManifestChange(head, base)).toBe(false);
+    expect(isCiScriptOnlyManifestChange(base, { ...head, main: "./dist/other.js" })).toBe(false);
+    expect(
+      isCiScriptOnlyManifestChange(base, {
+        ...head,
+        scripts: { ...head.scripts, test: "vitest run src/tests/Selected.spec.ts" },
+      }),
+    ).toBe(false);
+    expect(
+      isCiScriptOnlyManifestChange(base, {
+        ...head,
+        scripts: { ...head.scripts, "test:evidence": "echo success" },
+      }),
+    ).toBe(false);
+    expect(
+      isCiScriptOnlyManifestChange(
+        { ...head, scripts: { ...head.scripts, "test:evidence": "echo old" } },
+        head,
+      ),
+    ).toBe(false);
+  });
+
   it("applies publishConfig overrides to the effective publish manifest", () => {
     expect(
       effectivePublishManifest({

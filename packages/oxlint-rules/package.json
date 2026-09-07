@@ -9,7 +9,8 @@
   },
   "scripts": {
     "lint": "oxlint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json"
   },
   "devDependencies": {
     "vitest": "4.1.8"

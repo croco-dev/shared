@@ -39,6 +39,7 @@
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts --external @croco/engagement-core --external @croco/problems-core --external @react-email/render --external react --external react-dom",
     "lint": "oxlint .",
     "test": "vitest run src/tests/ReactEmail.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:published": "vitest run src/tests/PublishedReactEmail.spec.ts",
     "test:packed": "vitest run src/tests/PublishedReactEmail.spec.ts",
     "typecheck": "tsc --noEmit",

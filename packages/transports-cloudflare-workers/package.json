@@ -29,6 +29,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts",
     "test": "vitest run --exclude src/tests/PublishedWorkerTypes.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:published": "vitest run src/tests/PublishedWorkerTypes.spec.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",

@@ -34,6 +34,7 @@
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts --external react --external react-dom --external @stylexjs/stylex --external @astryxdesign/core --external @astryxdesign/core/AppShell --external @astryxdesign/core/Badge --external @astryxdesign/core/Banner --external @astryxdesign/core/Button --external @astryxdesign/core/Card --external @astryxdesign/core/theme --external @astryxdesign/theme-neutral --external @croco/problems-core && cp styles.css dist/styles.css",
     "lint": "oxlint .",
     "test": "vitest run",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "typecheck": "tsc --noEmit",
     "docs:api:model": "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts"
   },

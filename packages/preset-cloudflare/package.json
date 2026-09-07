@@ -33,6 +33,7 @@
     "build": "tsup && cp dist/index.d.mts dist/index.d.ts && cp dist/fetch.d.mts dist/fetch.d.ts",
     "lint": "oxlint .",
     "test": "vitest run",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "typecheck": "tsc --noEmit",
     "docs:api:model": "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts"
   },

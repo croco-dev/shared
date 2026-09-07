@@ -38,6 +38,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "test": "vitest run --exclude src/tests/DrizzleApiKeyStore.postgres.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:live": "vitest run src/tests/DrizzleApiKeyStore.postgres.spec.ts",
     "docs:api:model": "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts"
   },

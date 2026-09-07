@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -74,7 +75,8 @@ describe("test lane runner", () => {
     ]);
 
     expect(args).not.toContain("--only");
-    expect(args).toContain("--maxWorkers=1");
+    expect(args).toContain("test:evidence");
+    expect(args).not.toContain("--");
     expect(args).toContain("--filter=@croco/events-core");
     expect(args.find((argument) => argument.startsWith("--concurrency="))).toMatch(
       /^--concurrency=[1-4]$/,
@@ -95,15 +97,16 @@ describe("test lane runner", () => {
     expect(resolveMaxRootVitestWorkers({ CROCO_TEST_WORKERS: "-2" }, 4)).toBe(2);
   });
 
-  it(
-    "builds workspace dependencies before a clean-cache fast package test",
-    () => {
+  it.each(["cold", "warm"])(
+    "resolves the build graph from a %s cache and restores fast test evidence",
+    (cacheState) => {
       const root = mkdtempSync(join(tmpdir(), "croco-fast-lane-build-graph-"));
       const previousTurboCacheDirectory = process.env.TURBO_CACHE_DIR;
       const previousTurboForce = process.env.TURBO_FORCE;
       try {
         process.env.TURBO_CACHE_DIR = join(root, ".turbo-cache");
-        process.env.TURBO_FORCE = "1";
+        delete process.env.TURBO_FORCE;
+        writeFileSync(join(root, ".gitignore"), "node_modules\n**/dist\n**/.turbo\n.turbo-cache\n");
         mkdirSync(join(root, "packages/dependency"), { recursive: true });
         mkdirSync(join(root, "packages/consumer/src/tests"), { recursive: true });
         symlinkSync(
@@ -115,7 +118,10 @@ describe("test lane runner", () => {
           join(root, "package.json"),
           `${JSON.stringify({ private: true, packageManager: PACKAGE_MANAGER }, null, 2)}\n`,
         );
-        writeFileSync(join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+        writeFileSync(
+          join(root, "pnpm-workspace.yaml"),
+          "packages:\n  - packages/*\nverifyDepsBeforeRun: false\n",
+        );
         writeFileSync(
           join(root, "pnpm-lock.yaml"),
           "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\nimporters:\n  .: {}\n  packages/dependency: {}\n  packages/consumer:\n    dependencies:\n      '@fixture/dependency':\n        specifier: workspace:*\n        version: link:../dependency\n",
@@ -126,7 +132,7 @@ describe("test lane runner", () => {
             {
               tasks: {
                 build: { dependsOn: ["^build"], outputs: ["dist/**"] },
-                test: {
+                "test:evidence": {
                   dependsOn: ["build", "^build"],
                   outputs: [".turbo/croco-test-evidence.json"],
                 },
@@ -162,6 +168,8 @@ describe("test lane runner", () => {
               scripts: {
                 build: "node build.mjs",
                 test: "vitest run src/tests/consumer.spec.ts",
+                "test:evidence":
+                  "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
               },
             },
             null,
@@ -177,22 +185,44 @@ describe("test lane runner", () => {
           'import { existsSync } from "node:fs";\nimport { expect, it } from "vitest";\nit("receives declared build artifacts", () => {\n  expect(existsSync("../dependency/dist/ready.txt")).toBe(true);\n  expect(existsSync("dist/ready.txt")).toBe(true);\n});\n',
         );
 
-        const report = runTestLane({
+        if (cacheState === "warm") {
+          execFileSync(
+            resolve(import.meta.dirname, "../../node_modules/.bin/turbo"),
+            ["run", "build", "--summarize"],
+            { cwd: root, env: process.env, stdio: "pipe" },
+          );
+          rmSync(join(root, "packages/dependency/dist"), { recursive: true });
+          rmSync(join(root, "packages/consumer/dist"), { recursive: true });
+        }
+        const buildSummary = readTurboRunSummary(root, "");
+        const laneOptions: Parameters<typeof runTestLane>[0] = {
           inventory: {
             version: 1,
             exceptions: [],
             tests: [
               {
                 path: "packages/consumer/src/tests/consumer.spec.ts",
-                lane: "fast",
+                lane: "fast" as const,
                 qualifiers: [],
                 owner: "@fixture/consumer",
               },
             ],
           },
-          lane: "fast",
+          lane: "fast" as const,
           rootDir: root,
-        });
+        };
+        const report = runTestLane(laneOptions);
+        const laneSummary = readTurboRunSummary(root, "");
+        const buildTasks = laneSummary?.tasks?.filter((task) => task.task === "build");
+        expect(buildTasks).toHaveLength(2);
+        for (const task of buildTasks ?? []) {
+          expect(task.cache?.status).toBe(cacheState === "warm" ? "HIT" : "MISS");
+          if (cacheState === "warm") {
+            expect(task.hash).toBe(
+              buildSummary?.tasks?.find((build) => build.package === task.package)?.hash,
+            );
+          }
+        }
 
         expect(report.status).toBe("passed");
         expect(existsSync(join(root, "packages/dependency/dist/ready.txt"))).toBe(true);
@@ -204,6 +234,12 @@ describe("test lane runner", () => {
             cacheHash: expect.any(String),
           }),
         ]);
+        const restored = runTestLane(laneOptions);
+        expect(restored.status).toBe("passed");
+        expect(restored.commands[0]).toMatchObject({
+          executionState: "reused",
+          executedPaths: ["src/tests/consumer.spec.ts"],
+        });
       } finally {
         if (previousTurboCacheDirectory === undefined) {
           delete process.env.TURBO_CACHE_DIR;
@@ -487,9 +523,11 @@ describe("test lane runner", () => {
       tasks: [
         {
           package: "@croco/a",
-          task: "test",
+          task: "test:evidence",
           hash: "task-hash",
-          cliArguments: ["--reporter=json", "--outputFile=.turbo/croco-test-evidence.json"],
+          command:
+            "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
+          cliArguments: [],
           execution: { exitCode: 0 },
           cache: { status: "HIT" },
         },
@@ -513,6 +551,16 @@ describe("test lane runner", () => {
       executionState: "reused",
       cacheHash: "task-hash",
     });
+
+    for (const invalidTask of [
+      { ...summary.tasks[0], task: "test" },
+      { ...summary.tasks[0], command: "pnpm run test" },
+      { ...summary.tasks[0], cliArguments: ["--maxWorkers=2"] },
+    ]) {
+      expect(
+        readTurboTestTaskEvidence(root, command, "@croco/a", { tasks: [invalidTask] }),
+      ).toBeUndefined();
+    }
 
     writeReport([`C:\\relocated\\worktree\\packages\\a\\src\\tests\\one.spec.ts`]);
     expect(readTurboTestTaskEvidence(root, command, "@croco/a", summary)).toMatchObject({
@@ -610,9 +658,11 @@ describe("test lane runner", () => {
         tasks: [
           {
             package: "@croco/a",
-            task: "test",
+            task: "test:evidence",
             hash: "task-hash",
-            cliArguments: ["--reporter=json", "--outputFile=.turbo/croco-test-evidence.json"],
+            command:
+              "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
+            cliArguments: [],
             execution: { exitCode: 0 },
             cache: { status: cacheStatus },
           },

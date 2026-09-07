@@ -149,17 +149,13 @@ export function createFastPackageTurboArguments(
   return [
     "turbo",
     "run",
-    "test",
+    "test:evidence",
     `--concurrency=${concurrency}`,
     ...resolveTurboPackageFilters(rootDir, packageCommands).map(
       (packageName) => `--filter=${packageName}`,
     ),
     "--summarize",
     "--continue=always",
-    "--",
-    "--maxWorkers=1",
-    "--reporter=json",
-    `--outputFile=${VITEST_EVIDENCE_FILE}`,
   ];
 }
 
@@ -193,6 +189,7 @@ export type TurboRunSummary = {
     readonly task?: string;
     readonly hash?: string;
     readonly cliArguments?: readonly string[];
+    readonly command?: string;
     readonly execution?: { readonly exitCode?: number };
     readonly cache?: { readonly status?: string };
   }[];
@@ -563,15 +560,16 @@ export function readTurboTestTaskEvidence(
     }
   | undefined {
   const task = summary?.tasks?.find(
-    (candidate) => candidate.package === packageName && candidate.task === "test",
+    (candidate) => candidate.package === packageName && candidate.task === "test:evidence",
   );
   const reportPath = evidencePath(rootDir, command);
   if (
     task?.execution?.exitCode !== 0 ||
     typeof task.hash !== "string" ||
     task.hash.length === 0 ||
-    task.cliArguments?.includes("--reporter=json") !== true ||
-    !task.cliArguments.includes(`--outputFile=${VITEST_EVIDENCE_FILE}`) ||
+    task.command !==
+      `pnpm run test --maxWorkers=1 --reporter=json --outputFile=${VITEST_EVIDENCE_FILE}` ||
+    task.cliArguments?.length !== 0 ||
     !existsSync(reportPath)
   ) {
     return undefined;

@@ -726,34 +726,38 @@ describe("cacheable producer lane evidence", () => {
     ).rejects.toMatchObject({ code: "CACHEABLE_LANE_CHANGE_RANGE_FAILED", category: "input" });
   });
 
-  it("turns a physical prerequisite failure into owned failure evidence without attesting the prerequisite", async () => {
-    useCurrentRunEnvironment();
-    const rootDir = mkdtempSync(join(tmpdir(), "croco-cacheable-lane-prerequisite-"));
+  it.each(["release-metadata", "architecture-policy-runtime"])(
+    "turns a failed %s prerequisite into owned failure evidence without attesting it",
+    async (prerequisite) => {
+      useCurrentRunEnvironment();
+      const rootDir = mkdtempSync(join(tmpdir(), "croco-cacheable-lane-prerequisite-"));
 
-    const result = await runCacheableLane({
-      identity: identity(),
-      lane: "generated-apps",
-      profile: "publish",
-      rootDir,
-      runner: failingRunner("architecture-policy-runtime"),
-    });
+      const result = await runCacheableLane({
+        identity: identity(),
+        lane: "generated-apps",
+        profile: "publish",
+        rootDir,
+        runner: failingRunner(prerequisite),
+      });
 
-    expect(result.failed).toBe(true);
-    expect(result.report.checks.map(({ id }) => id)).toEqual([
-      "architecture-policy-runtime",
-      "build",
-      "generated-app-smoke",
-    ]);
-    expect(result.bundle.checks.map(({ id }) => id)).toEqual(["generated-app-smoke"]);
-    expect(result.bundle.attestations.map(({ checkId }) => checkId)).toEqual([
-      "generated-app-smoke",
-    ]);
-    expect(result.bundle.receipts).toEqual([]);
-    expect(result.bundle.checks[0]).toMatchObject({
-      outcome: "failed",
-      receiptDigest: null,
-    });
-  });
+      expect(result.failed).toBe(true);
+      expect(result.report.checks.map(({ id }) => id)).toEqual([
+        "release-metadata",
+        "architecture-policy-runtime",
+        "build",
+        "generated-app-smoke",
+      ]);
+      expect(result.bundle.checks.map(({ id }) => id)).toEqual(["generated-app-smoke"]);
+      expect(result.bundle.attestations.map(({ checkId }) => checkId)).toEqual([
+        "generated-app-smoke",
+      ]);
+      expect(result.bundle.receipts).toEqual([]);
+      expect(result.bundle.checks[0]).toMatchObject({
+        outcome: "failed",
+        receiptDigest: null,
+      });
+    },
+  );
 
   it("creates executed receipts for selected passed checks and keeps warning semantics advisory", async () => {
     useCurrentRunEnvironment();
@@ -982,33 +986,50 @@ describe("cacheable producer lane evidence", () => {
     ).toThrow(/Unable to read copied artifact/);
   });
 
-  it("never exposes physical prerequisites or legacy mutable paths in the producer bundle", async () => {
-    useCurrentRunEnvironment();
-    const rootDir = mkdtempSync(join(tmpdir(), "croco-cacheable-lane-paths-"));
+  it.each([false, true])(
+    "includes all immutable prerequisite evidence in coverage-security (metadata failure: %s)",
+    async (metadataFails) => {
+      useCurrentRunEnvironment();
+      const rootDir = mkdtempSync(join(tmpdir(), "croco-cacheable-lane-paths-"));
 
-    const result = await runCacheableLane({
-      identity: identity(),
-      lane: "coverage-security",
-      profile: "publish",
-      rootDir,
-      runner: successfulRunner(rootDir),
-      securityPhysical: securityPhysical(),
-    });
-    const serialized = JSON.stringify(result.bundle);
+      const result = await runCacheableLane({
+        identity: identity(),
+        lane: "coverage-security",
+        profile: "publish",
+        rootDir,
+        runner: metadataFails ? failingRunner("release-metadata") : successfulRunner(rootDir),
+        securityPhysical: securityPhysical(),
+      });
+      const serialized = JSON.stringify(result.bundle);
+      const prerequisite = result.report.checks.find(({ id }) => id === "release-metadata");
+      expect(prerequisite?.status).toBe(metadataFails ? "failed" : "passed");
+      expect(result.bundle.checks.some(({ id }) => id === "release-metadata")).toBe(false);
+      const prerequisiteFiles = prerequisite?.artifacts.flatMap(({ copiedPath }) =>
+        copiedPath === null ? [] : regularFiles(join(rootDir, copiedPath)),
+      );
+      expect(prerequisiteFiles).toHaveLength(metadataFails ? 2 : 0);
+      for (const path of prerequisiteFiles ?? []) {
+        expect(result.bundle.artifact.files).toContainEqual({
+          path: relative(rootDir, path).replaceAll("\\", "/"),
+          digest: fileDigest(path),
+          bytes: lstatSync(path).size,
+        });
+      }
 
-    expect(result.bundle.checks.some(({ id }) => id === "build")).toBe(false);
-    expect(serialized).not.toMatch(/(?:^|[\\/])\.turbo(?:[\\/]|$)/);
-    expect(serialized).not.toMatch(/(?:^|[\\/])dist(?:[\\/]|$)/);
-    expect(serialized.toLowerCase()).not.toContain("checkpoint");
-    expect(result.bundle.artifact.files.every(({ path }) => path.startsWith("ci-reports/"))).toBe(
-      true,
-    );
-    const uploadedFiles = regularFiles(result.outputDir)
-      .map((path) => relative(rootDir, path).replaceAll("\\", "/"))
-      .filter((path) => !path.endsWith("/producer-bundle.json"))
-      .sort();
-    expect(result.bundle.artifact.files.map(({ path }) => path).sort()).toEqual(uploadedFiles);
-  });
+      expect(result.bundle.checks.some(({ id }) => id === "build")).toBe(false);
+      expect(serialized).not.toMatch(/(?:^|[\\/])\.turbo(?:[\\/]|$)/);
+      expect(serialized).not.toMatch(/(?:^|[\\/])dist(?:[\\/]|$)/);
+      expect(serialized.toLowerCase()).not.toContain("checkpoint");
+      expect(result.bundle.artifact.files.every(({ path }) => path.startsWith("ci-reports/"))).toBe(
+        true,
+      );
+      const uploadedFiles = regularFiles(result.outputDir)
+        .map((path) => relative(rootDir, path).replaceAll("\\", "/"))
+        .filter((path) => !path.endsWith("/producer-bundle.json"))
+        .sort();
+      expect(result.bundle.artifact.files.map(({ path }) => path).sort()).toEqual(uploadedFiles);
+    },
+  );
 
   it("fails closed when current-run provenance drifts from the strict identity", async () => {
     useCurrentRunEnvironment();

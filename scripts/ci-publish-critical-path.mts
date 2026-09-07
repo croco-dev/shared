@@ -152,10 +152,10 @@ export function evaluatePublishCriticalPath(
   }
   const testLaneRunner =
     options.testLaneRunnerSource ?? readFileSync(resolve("scripts/test-lane-runner.mts"), "utf8");
-  // Exclude `--only` anywhere in the turbo command arguments between "test" and
-  // the `--` Vitest pass-through separator, not only immediately after "test".
-  const fastTurboArgs = /"turbo",\s*"run",\s*"test",([\s\S]*?)"--",/.exec(testLaneRunner)?.[1];
-  if (fastTurboArgs !== undefined && /"--only",/.test(fastTurboArgs)) {
+  const fastTurboArgs = /"turbo",\s*"run",\s*"test:evidence",([\s\S]*?)\];/.exec(
+    testLaneRunner,
+  )?.[1];
+  if (fastTurboArgs !== undefined && /"--only"/.test(fastTurboArgs)) {
     diagnostics.push(
       "fast test lane must retain its declared build dependencies on a clean checkout",
     );

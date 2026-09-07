@@ -812,6 +812,99 @@ describe("release-spine-evidence.mts", () => {
     expect(maximumActive).toBe(2);
   });
 
+  it.each([
+    { metadataStatus: 2, allowPendingReleaseMetadata: false },
+    { metadataStatus: 0, allowPendingReleaseMetadata: false },
+    { metadataStatus: 0, allowPendingReleaseMetadata: true },
+  ])(
+    "gates heavy publish commands on metadata ($metadataStatus, pending=$allowPendingReleaseMetadata)",
+    async ({ metadataStatus, allowPendingReleaseMetadata }) => {
+      const repo = createTempRepo();
+      const heavyIds = [
+        "build",
+        "typecheck",
+        "test",
+        "integration-test-lane",
+        "published-test-lane",
+        "generated-app-smoke",
+        "package-entrypoints-smoke",
+        "core-coverage",
+        "publish-dry-run",
+      ];
+      const manifest = createVerificationManifest("publish", { allowPendingReleaseMetadata });
+      const commands = manifest.map((command) => ({ ...command, artifacts: [] }));
+      const events: string[] = [];
+      const report = await runReleaseSpineEvidence({
+        rootDir: repo,
+        outputDir: join(repo, "out"),
+        totalTimeoutMs: 10_000,
+        maxConcurrency: 4,
+        profile: "publish",
+        commands,
+        runner: async (command) => {
+          events.push(`start:${command.id}`);
+          await Promise.resolve();
+          events.push(`end:${command.id}`);
+          return command.id === "release-metadata"
+            ? { ...okResult(command.id), status: metadataStatus }
+            : okResult(command.id);
+        },
+      });
+
+      expect(report.status).toBe(metadataStatus === 0 ? "passed" : "failed");
+      expect(findCheck(report.checks, "release-metadata").status).toBe(
+        metadataStatus === 0 ? "passed" : "failed",
+      );
+      expect(
+        findCheck(manifest, "release-metadata").command.includes("--allow-pending-changesets"),
+      ).toBe(allowPendingReleaseMetadata);
+      for (const id of heavyIds) {
+        expect(findCheck(report.checks, id).status, id).toBe(
+          metadataStatus === 0 ? "passed" : "skipped_prerequisite",
+        );
+        if (metadataStatus === 0) {
+          expect(events.indexOf(`start:${id}`), id).toBeGreaterThan(
+            events.indexOf("end:release-metadata"),
+          );
+        } else {
+          expect(events, id).not.toContain(`start:${id}`);
+        }
+      }
+      if (metadataStatus !== 0) {
+        expect(findCheck(report.checks, "build").failureReason).toContain(
+          "release-metadata (failed)",
+        );
+      }
+      expect(report.summary.pending).toBe(0);
+    },
+  );
+
+  it("continues publish builds when release metadata is outside the changed inputs", async () => {
+    const repo = createTempRepo();
+    const manifest = createVerificationManifest("publish", {
+      base: "origin/trunk",
+      head: "HEAD",
+      changedFiles: ["packages/framework-context/src/index.ts"],
+    });
+    const commands = manifest
+      .filter(({ id }) => ["release-metadata", "architecture-policy-runtime", "build"].includes(id))
+      .map((command) => ({ ...command, artifacts: [] }));
+    const runner = vi.fn((command: EvidenceCommand) => okResult(command.id));
+    const report = await runReleaseSpineEvidence({
+      rootDir: repo,
+      outputDir: join(repo, "out"),
+      totalTimeoutMs: 10_000,
+      profile: "publish",
+      commands,
+      runner,
+    });
+
+    expect(report.status).toBe("passed");
+    expect(findCheck(report.checks, "release-metadata").status).toBe("not_applicable");
+    expect(findCheck(report.checks, "build").status).toBe("passed");
+    expect(runner.mock.calls.map(([command]) => command.id)).not.toContain("release-metadata");
+  });
+
   it("waits for dependencies and fails closed when a prerequisite fails", async () => {
     const repo = createTempRepo();
     const events: string[] = [];

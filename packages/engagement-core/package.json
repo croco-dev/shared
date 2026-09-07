@@ -38,6 +38,7 @@
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts",
     "lint": "oxlint .",
     "test": "vitest run src/tests/MessageContracts.spec.ts src/tests/EngagementService.spec.ts src/tests/EngagementStores.spec.ts src/tests/CampaignContracts.spec.ts src/tests/CampaignStore.spec.ts src/tests/CampaignServices.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:published": "vitest run src/tests/PublishedMessageContracts.spec.ts",
     "test:packed": "vitest run src/tests/PublishedMessageContracts.spec.ts",
     "typecheck": "tsc --noEmit",

@@ -944,7 +944,7 @@ function readTurboTestRun(
   const summary = readTurboRunSummaries(join(rootDir, ".turbo", "runs"))
     .filter(
       (candidate) =>
-        /(?:^|\s)turbo\s+(?:run\s+)?test(?:\s|$)/.test(candidate.command) &&
+        /(?:^|\s)turbo\s+(?:run\s+)?test(?::evidence)?(?:\s|$)/.test(candidate.command) &&
         statSync(candidate.filePath).mtimeMs >= startedAtMs &&
         candidate.endTime >= startedAtMs &&
         candidate.endTime <= completedAtMs,

@@ -1383,6 +1383,7 @@ type VerificationDependencyEdge =
   | "architecture-policy->architecture-policy-runtime"
   | "benchmark-thresholds->verification-contract-tests"
   | "build->architecture-policy-runtime"
+  | "build->release-metadata"
   | "quick-start-lambda-smoke->build"
   | "first-success->build"
   | "package-entrypoints-smoke->build"
@@ -1428,6 +1429,7 @@ export const VERIFICATION_DEPENDENCY_CLASSIFICATION = {
   "architecture-policy->architecture-policy-runtime": ["physical-local"],
   "benchmark-thresholds->verification-contract-tests": ["physical-local"],
   "build->architecture-policy-runtime": ["physical-local"],
+  "build->release-metadata": ["physical-local", "logical-synthesis"],
   "quick-start-lambda-smoke->build": ["physical-local"],
   "first-success->build": ["physical-local"],
   "package-entrypoints-smoke->build": ["physical-local", "logical-synthesis"],
@@ -1491,8 +1493,15 @@ const PACKAGE_ENTRYPOINT_CONCURRENCY_GROUP = new Set([
   "published-test-lane",
 ]);
 
-function withSchedulingContract(command: EvidenceCommand): EvidenceCommand {
-  const dependsOn = VERIFICATION_DEPENDENCIES[command.id];
+function withSchedulingContract(
+  command: EvidenceCommand,
+  profile: VerificationProfile,
+): EvidenceCommand {
+  const dependencies = VERIFICATION_DEPENDENCIES[command.id];
+  const dependsOn =
+    profile === "publish" && command.id === "build"
+      ? [...(dependencies ?? []), "release-metadata"]
+      : dependencies;
   const writesWorkspaceArtifacts =
     WORKSPACE_ARTIFACT_CONCURRENCY_GROUP.has(command.id) ||
     (command.id === "package-entrypoints-smoke" && command.command.includes("--build-missing"));
@@ -1619,13 +1628,19 @@ export function createVerificationManifest(
     profile,
     profile === "publish" || fastTestCoversRepositoryContracts,
   );
+  const publish = profile === "publish" ? publishOnly(context) : [];
   const commands = (
     profile === "repo"
       ? repo
       : profile === "spine"
         ? [...repo, ...spine]
-        : [...repo, ...spine, ...publishOnly(context)]
-  ).map(withSchedulingContract);
+        : [
+            ...publish.filter(({ id }) => id === "release-metadata"),
+            ...repo,
+            ...spine,
+            ...publish.filter(({ id }) => id !== "release-metadata"),
+          ]
+  ).map((command) => withSchedulingContract(command, profile));
   assertVerificationManifest(commands);
   return commands;
 }

@@ -9,9 +9,16 @@ export const EXPORT_CONDITION_ORDER = ["types", "import", "require"];
 
 export const EXPECTED_PACKAGE_LICENSE = "Apache-2.0";
 
-const DOCS_API_MODEL_SCRIPT_NAME = "docs:api:model";
-const DOCS_API_MODEL_SCRIPT_COMMAND =
-  "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts";
+const CI_SCRIPT_COMMANDS = new Map([
+  [
+    "docs:api:model",
+    "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts",
+  ],
+  [
+    "test:evidence",
+    "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
+  ],
+]);
 
 export const BUNDLED_RUNTIME_DEPENDENCY_EXEMPTIONS = new Map([
   [
@@ -212,7 +219,7 @@ export function effectivePublishManifest(sourceManifest) {
  * @param {unknown} baseManifest
  * @param {unknown} headManifest
  */
-export function isDocsApiModelScriptOnlyManifestChange(baseManifest, headManifest) {
+export function isCiScriptOnlyManifestChange(baseManifest, headManifest) {
   if (!isRecord(baseManifest) || !isRecord(headManifest)) {
     return false;
   }
@@ -231,23 +238,25 @@ export function isDocsApiModelScriptOnlyManifestChange(baseManifest, headManifes
 
   const originalScripts = baseScripts ?? {};
 
+  let addedCiScript = false;
   for (const scriptName of new Set([
     ...Object.keys(originalScripts),
     ...Object.keys(headScripts),
   ])) {
-    if (scriptName === DOCS_API_MODEL_SCRIPT_NAME) {
+    if (valuesMatch(originalScripts[scriptName], headScripts[scriptName])) {
       continue;
     }
-
-    if (!valuesMatch(originalScripts[scriptName], headScripts[scriptName])) {
+    if (
+      originalScripts[scriptName] !== undefined ||
+      !CI_SCRIPT_COMMANDS.has(scriptName) ||
+      headScripts[scriptName] !== CI_SCRIPT_COMMANDS.get(scriptName)
+    ) {
       return false;
     }
+    addedCiScript = true;
   }
 
-  return (
-    originalScripts[DOCS_API_MODEL_SCRIPT_NAME] === undefined &&
-    headScripts[DOCS_API_MODEL_SCRIPT_NAME] === DOCS_API_MODEL_SCRIPT_COMMAND
-  );
+  return addedCiScript;
 }
 
 function isRecord(value) {

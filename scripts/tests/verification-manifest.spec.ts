@@ -270,9 +270,10 @@ describe("verification manifest", () => {
       ...spineOnlyIds,
     ]);
     expect(createVerificationManifest("publish").map(({ id }) => id)).toEqual([
+      "release-metadata",
       ...repoIds,
       ...spineOnlyIds,
-      ...publishOnlyIds,
+      ...publishOnlyIds.filter((id) => id !== "release-metadata"),
     ]);
     expect(
       createVerificationManifest("publish").find(({ id }) => id === "spine-bundle-size")?.command,
@@ -318,7 +319,7 @@ describe("verification manifest", () => {
     expect(
       createHash("sha256").update(JSON.stringify(manifests)).digest("hex"),
       "The pre-split monolithic manifest changed; update this digest only after intentionally verifying the new serialized commands.",
-    ).toBe("f3ca956de56f4e7d44cab558e942f6cfecc8a427cb677c0dd63b4058aebf7efa");
+    ).toBe("8af5fdd8d9a771799ebdad2957196b812be065bfb6a5939ead52c569b2142336");
   });
 
   it("classifies every dependency edge and every cross-lane edge for synthesis", () => {
@@ -380,12 +381,12 @@ describe("verification manifest", () => {
       createVerificationLaneManifest("publish", "generated-apps").physicalLocalPrerequisites.map(
         ({ id }) => id,
       ),
-    ).toEqual(["architecture-policy-runtime", "build"]);
+    ).toEqual(["release-metadata", "architecture-policy-runtime", "build"]);
     expect(
       createVerificationLaneManifest("publish", "coverage-security").physicalLocalPrerequisites.map(
         ({ id }) => id,
       ),
-    ).toEqual(["architecture-policy-runtime", "build"]);
+    ).toEqual(["release-metadata", "architecture-policy-runtime", "build"]);
     expect(
       createVerificationLaneManifest("publish", "split-validation-shadow")
         .physicalLocalPrerequisites,
@@ -1422,6 +1423,22 @@ describe("verification manifest", () => {
     expect(() =>
       assertVerificationManifest([{ ...command, id: "wrapper", command: ["pnpm", "check"] }]),
     ).toThrow("Composite root alias");
+  });
+
+  it("gates publish builds on release metadata without changing ordinary profiles", () => {
+    expect(
+      createVerificationManifest("publish").find(({ id }) => id === "build")?.dependsOn,
+    ).toEqual(["architecture-policy-runtime", "release-metadata"]);
+    for (const profile of ["repo", "spine"] as const) {
+      for (const command of createVerificationManifest(profile)) {
+        expect(command.dependsOn ?? []).not.toContain("release-metadata");
+      }
+    }
+    expect(
+      createVerificationLaneManifest("publish", "core-verification").physicalLocalPrerequisites.map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["release-metadata"]);
   });
 
   it("rejects invalid scheduling metadata", () => {

@@ -30,6 +30,7 @@
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts",
     "lint": "oxlint .",
     "test": "vitest run --exclude src/tests/RealResources.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:live": "CROCO_TEST_REAL_RESOURCES=1 vitest run src/tests/RealResources.spec.ts",
     "test:real": "CROCO_TEST_REAL_RESOURCES=1 vitest run src/tests/RealResources.spec.ts",
     "typecheck": "tsc --noEmit",

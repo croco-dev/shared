@@ -48,6 +48,7 @@
     "lint": "oxlint .",
     "smoke:generated-apps": "node --experimental-strip-types ../../scripts/create-croco-app-generated-smoke.mts",
     "test": "vitest run --exclude src/tests/e2e-advanced.spec.ts --exclude src/tests/e2e-generation.spec.ts --exclude src/tests/e2e-vite-spa.spec.ts --exclude src/tests/PublishedCli.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:integration": "vitest run src/tests/e2e-advanced.spec.ts src/tests/e2e-generation.spec.ts src/tests/e2e-vite-spa.spec.ts",
     "test:published": "vitest run src/tests/PublishedCli.spec.ts",
     "typecheck": "tsc --noEmit",

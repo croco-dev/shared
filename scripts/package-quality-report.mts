@@ -867,7 +867,7 @@ function parseTurboTask(task: unknown): TurboTaskSummary | null {
 
   return {
     taskId,
-    task: task.task,
+    task: task.task === "test:evidence" ? "test" : task.task,
     package: task.package,
     directory,
     logFile,
@@ -916,9 +916,12 @@ export function readTurboRunSummaries(summaryDir: string): TurboRunSummary[] {
 }
 
 function getCommandTask(command: string): QualityTask | null {
-  const match = command.match(/(?:^|\s)turbo\s+(?:run\s+)?(build|typecheck|test)(?:\s|$)/);
+  const match = command.match(
+    /(?:^|\s)turbo\s+(?:run\s+)?(build|typecheck|test(?::evidence)?)(?:\s|$)/,
+  );
   const task = match?.[1];
 
+  if (task === "test:evidence") return "test";
   return task === "build" || task === "typecheck" || task === "test" ? task : null;
 }
 

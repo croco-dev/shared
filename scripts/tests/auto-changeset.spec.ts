@@ -304,12 +304,20 @@ describe("auto-changeset.mts", () => {
     expect(changeset).toContain("'@croco/telemetry-sdk-node': patch");
   });
 
-  it("skips canonical API model script-only manifest changes", () => {
+  it.each([
+    [
+      "docs:api:model",
+      "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts",
+    ],
+    [
+      "test:evidence",
+      "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
+    ],
+  ])("skips canonical CI script %s-only manifest changes", (scriptName, scriptCommand) => {
     const repo = createTempRepo();
     checkoutBranch(repo, "ci/api-model-script");
     writePackageManifest(repo, "packages/telemetry-sdk-node", "@croco/telemetry-sdk-node", false, {
-      "docs:api:model":
-        "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts",
+      [scriptName]: scriptCommand,
     });
     git(repo, ["add", "packages/telemetry-sdk-node/package.json"]);
     git(repo, ["commit", "-m", "fix(ci): cache API model generation"]);
@@ -326,31 +334,42 @@ describe("auto-changeset.mts", () => {
     expect(listChangesets(repo)).toEqual([]);
   });
 
-  it("does not exempt other manifest changes alongside the API model script", () => {
-    const repo = createTempRepo();
-    checkoutBranch(repo, "ci/api-model-script-and-version");
-    writePackageManifest(
-      repo,
-      "packages/telemetry-sdk-node",
-      "@croco/telemetry-sdk-node",
-      false,
-      {
-        "docs:api:model":
-          "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts",
-      },
-      "0.0.1",
-    );
-    git(repo, ["add", "packages/telemetry-sdk-node/package.json"]);
-    git(repo, ["commit", "-m", "fix: update telemetry package"]);
+  it.each([
+    [
+      "docs:api:model",
+      "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts",
+    ],
+    [
+      "test:evidence",
+      "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
+    ],
+  ])(
+    "does not exempt other manifest changes alongside the CI script %s",
+    (scriptName, scriptCommand) => {
+      const repo = createTempRepo();
+      checkoutBranch(repo, "ci/api-model-script-and-version");
+      writePackageManifest(
+        repo,
+        "packages/telemetry-sdk-node",
+        "@croco/telemetry-sdk-node",
+        false,
+        {
+          [scriptName]: scriptCommand,
+        },
+        "0.0.1",
+      );
+      git(repo, ["add", "packages/telemetry-sdk-node/package.json"]);
+      git(repo, ["commit", "-m", "fix: update telemetry package"]);
 
-    const result = runScript(
-      newBranchStdin("ci/api-model-script-and-version", git(repo, ["rev-parse", "HEAD"])),
-      repo,
-    );
+      const result = runScript(
+        newBranchStdin("ci/api-model-script-and-version", git(repo, ["rev-parse", "HEAD"])),
+        repo,
+      );
 
-    expect(result.status).toBe(1);
-    expect(readOnlyChangeset(repo)).toContain("'@croco/telemetry-sdk-node': patch");
-  });
+      expect(result.status).toBe(1);
+      expect(readOnlyChangeset(repo)).toContain("'@croco/telemetry-sdk-node': patch");
+    },
+  );
 
   it("uses pnpm workspace package patterns outside packages", () => {
     const repo = createTempRepo();

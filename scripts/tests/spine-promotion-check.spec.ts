@@ -369,6 +369,45 @@ describe("spine-promotion-check.mts", () => {
     ).toThrow("checkpoint provenance does not match");
   });
 
+  it.each([0, 1])("uses the newest CI test:evidence summary with exit code %s", (exitCode) => {
+    const fixture = createPromotionFixture("protocols-core");
+    writeJson(join(fixture.repo, "ci-run.json"), {
+      commitSha,
+      runId: "run-1",
+      runAttempt: "1",
+      startedAt,
+    });
+    writeTurboTestSummary(
+      fixture.repo,
+      "old-test.json",
+      "@croco/protocols-core",
+      Date.parse(startedAt) + 1_000,
+      { exitCode: 1 - exitCode },
+    );
+    writeTurboTestSummary(
+      fixture.repo,
+      "new-evidence.json",
+      "@croco/protocols-core",
+      Date.parse(startedAt) + 2_000,
+      { taskName: "test:evidence", exitCode },
+    );
+
+    const context = createCiPromotionEvidenceContext({
+      env: { SPINE_PROMOTION_TEST_OUTCOME: "success" },
+      rootDir: fixture.repo,
+      runFile: join(fixture.repo, "ci-run.json"),
+    });
+
+    expect(context.commands.find(({ commandId }) => commandId === "test")?.testTasks).toEqual([
+      {
+        packageName: "@croco/protocols-core",
+        status: exitCode === 0 ? "passed" : "failed",
+        taskId: "@croco/protocols-core#test:evidence",
+      },
+    ]);
+    expect(hasSpinePromotionFailures(createReport(fixture.repo, context))).toBe(exitCode !== 0);
+  });
+
   it("uses passed release fast-lane commands even when later Turbo summaries disagree", () => {
     const fixture = createPromotionFixture("protocols-core");
     const runId = "run-1";
@@ -678,20 +717,21 @@ function writeTurboTestSummary(
   fileName: string,
   packageName: string,
   endTime = Date.now(),
+  { taskName = "test", exitCode = 0 }: { taskName?: string; exitCode?: number } = {},
 ): void {
   writeJson(join(repo, ".turbo", "runs", fileName), {
     execution: {
-      command: "turbo run test --summarize --continue=always",
+      command: `turbo run ${taskName} --summarize --continue=always`,
       endTime,
-      exitCode: 0,
+      exitCode,
     },
     tasks: [
       {
-        taskId: `${packageName}#test`,
-        task: "test",
+        taskId: `${packageName}#${taskName}`,
+        task: taskName,
         package: packageName,
         directory: `packages/${packageName.replace(/^@croco\//, "")}`,
-        execution: { exitCode: 0 },
+        execution: { exitCode },
       },
     ],
   });

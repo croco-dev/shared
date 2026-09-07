@@ -41,6 +41,7 @@
     "build": "tsup src/index.ts --format esm,cjs --minify --clean --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest run --exclude src/tests/ResendLiveSmoke.spec.ts",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:live": "vitest run src/tests/ResendLiveSmoke.spec.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",

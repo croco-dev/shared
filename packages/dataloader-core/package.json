@@ -36,6 +36,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",

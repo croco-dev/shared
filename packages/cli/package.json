@@ -42,6 +42,7 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude \"src/tests/integration/**\"",
+    "test:evidence": "pnpm run test --maxWorkers=1 --reporter=json --outputFile=.turbo/croco-test-evidence.json",
     "test:integration": "vitest run src/tests/integration/CliCommandIntegration.spec.ts src/tests/integration/e2e.spec.ts src/tests/integration/jobs-e2e.spec.ts",
     "test:e2e": "vitest run src/tests/integration",
     "lint": "oxlint .",
