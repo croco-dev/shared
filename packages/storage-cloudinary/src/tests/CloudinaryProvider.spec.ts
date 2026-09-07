@@ -81,9 +81,9 @@ describe("CloudinaryProvider", () => {
           contentType: "unsupported",
           customMetadata: "required",
         },
-        putContentType: "image/png",
+        putContentType: "application/octet-stream",
         providerName: "storage-cloudinary",
-        publicUrl: "https://res.cloudinary.com/test-cloud/image/upload/",
+        publicUrl: "https://res.cloudinary.com/test-cloud/raw/upload/",
         signedUrl: /s=mock-signature/,
       }).cases,
     )("$name", async ({ run }) => {
@@ -1254,6 +1254,20 @@ describe("CloudinaryProvider", () => {
   });
 
   describe("resource type contract", () => {
+    it.each(["reports/invoice.pdf", "contracts/doc.zip", "notes/readme.txt"])(
+      "should upload raw key %s without interpreting its bytes as an image",
+      async (key) => {
+        vi.mocked(global.fetch).mockResolvedValue(jsonResponse({ public_id: key }));
+        await provider.put(key, Buffer.from([0, 255, 13, 10]));
+        expect(global.fetch).toHaveBeenCalledWith(
+          "https://api.cloudinary.com/v1_1/test-cloud/raw/upload",
+          expect.objectContaining({ method: "POST" }),
+        );
+        const intent = await provider.getUploadIntent(key);
+        expect(intent.uploadUrl).toBe("https://api.cloudinary.com/v1_1/test-cloud/raw/upload");
+        expect(intent.fields?.public_id).toBe(key);
+      },
+    );
     it("should upload image content in the image namespace", async () => {
       vi.mocked(global.fetch).mockResolvedValue(jsonResponse({ public_id: "test-key" }));
 
@@ -1378,13 +1392,17 @@ function useInMemoryCloudinaryBackend(): void {
         : "";
     const query = signUrlValue ? "?expires=60&s=mock-signature" : "";
 
-    return `${protocol}://res.cloudinary.com/${cloudName}/image/upload/${transformation}${key}${query}`;
+    const resourceType = optionRecord
+      ? (Reflect.get(optionRecord, "resource_type") ?? "image")
+      : "image";
+    return `${protocol}://res.cloudinary.com/${cloudName}/${resourceType}/upload/${transformation}${key}${query}`;
   });
 
   vi.mocked(global.fetch).mockImplementation(
     async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
-      if (url.pathname === "/v1_1/test-cloud/image/upload") {
+      const resourceType = url.pathname.includes("/raw/") ? "raw" : "image";
+      if (url.pathname === `/v1_1/test-cloud/${resourceType}/upload`) {
         const upload = await parseMultipartUpload(init);
         objects.set(upload.publicId, {
           context: upload.context,
@@ -1395,13 +1413,13 @@ function useInMemoryCloudinaryBackend(): void {
         return jsonResponse({ public_id: upload.publicId });
       }
 
-      if (url.pathname === "/v1_1/test-cloud/image/destroy") {
+      if (url.pathname === `/v1_1/test-cloud/${resourceType}/destroy`) {
         const key = init?.body instanceof URLSearchParams ? init.body.get("public_id") : undefined;
         const existed = key === null || key === undefined ? false : objects.delete(key);
         return jsonResponse({ result: existed ? "ok" : "not found" });
       }
 
-      const resourcePrefix = "/v1_1/test-cloud/resources/image/upload/";
+      const resourcePrefix = `/v1_1/test-cloud/resources/${resourceType}/upload/`;
       if (url.pathname.startsWith(resourcePrefix)) {
         const key = decodeURIComponent(url.pathname.slice(resourcePrefix.length));
         const object = objects.get(key);
@@ -1464,7 +1482,8 @@ async function parseMultipartUpload(
 
 function parseCloudinaryDeliveryKey(url: string, cloudName: string): string | null {
   const parsed = new URL(url);
-  const marker = `/${cloudName}/image/upload/`;
+  const resourceType = parsed.pathname.includes("/raw/") ? "raw" : "image";
+  const marker = `/${cloudName}/${resourceType}/upload/`;
   const markerIndex = parsed.pathname.indexOf(marker);
 
   if (markerIndex === -1) {

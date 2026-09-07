@@ -53,9 +53,9 @@ export type CloudinaryUploadOptions = {
   publicId?: string;
 
   /**
-   * 리소스 타입. CloudinaryProvider는 전체 객체 lifecycle에서 image만 지원합니다.
+   * 리소스 타입. CloudinaryProvider는 키 확장자로 전체 객체 lifecycle의 타입을 결정합니다.
    */
-  resourceType?: "image";
+  resourceType?: "image" | "video" | "raw";
 
   /**
    * 태그 목록

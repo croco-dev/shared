@@ -70,9 +70,24 @@ const response = await fetch(intent.uploadUrl, {
 });
 ```
 
-`CloudinaryProvider`는 전체 객체 lifecycle에서 이미지 리소스만 지원합니다. `image/*` MIME 또는 생략된
-`contentType`은 Cloudinary `image` namespace에 저장되며, `video/*`와 raw MIME은 bytes를 업로드하기 전에
-`storage-cloudinary/validation-failed`로 거부됩니다.
+`CloudinaryProvider`는 키의 마지막 확장자로 업로드, URL, 조회, 삭제에 사용할 리소스 타입을 결정합니다.
+
+- 이미지 확장자(`jpg`, `png`, `webp` 등)와 확장자 없는 기존 키는 `image`를 사용합니다.
+- 영상·오디오 확장자 `3g2`, `3gp`, `aac`, `aif`, `aiff`, `amr`, `avi`, `flac`, `flv`, `m2ts`,
+  `m4a`, `m4v`, `mkv`, `mov`, `mp3`, `mp4`, `mpeg`, `mpg`, `mts`, `mxf`, `ogg`, `ogv`, `opus`,
+  `ts`, `wav`, `webm`, `wmv`는 `video`를 사용합니다.
+  [공식 영상 목록](https://cloudinary.com/documentation/video_transcoding)과
+  [오디오 목록](https://cloudinary.com/documentation/audio_transformations)을 포함합니다.
+  매니페스트 파일 `m3u8`, `mpd`와 위 목록에 없는 확장자는 `raw`를 사용합니다.
+- 그 밖의 확장자(`pdf`, `zip`, `txt`, `bin` 등)는 원본 파일을 보존하는 `raw`를 사용합니다.
+
+확장자는 대소문자를 구분하지 않습니다. 비이미지 파일에는 확장자가 있는 키를 사용하세요.
+`put()`의 `contentType`은 키가 선택한 타입과 일치해야 하며, 생략하거나 `application/octet-stream`을
+사용할 수 있습니다. 타입이 충돌하거나 MIME 값에 줄바꿈이 있으면 업로드 전에
+`storage-cloudinary/validation-failed`로 거부합니다. 업로드 옵션으로 타입을 바꾸지 않으므로
+프로바이더를 재생성해도 같은 키로 파일을 조회하고 삭제할 수 있습니다.
+이전 버전에서 문서·영상 확장자를 가진 키를 `image` 타입으로 저장했다면 새로 선택되는 리소스 타입으로
+다시 업로드해야 합니다. 기존 리소스의 타입을 자동으로 검색하거나 옮기지는 않습니다.
 
 ## 설정
 
@@ -117,7 +132,7 @@ const health = await diagnostics.getHealth();
 - `readinessCheck`를 넘기지 않으면 외부 API를 호출하지 않고 설정 존재 여부만 `healthy`로 보고합니다.
 - `readinessCheck`가 실패하면 `degraded` 상태와 정규화된 provider Problem 코드가 반환됩니다.
 - 진단 detail은 토큰, secret, authorization 값을 redaction 처리합니다.
-- 진단 detail의 `acceptedResourceTypes`는 현재 지원 계약인 `["image"]`를 반환합니다.
+- 진단 detail의 `acceptedResourceTypes`는 지원하는 리소스 타입인 `["image", "video", "raw"]`를 반환합니다.
 
 ## 실패 코드
 
@@ -145,8 +160,15 @@ pnpm --filter @croco/storage-cloudinary test -- CloudinaryLiveSmoke
 - `cover`, `contain`, `fill`, `inside`, `outside`를 Cloudinary crop 값으로 변환합니다.
 - 일시적 네트워크 오류와 5xx 응답은 최대 3회 재시도합니다.
 - 업로드 인텐트는 직접 업로드 엔드포인트, 공개 URL, `public_id`, `timestamp`, `api_key`, `signature` multipart 필드를 반환합니다. API secret은 반환하지 않으며 Cloudinary의 서명 유효 시간에 맞춰 TTL은 최대 1시간입니다.
-- Cloudinary image `public_id` 규칙에 맞춰 직접 업로드 key의 마지막 경로에는 파일 확장자를 포함하지 않습니다. 파일 이름의 확장자는 multipart `file`에만 사용합니다.
-- 성공한 업로드는 항상 `image` namespace를 사용하므로 provider 재생성 후에도 조회, 존재 확인, 메타데이터 조회,
-  삭제가 같은 key로 동작합니다.
+- 이미지 직접 업로드 인텐트의 키는 기존처럼 확장자를 생략하며, raw 파일은 전체 키를 `public_id`로 사용합니다.
+- 영상·오디오 키는 `-`를 `--`로, `.`을 `-d`로 순서대로 이스케이프한 `public_id`를 사용합니다.
+  예를 들어 `clip.mp4`는 `clip-dmp4`, `clip-d.mp4`는 `clip--d-dmp4`가 되어 서로 충돌하지 않습니다.
+  업로드, 인텐트, URL, 메타데이터, 삭제가 모두 같은 ID를 사용합니다.
+- 영상 전달 URL에는 출력 포맷 확장자를 붙이지 않습니다. 따라서 키 확장자와 실제 포맷이 달라도
+  [Cloudinary의 원본 포맷 전달 규칙](https://cloudinary.com/documentation/video_transcoding)에 따라
+  원본을 받습니다. 인텐트의 `public_id`를 원래 키로 바꾸지 마세요.
+- `getUploadIntent("reports/invoice.pdf")`는 `/raw/upload`를, `getUploadIntent("clips/demo.mp4")`는
+  `/video/upload`를 반환합니다. 인텐트의 `fields`를 그대로 전송하세요.
+- 이미지 변환 옵션 확장은 제공하지 않습니다.
 - `StorageProvider`의 `list()` 계약은 아직 존재하지 않으므로 provider도 목록 조회를 제공하지 않습니다.
 - custom metadata는 Cloudinary context로 보존됩니다. `getMetadata().contentType`은 원래 MIME 전체가 아니라 Cloudinary resource `format` 값입니다.

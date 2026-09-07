@@ -3579,6 +3579,12 @@
       "owner": "@croco/storage-cloudinary"
     },
     {
+      "path": "packages/storage-cloudinary/src/tests/CloudinaryResourceTypes.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "@croco/storage-cloudinary"
+    },
+    {
       "path": "packages/storage-cloudinary/src/tests/CloudinaryStoragePlugin.spec.ts",
       "lane": "fast",
       "qualifiers": [],

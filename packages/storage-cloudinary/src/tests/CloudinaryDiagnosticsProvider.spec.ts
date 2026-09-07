@@ -67,7 +67,7 @@ describe("CloudinaryDiagnosticsProvider", () => {
       status: "healthy",
       component: "storage-cloudinary",
       details: {
-        acceptedResourceTypes: ["image"],
+        acceptedResourceTypes: ["image", "video", "raw"],
         liveCheck: "not_configured",
         hasCloudName: true,
         hasApiKey: true,
