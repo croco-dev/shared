@@ -17,6 +17,10 @@ title: "BetterAuthPluginOptions"
 
 > `readonly` `optional` **diagnostics?**: [`BetterAuthDiagnosticsOptions`](/api/auth-better-auth/src/type-aliases/betterauthdiagnosticsoptions/)
 
+### provider?
+
+> `readonly` `optional` **provider?**: [`BetterAuthProviderOptions`](/api/auth-better-auth/src/type-aliases/betterauthprovideroptions/)
+
 ### webhookSecret?
 
 > `readonly` `optional` **webhookSecret?**: `string`

@@ -6,9 +6,10 @@ import {
   defineCrocoApplication,
   MODULE_CONTRIBUTION_KINDS,
 } from "@croco/framework-module";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BETTER_AUTH_MODULE_NAME, betterAuth } from "../index";
 import { BetterAuthDiagnosticsProvider } from "../libs/BetterAuthDiagnosticsProvider";
+import { BetterAuthFactory } from "../libs/BetterAuthFactory";
 import { BetterAuthProvider } from "../libs/BetterAuthProvider";
 
 describe("betterAuth", () => {
@@ -61,6 +62,46 @@ describe("betterAuth", () => {
     expect(Container.has(AUTH_PROVIDER_TOKEN)).toBe(false);
 
     await runtime.dispose();
+  });
+
+  it("applies provider trust options through the application plugin", async () => {
+    const warn = vi.fn();
+    const getAuth = vi.spyOn(BetterAuthFactory.prototype, "getAuth").mockReturnValue({
+      api: {
+        getSession: vi.fn().mockResolvedValue({
+          user: {
+            id: "user-123",
+            privateMetadata: { role: "member", tenantId: "trusted-tenant" },
+            publicMetadata: { roles: ["admin"] },
+          },
+        }),
+      },
+    } as unknown as ReturnType<BetterAuthFactory["getAuth"]>);
+    const runtime = createApplicationRuntime(
+      defineCrocoApplication({
+        name: "better-auth-trust-test",
+        imports: [
+          betterAuth({
+            db: {} as never,
+            baseURL: "https://auth.example.test",
+            secret: "test-secret",
+            provider: { trustedMetadataKeys: ["privateMetadata"], logger: { warn } },
+          }),
+        ],
+      }),
+    );
+    try {
+      await runtime.initialize();
+      const result = await runtime
+        .get(AUTH_PROVIDER_TOKEN)
+        .authenticate(new Request("https://auth.example.test"));
+      expect(result?.roles).toEqual(["member"]);
+      expect(result?.metadata?.tenantId).toBe("trusted-tenant");
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      await runtime.dispose();
+      getAuth.mockRestore();
+    }
   });
 
   it("publishes complete metadata without serializing configuration values", () => {

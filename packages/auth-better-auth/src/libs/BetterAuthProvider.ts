@@ -1,4 +1,5 @@
 import type { AuthProvider, AuthUser } from "@croco/auth-core";
+import type { ILogger } from "@croco/framework-context";
 import { Component } from "@croco/framework-context";
 // Runtime value required for constructor metadata.
 // oxlint-disable-next-line typescript/consistent-type-imports
@@ -34,43 +35,58 @@ function mergeStringArrays(...values: unknown[]): string[] {
   return [...merged];
 }
 
-function getNestedValue(source: Record<string, unknown>, key: string): unknown {
-  const directValue = source[key];
-  if (directValue !== undefined) {
-    return directValue;
-  }
+const AUTHORIZATION_CLAIMS = [
+  "roles",
+  "role",
+  "permissions",
+  "permission",
+  "tenantId",
+  "tenant_id",
+  "orgId",
+  "org_id",
+  "organizationId",
+  "organization_id",
+] as const;
 
-  const nestedSources = [
-    source.metadata,
-    source.userMetadata,
-    source.privateMetadata,
-    source.publicMetadata,
-    source.rbac,
-  ];
+/** User fields that can supply authorization or tenant claims. */
+export type BetterAuthClaimField = (typeof AUTHORIZATION_CLAIMS)[number];
 
-  for (const nestedSource of nestedSources) {
-    if (!isRecord(nestedSource)) {
-      continue;
+/** Trust only fields whose writes are restricted to the server. */
+export type BetterAuthProviderOptions = {
+  /** Additional server-managed top-level claims. The admin plugin's `role` is always trusted. */
+  readonly trustedUserFields?: readonly BetterAuthClaimField[];
+  /** Server-managed nested objects, in precedence order. Defaults to none, including privateMetadata. */
+  readonly trustedMetadataKeys?: readonly string[];
+  /** Warning sink. Defaults to console.warn; claim values and user details are never logged. */
+  readonly logger?: Pick<ILogger, "warn">;
+};
+
+function getOwnValue(source: Record<string, unknown>, key: string): unknown {
+  return Object.prototype.hasOwnProperty.call(source, key) ? source[key] : undefined;
+}
+
+function getNestedValue(sources: readonly Record<string, unknown>[], key: string): unknown {
+  for (const source of sources) {
+    const value = getOwnValue(source, key);
+    if (value !== undefined) {
+      return value;
     }
-
-    const nestedValue = nestedSource[key];
-    if (nestedValue !== undefined) {
-      return nestedValue;
-    }
   }
-
   return undefined;
 }
 
-function extractRoles(user: Record<string, unknown>): string[] {
+function extractRoles(user: readonly Record<string, unknown>[]): string[] {
   return mergeStringArrays(getNestedValue(user, "roles"), getNestedValue(user, "role"));
 }
 
-function extractPermissions(user: Record<string, unknown>): string[] {
+function extractPermissions(user: readonly Record<string, unknown>[]): string[] {
   return mergeStringArrays(getNestedValue(user, "permissions"), getNestedValue(user, "permission"));
 }
 
-function extractString(user: Record<string, unknown>, ...keys: string[]): string | undefined {
+function extractString(
+  user: readonly Record<string, unknown>[],
+  ...keys: string[]
+): string | undefined {
   for (const key of keys) {
     const value = getNestedValue(user, key);
     if (typeof value === "string") {
@@ -86,7 +102,58 @@ function extractString(user: Record<string, unknown>, ...keys: string[]): string
  */
 @Component()
 export class BetterAuthProvider implements AuthProvider<Request> {
-  constructor(private readonly factory: BetterAuthFactory) {}
+  private readonly trustedUserFields: ReadonlySet<string>;
+  private readonly trustedMetadataKeys: readonly string[];
+  private readonly logger: Pick<ILogger, "warn">;
+
+  constructor(
+    private readonly factory: BetterAuthFactory,
+    options: BetterAuthProviderOptions = {},
+  ) {
+    this.trustedUserFields = new Set(["role", ...(options.trustedUserFields ?? [])]);
+    this.trustedMetadataKeys = [...(options.trustedMetadataKeys ?? [])];
+    this.logger = options.logger ?? console;
+  }
+
+  private authorizationSources(user: Record<string, unknown>): Record<string, unknown>[] {
+    const directClaims = Object.fromEntries(
+      AUTHORIZATION_CLAIMS.filter((claim) => this.trustedUserFields.has(claim)).map((claim) => [
+        claim,
+        getOwnValue(user, claim),
+      ]),
+    );
+    const sources = [directClaims];
+    for (const key of this.trustedMetadataKeys) {
+      const source = getOwnValue(user, key);
+      if (isRecord(source) && !Array.isArray(source)) {
+        sources.push(source);
+      }
+    }
+
+    const ignoredClaims = new Set<string>();
+    for (const claim of AUTHORIZATION_CLAIMS) {
+      if (Object.prototype.hasOwnProperty.call(user, claim) && !this.trustedUserFields.has(claim)) {
+        ignoredClaims.add(claim);
+      }
+    }
+    for (const [key, source] of Object.entries(user)) {
+      if (this.trustedMetadataKeys.includes(key) || !isRecord(source) || Array.isArray(source)) {
+        continue;
+      }
+      for (const claim of AUTHORIZATION_CLAIMS) {
+        if (Object.prototype.hasOwnProperty.call(source, claim)) {
+          ignoredClaims.add(claim);
+        }
+      }
+    }
+    if (ignoredClaims.size > 0) {
+      this.logger.warn("Ignoring untrusted Better Auth authorization claims", {
+        code: "auth-better-auth/untrusted-claims",
+        claims: [...ignoredClaims],
+      });
+    }
+    return sources;
+  }
 
   async authenticate(request: Request): Promise<AuthUser | null> {
     const auth = this.factory.getAuth();
@@ -121,14 +188,15 @@ export class BetterAuthProvider implements AuthProvider<Request> {
       throw new BetterAuthInvalidSessionProblem();
     }
 
-    const orgId = extractString(userRecord, "orgId", "org_id", "organizationId", "organization_id");
-    const tenantId = extractString(userRecord, "tenantId", "tenant_id");
+    const sources = this.authorizationSources(userRecord);
+    const orgId = extractString(sources, "orgId", "org_id", "organizationId", "organization_id");
+    const tenantId = extractString(sources, "tenantId", "tenant_id");
 
     return {
       id: userRecord.id,
       email: typeof userRecord.email === "string" ? userRecord.email : undefined,
-      roles: extractRoles(userRecord),
-      permissions: extractPermissions(userRecord),
+      roles: extractRoles(sources),
+      permissions: extractPermissions(sources),
       metadata: {
         image: userRecord.image,
         emailVerified: userRecord.emailVerified,

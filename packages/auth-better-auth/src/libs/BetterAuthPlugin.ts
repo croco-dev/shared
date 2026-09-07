@@ -15,6 +15,7 @@ import {
   type BetterAuthConfig,
   type BetterAuthDatabase,
 } from "./BetterAuthFactory";
+import type { BetterAuthProviderOptions } from "./BetterAuthProvider";
 import { BetterAuthProvider } from "./BetterAuthProvider";
 
 export const BETTER_AUTH_MODULE_NAME = "@croco/auth-better-auth/provider";
@@ -23,6 +24,7 @@ const BETTER_AUTH_DIAGNOSTICS_CONTRIBUTION_ID = "@croco/auth-better-auth";
 export type BetterAuthPluginOptions = BetterAuthConfig & {
   readonly db: BetterAuthDatabase;
   readonly webhookSecret?: string;
+  readonly provider?: BetterAuthProviderOptions;
   readonly diagnostics?: BetterAuthDiagnosticsOptions;
 };
 
@@ -32,7 +34,7 @@ export const betterAuth: PluginFactory<BetterAuthPluginOptions> = (options) => {
     secret: options.secret,
   });
   const factory = new BetterAuthFactory(options.db, config);
-  const provider = new BetterAuthProvider(factory);
+  const provider = new BetterAuthProvider(factory, options.provider);
   const diagnosticsProvider = new BetterAuthDiagnosticsProvider(
     {
       ...config,
