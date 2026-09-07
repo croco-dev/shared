@@ -251,13 +251,20 @@ function validateApiGatewayV2Event(event: unknown): ValidatedApiGatewayV2Event {
 }
 
 function decodeBase64Body(body: string): Uint8Array<ArrayBuffer> {
-  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(body)) {
+  const normalized = body.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  const paddingIndex = normalized.indexOf("=");
+  const dataLength = paddingIndex === -1 ? normalized.length : paddingIndex;
+  if (
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized) ||
+    dataLength % 4 === 1 ||
+    (paddingIndex !== -1 && normalized.length % 4 !== 0)
+  ) {
     throw new LambdaEventValidationError(
       "body must be a valid base64 string when isBase64Encoded is true",
     );
   }
 
-  const decoded = Buffer.from(body, "base64");
+  const decoded = Buffer.from(normalized, "base64");
   const bytes = new Uint8Array(decoded.byteLength);
   bytes.set(decoded);
   return bytes;
