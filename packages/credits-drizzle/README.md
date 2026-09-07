@@ -28,11 +28,8 @@ const txManager = new TxManager(createDrizzleTxAdapter(db));
 const credits = new CreditLedgerService({
   store: new DrizzleCreditLedgerStore(db, txManager),
   eventPublisher: {
-    publishIdempotentlyAfterCommit(event, onPublished) {
-      txManager.onAfterCommit(async () => {
-        await publishToBrokerIdempotently(event);
-        await onPublished();
-      });
+    onAfterCommit(publish) {
+      txManager.onAfterCommit(publish);
     },
     publishIdempotently: publishToBrokerIdempotently,
   },
@@ -61,6 +58,18 @@ Use `txManager.runWithOutcome()` when an outer transaction must schedule publica
 `txManager.run()` cannot report after-commit failures, so the service completes the committed command
 with its event intent still pending; retry the command or call `publishPendingEvents()` after the outer
 transaction commits.
+
+Pending publication uses short PostgreSQL transactions with `FOR UPDATE SKIP LOCKED` to claim disjoint
+batches across workers. Claims use a random token and database-clock expiry; acknowledgement and release
+succeed only for the current unexpired owner. Claiming inside an active transaction fails explicitly.
+Publication runs after commit and outside the claim transaction. `publishPendingEvents()` uses a
+60-second lease by default; configure a lease longer than the publisher's transport timeout. A crashed
+worker's claims become available after expiry. Broker idempotency remains required for delivery beyond
+lease expiry or a crash between broker acceptance and acknowledgement. `listPendingEventIntents()` is
+a diagnostic read and does not acquire ownership.
+
+The schema bootstrap adds nullable `claim_token` and `claim_expires_at` columns to existing installations
+without changing event IDs or publication state. Stop older publishers before enabling claimed delivery.
 
 ### Existing-row migration
 

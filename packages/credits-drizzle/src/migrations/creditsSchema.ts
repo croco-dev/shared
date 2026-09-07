@@ -165,9 +165,16 @@ export async function createCreditsSchema(client: MigrationClient): Promise<void
         occurred_at timestamptz not null,
         data jsonb not null,
         published_at timestamptz,
+        claim_token text,
+        claim_expires_at timestamptz,
         created_at timestamptz not null default now(),
         constraint credit_ledger_event_intents_idempotency_unique unique (idempotency_key)
       )
+    `);
+    await client.execute(sql`
+      alter table credit_ledger_event_intents
+        add column if not exists claim_token text,
+        add column if not exists claim_expires_at timestamptz
     `);
     await client.execute(sql`
       alter table credit_idempotency_records

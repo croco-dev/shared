@@ -10,6 +10,10 @@ export type CreditLedgerEventIntent = {
   readonly data: CreditLedgerCommittedEventData;
 };
 
+export type ClaimedCreditLedgerEventIntent = CreditLedgerEventIntent & {
+  readonly claimToken: string;
+};
+
 export function createCreditIdempotencyIdentity(tenantId: string, idempotencyKey: string): string {
   return `${Buffer.byteLength(tenantId, "utf8")}:${tenantId}${idempotencyKey}`;
 }

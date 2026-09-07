@@ -19,6 +19,12 @@ title: "CreditLedgerServiceOptions"
 
 ---
 
+### eventClaimLeaseMs?
+
+> `readonly` `optional` **eventClaimLeaseMs?**: `number`
+
+---
+
 ### eventDelivery?
 
 > `readonly` `optional` **eventDelivery?**: `"development"` \| `"durable"`

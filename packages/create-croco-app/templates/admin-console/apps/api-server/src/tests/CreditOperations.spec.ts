@@ -277,7 +277,7 @@ describe("generated credit operations smoke", () => {
     const eventService = new CreditLedgerService({
       clock: () => now,
       eventPublisher: {
-        publishIdempotentlyAfterCommit() {
+        onAfterCommit() {
           throw new Error("event publisher unavailable");
         },
         publishIdempotently: () => Promise.reject(new Error("event publisher unavailable")),

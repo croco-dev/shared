@@ -256,6 +256,8 @@ export const creditLedgerEventIntents = pgTable(
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     data: jsonb("data").notNull().$type<CreditLedgerCommittedEventData>(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    claimToken: text("claim_token"),
+    claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

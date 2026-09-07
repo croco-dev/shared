@@ -7,6 +7,24 @@ title: "CreditLedgerEventPublisher"
 
 ## Methods
 
+### onAfterCommit()
+
+> **onAfterCommit**(`publish`): `void`
+
+Registers service-owned publication after commit; must not execute before commit.
+
+#### Parameters
+
+##### publish
+
+() => `Promise`\<`void`\>
+
+#### Returns
+
+`void`
+
+---
+
 ### publishIdempotently()
 
 > **publishIdempotently**(`event`): `Promise`\<`void`\>
@@ -22,23 +40,3 @@ Must deduplicate retries and concurrent deliveries by `event.eventId`.
 #### Returns
 
 `Promise`\<`void`\>
-
----
-
-### publishIdempotentlyAfterCommit()
-
-> **publishIdempotentlyAfterCommit**(`event`, `onPublished`): `void`
-
-#### Parameters
-
-##### event
-
-[`DomainEvent`](/api/events-core/src/classes/domainevent/)
-
-##### onPublished
-
-() => `Promise`\<`void`\>
-
-#### Returns
-
-`void`

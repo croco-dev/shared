@@ -44,6 +44,27 @@ class TxAwareInMemoryCreditLedgerStore extends InMemoryCreditLedgerStore {
 }
 
 describe("DrizzleCreditLedgerStore", () => {
+  it.each([
+    { limit: 0, leaseMs: 60_000 },
+    { limit: 1001, leaseMs: 60_000 },
+    { limit: 1.5, leaseMs: 60_000 },
+    { limit: 1, leaseMs: 0 },
+    { limit: 1, leaseMs: -1 },
+    { limit: 1, leaseMs: 1.5 },
+    { limit: 1, leaseMs: Number.NaN },
+    { limit: 1, leaseMs: Number.POSITIVE_INFINITY },
+    { limit: 1, leaseMs: 2_147_483_648 },
+  ])(
+    "rejects invalid claim limit $limit or lease $leaseMs before accessing PostgreSQL",
+    async ({ limit, leaseMs }) => {
+      const store = new DrizzleCreditLedgerStore({} as DrizzleCreditClient, {
+        getClient: () => null,
+        run: async <T>(operation: () => Promise<T>) => operation(),
+      });
+      await expect(store.claimPendingEventIntents(limit, leaseMs)).rejects.toThrow("event intent");
+    },
+  );
+
   it("redacts driver details from read failures", async () => {
     const driverDetail = "driver detail: internal ledger table name";
     const db = {
@@ -102,11 +123,8 @@ describe("CreditLedgerService README publisher integration", () => {
       eventDelivery: "development",
       idGenerator: () => "transaction-id",
       eventPublisher: {
-        publishIdempotentlyAfterCommit(event, onPublished) {
-          txManager.onAfterCommit(async () => {
-            publishedEventIds.push(event.eventId);
-            await onPublished();
-          });
+        onAfterCommit(publish) {
+          txManager.onAfterCommit(publish);
         },
         async publishIdempotently(event) {
           publishedEventIds.push(event.eventId);

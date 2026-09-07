@@ -35,6 +35,36 @@ title: "InMemoryCreditLedgerStore"
 
 ## Methods
 
+### claimPendingEventIntents()
+
+> **claimPendingEventIntents**(`limit?`, `leaseMs?`, `eventId?`): `Promise`\<readonly [`ClaimedCreditLedgerEventIntent`](/api/credits-core/src/type-aliases/claimedcreditledgereventintent/)[]\>
+
+Atomically leases committed, unpublished intents using the store clock.
+
+#### Parameters
+
+##### limit?
+
+`number` = `100`
+
+##### leaseMs?
+
+`number` = `60_000`
+
+##### eventId?
+
+`string`
+
+#### Returns
+
+`Promise`\<readonly [`ClaimedCreditLedgerEventIntent`](/api/credits-core/src/type-aliases/claimedcreditledgereventintent/)[]\>
+
+#### Overrides
+
+[`CreditLedgerStore`](/api/credits-core/src/classes/creditledgerstore/).[`claimPendingEventIntents`](/api/credits-core/src/classes/creditledgerstore/#claimpendingeventintents)
+
+---
+
 ### execute()
 
 > **execute**(`command`): `Promise`\<[`CreditCommandResult`](/api/credits-core/src/type-aliases/creditcommandresult/)\>
@@ -203,7 +233,9 @@ title: "InMemoryCreditLedgerStore"
 
 ### markEventIntentPublished()
 
-> **markEventIntentPublished**(`eventId`): `Promise`\<`void`\>
+> **markEventIntentPublished**(`eventId`, `claimToken`): `Promise`\<`boolean`\>
+
+Returns false when the lease expired or another worker owns the intent.
 
 #### Parameters
 
@@ -211,10 +243,38 @@ title: "InMemoryCreditLedgerStore"
 
 `string`
 
+##### claimToken
+
+`string`
+
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`\<`boolean`\>
 
 #### Overrides
 
 [`CreditLedgerStore`](/api/credits-core/src/classes/creditledgerstore/).[`markEventIntentPublished`](/api/credits-core/src/classes/creditledgerstore/#markeventintentpublished)
+
+---
+
+### releaseEventIntentClaim()
+
+> **releaseEventIntentClaim**(`eventId`, `claimToken`): `Promise`\<`boolean`\>
+
+#### Parameters
+
+##### eventId
+
+`string`
+
+##### claimToken
+
+`string`
+
+#### Returns
+
+`Promise`\<`boolean`\>
+
+#### Overrides
+
+[`CreditLedgerStore`](/api/credits-core/src/classes/creditledgerstore/).[`releaseEventIntentClaim`](/api/credits-core/src/classes/creditledgerstore/#releaseeventintentclaim)

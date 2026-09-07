@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   addCreditAmounts,
   addSignedCreditAmounts,
@@ -13,6 +14,7 @@ import {
   cloneCreditLedgerEventIntent,
   createCreditLedgerEventIntent,
   type CreditLedgerEventIntent,
+  type ClaimedCreditLedgerEventIntent,
 } from "./eventIntent";
 import {
   CreditAccountMismatchProblem,
@@ -267,6 +269,7 @@ export class InMemoryCreditLedgerStore extends CreditLedgerStore {
   private readonly idempotency = new Map<string, IdempotencyRecord>();
   private readonly transactionAccounts = new Map<CreditTransactionId, CreditAccountId>();
   private readonly reservationAccounts = new Map<CreditReservationId, CreditAccountId>();
+  private readonly eventClaims = new Map<string, { token: string; expiresAt: number }>();
   private readonly eventIntents = new Map<string, CreditLedgerEventIntent>();
 
   async execute(command: CreditLedgerCommand): Promise<CreditCommandResult> {
@@ -313,8 +316,51 @@ export class InMemoryCreditLedgerStore extends CreditLedgerStore {
     return intent ? cloneCreditLedgerEventIntent(intent) : null;
   }
 
-  async markEventIntentPublished(eventId: string): Promise<void> {
+  async claimPendingEventIntents(
+    limit = 100,
+    leaseMs = 60_000,
+    eventId?: string,
+  ): Promise<readonly ClaimedCreditLedgerEventIntent[]> {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) {
+      throw new InvalidCreditCommandProblem(
+        "event intent limit must be an integer between 1 and 1000",
+      );
+    }
+    if (!Number.isInteger(leaseMs) || leaseMs < 1 || leaseMs > 2_147_483_647) {
+      throw new InvalidCreditCommandProblem(
+        "event intent lease must be an integer between 1 and 2147483647 milliseconds",
+      );
+    }
+    const now = Date.now();
+    const claimed: ClaimedCreditLedgerEventIntent[] = [];
+    for (const intent of this.eventIntents.values()) {
+      if (eventId !== undefined && intent.eventId !== eventId) continue;
+      const claim = this.eventClaims.get(intent.eventId);
+      if (claim && claim.expiresAt > now) continue;
+      const token = randomUUID();
+      this.eventClaims.set(intent.eventId, { token, expiresAt: now + leaseMs });
+      claimed.push({ ...cloneCreditLedgerEventIntent(intent), claimToken: token });
+      if (claimed.length === limit) break;
+    }
+    return claimed;
+  }
+
+  async markEventIntentPublished(eventId: string, claimToken: string): Promise<boolean> {
+    if (!this.ownsEventIntentClaim(eventId, claimToken)) return false;
     this.eventIntents.delete(eventId);
+    this.eventClaims.delete(eventId);
+    return true;
+  }
+
+  async releaseEventIntentClaim(eventId: string, claimToken: string): Promise<boolean> {
+    if (!this.ownsEventIntentClaim(eventId, claimToken)) return false;
+    this.eventClaims.delete(eventId);
+    return true;
+  }
+
+  private ownsEventIntentClaim(eventId: string, claimToken: string): boolean {
+    const claim = this.eventClaims.get(eventId);
+    return claim?.token === claimToken && claim.expiresAt > Date.now();
   }
 
   async getAccount(accountId: CreditAccountId): Promise<CreditAccount | null> {

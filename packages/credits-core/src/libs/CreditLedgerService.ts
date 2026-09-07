@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DomainEvent } from "@croco/events-core";
 import { Problem } from "@croco/problems-core";
 import type { CreditLedgerStore } from "./CreditLedgerStore";
-import type { CreditLedgerEventIntent } from "./eventIntent";
+import type { ClaimedCreditLedgerEventIntent, CreditLedgerEventIntent } from "./eventIntent";
 import { CreditLedgerCommittedEvent } from "./events/CreditLedgerCommittedEvent";
 import { creditAccountId, creditReservationId, creditTransactionId } from "./identifiers";
 import { CreditEventPublicationProblem, InvalidCreditCommandProblem } from "./problems";
@@ -24,7 +24,8 @@ import type {
 export interface CreditLedgerEventPublisher {
   /** Must deduplicate retries and concurrent deliveries by `event.eventId`. */
   publishIdempotently(event: DomainEvent): Promise<void>;
-  publishIdempotentlyAfterCommit(event: DomainEvent, onPublished: () => Promise<void>): void;
+  /** Registers service-owned publication after commit; must not execute before commit. */
+  onAfterCommit(publish: () => Promise<void>): void;
 }
 
 export type CreditLedgerServiceOptions = {
@@ -32,6 +33,7 @@ export type CreditLedgerServiceOptions = {
   readonly eventPublisher?: CreditLedgerEventPublisher;
   readonly clock?: () => Date;
   readonly idGenerator?: () => string;
+  readonly eventClaimLeaseMs?: number;
   readonly eventDelivery?: "development" | "durable";
 };
 
@@ -40,6 +42,14 @@ type CommandMetadata = {
   readonly reference: CreditSemanticReference;
   readonly expectedPosition?: number;
 };
+
+class CreditEventDeliveryFailure extends Error {
+  readonly name = "CreditEventDeliveryFailure";
+
+  constructor(readonly errors: readonly unknown[]) {
+    super("Event publication and claim release failed");
+  }
+}
 
 type AfterCommitFallback = "keep-pending" | "publish-now";
 
@@ -119,12 +129,23 @@ export type ExpireCreditsInput = CommandMetadata & {
 export class CreditLedgerService {
   private readonly store: CreditLedgerStore;
   private readonly eventPublisher?: CreditLedgerEventPublisher;
+  private readonly eventClaimLeaseMs: number;
   private readonly clock: () => Date;
   private readonly idGenerator: () => string;
 
   constructor(options: CreditLedgerServiceOptions) {
     this.store = options.store;
     this.eventPublisher = options.eventPublisher;
+    this.eventClaimLeaseMs = options.eventClaimLeaseMs ?? 60_000;
+    if (
+      !Number.isInteger(this.eventClaimLeaseMs) ||
+      this.eventClaimLeaseMs < 1 ||
+      this.eventClaimLeaseMs > 2_147_483_647
+    ) {
+      throw new InvalidCreditCommandProblem(
+        "event intent lease must be an integer between 1 and 2147483647 milliseconds",
+      );
+    }
     this.clock = options.clock ?? (() => new Date());
     this.idGenerator = options.idGenerator ?? randomUUID;
     const eventDelivery = options.eventDelivery ?? "durable";
@@ -272,8 +293,13 @@ export class CreditLedgerService {
         "publishing pending events requires an idempotent event publisher",
       );
     }
-    const intents = await this.store.listPendingEventIntents(limit);
-    for (const intent of intents) await this.publishIntentNow(intent);
+    const intents = await this.store.claimPendingEventIntents(limit, this.eventClaimLeaseMs);
+    const results = await Promise.allSettled(
+      intents.map((intent) => this.publishClaimedIntent(intent)),
+    );
+    for (const result of results) {
+      if (result.status === "rejected") throw result.reason;
+    }
     return intents.length;
   }
 
@@ -327,11 +353,8 @@ export class CreditLedgerService {
 
   private async publishIntentAfterCommitOrNow(intent: CreditLedgerEventIntent): Promise<void> {
     if (!this.eventPublisher) return;
-    const event = new CreditLedgerCommittedEvent(intent.data, intent.eventId, intent.occurredAt);
     try {
-      this.eventPublisher.publishIdempotentlyAfterCommit(event, async () => {
-        await this.store.markEventIntentPublished(intent.eventId);
-      });
+      this.eventPublisher.onAfterCommit(() => this.publishIntentNow(intent));
     } catch (error) {
       const fallback = resolveAfterCommitFallback(error);
       if (!fallback) {
@@ -350,12 +373,37 @@ export class CreditLedgerService {
   ): Promise<void> {
     if (!this.eventPublisher) return;
     try {
+      const [claimed] = await this.store.claimPendingEventIntents(
+        1,
+        this.eventClaimLeaseMs,
+        intent.eventId,
+      );
+      if (claimed) await this.publishClaimedIntent(claimed);
+    } catch (error) {
+      if (failureMode === "keep-pending") return;
+      throw error;
+    }
+  }
+
+  private async publishClaimedIntent(intent: ClaimedCreditLedgerEventIntent): Promise<void> {
+    if (!this.eventPublisher)
+      throw new InvalidCreditCommandProblem("event publication requires a publisher");
+    try {
       await this.eventPublisher.publishIdempotently(
         new CreditLedgerCommittedEvent(intent.data, intent.eventId, intent.occurredAt),
       );
-      await this.store.markEventIntentPublished(intent.eventId);
+      if (!(await this.store.markEventIntentPublished(intent.eventId, intent.claimToken))) {
+        throw new InvalidCreditCommandProblem("event intent publication lease is no longer owned");
+      }
     } catch (error) {
-      if (failureMode === "keep-pending") return;
+      try {
+        await this.store.releaseEventIntentClaim(intent.eventId, intent.claimToken);
+      } catch (releaseError) {
+        throw new CreditEventPublicationProblem(
+          intent.idempotencyKey,
+          new CreditEventDeliveryFailure([error, releaseError]),
+        );
+      }
       const cause = error instanceof Error ? error : new Error(String(error));
       throw new CreditEventPublicationProblem(intent.idempotencyKey, cause);
     }
