@@ -5,10 +5,13 @@ import type {
   ExecutionReplayManager,
   ReplayExecutionParams,
 } from "@croco/execution-core";
+import { ExecutionProblems } from "@croco/execution-core";
 import { TaskRunner } from "@croco/tasks-core";
 import { withSpan } from "@croco/telemetry-api";
 import {
   WorkflowDefinitionProblem,
+  WorkflowExecutionFailedProblem,
+  WorkflowExecutionInProgressProblem,
   WorkflowNotFoundProblem,
   WorkflowReplayUnsupportedProblem,
 } from "./problems/WorkflowProblems";
@@ -234,22 +237,25 @@ export class WorkflowRunner {
     span.setAttribute("workflow.idempotent", idempotency.idempotencyKey !== undefined);
 
     if (
-      idempotency.idempotencyKey !== undefined &&
-      execution.metadata?.workflowInvocationId !== invocationId &&
-      !canResumeRetryingExecution
+      !canResumeRetryingExecution &&
+      (execution.status !== "pending" ||
+        (idempotency.idempotencyKey !== undefined &&
+          execution.metadata?.workflowInvocationId !== invocationId))
     ) {
-      span.setAttribute("workflow.reused", true);
-      span.addEvent("workflow.execution.reused", executionAttributes);
-      return {
-        executionId: execution.id,
-        workflow,
-        steps: [],
-        result: execution.result,
-        reused: true,
-      };
-    }
-
-    if (execution.status !== "pending" && !canResumeRetryingExecution) {
+      if (execution.status === "pending" || execution.status === "running") {
+        throw new WorkflowExecutionInProgressProblem(workflow.name, execution.id, execution.status);
+      }
+      if (
+        (execution.status === "failed" || execution.status === "timed_out") &&
+        execution.error !== undefined
+      ) {
+        throw new WorkflowExecutionFailedProblem(workflow.name, execution.id, execution.error);
+      }
+      if (execution.status !== "completed") {
+        throw ExecutionProblems.invalidStateTransition(
+          `Workflow '${workflow.name}' execution '${execution.id}' in '${execution.status}' status cannot be reused`,
+        );
+      }
       span.setAttribute("workflow.reused", true);
       span.addEvent("workflow.execution.reused", executionAttributes);
       return {

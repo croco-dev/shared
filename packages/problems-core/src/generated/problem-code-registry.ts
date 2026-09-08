@@ -3,7 +3,7 @@ import type { ProblemCodeRegistry } from "../libs/ProblemRegistry";
 
 export const CROCO_PROBLEM_CODE_REGISTRY = {
   version: "croco.problem-code-registry.v1",
-  problemCount: 768,
+  problemCount: 770,
   problems: [
     {
       code: "ACCESS_DENIED",
@@ -23810,7 +23810,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 15,
+          line: 16,
           column: 5,
           kind: "problem-constructor",
         },
@@ -23842,7 +23842,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 47,
+          line: 81,
           column: 5,
           kind: "problem-constructor",
         },
@@ -23874,7 +23874,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 62,
+          line: 96,
           column: 5,
           kind: "problem-constructor",
         },
@@ -23906,7 +23906,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 145,
+          line: 179,
           column: 5,
           kind: "problem-constructor",
         },
@@ -23936,7 +23936,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 202,
+          line: 236,
           column: 5,
           kind: "problem-constructor",
         },
@@ -23967,7 +23967,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 76,
+          line: 110,
           column: 1,
           kind: "problem-class",
         },
@@ -23999,7 +23999,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 178,
+          line: 212,
           column: 5,
           kind: "problem-constructor",
         },
@@ -24031,7 +24031,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 104,
+          line: 138,
           column: 5,
           kind: "problem-constructor",
         },
@@ -24063,7 +24063,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 121,
+          line: 155,
           column: 5,
           kind: "problem-constructor",
         },
@@ -24093,7 +24093,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 92,
+          line: 126,
           column: 5,
           kind: "problem-constructor",
         },
@@ -24126,7 +24126,71 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 31,
+          line: 32,
+          column: 5,
+          kind: "problem-constructor",
+        },
+      ],
+    },
+    {
+      code: "workflow-core/workflow-execution-failed",
+      category: "InternalServerError",
+      status: 500,
+      title: "Internal Server Error",
+      cookbookPath: "/reference/problem-recovery-cookbook/#workflow-core-workflow-execution-failed",
+      recovery: {
+        cause: "The workflow matched a previously failed or timed-out execution.",
+        userAction: "Inspect the original failure before requesting an explicit replay.",
+        operatorAction:
+          "Resolve the persisted failure and reconcile possible side effects before replaying.",
+        retryability: "not-retryable",
+        redactionPolicy: "operator-only",
+        telemetry: {
+          eventName: "croco.problem.error",
+          severity: "error",
+          attributes: ["problem.code", "problem.category", "problem.status"],
+        },
+      },
+      lifecycle: {
+        status: "active",
+      },
+      sources: [
+        {
+          file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
+          line: 61,
+          column: 5,
+          kind: "problem-constructor",
+        },
+      ],
+    },
+    {
+      code: "workflow-core/workflow-execution-in-progress",
+      category: "Conflict",
+      status: 409,
+      title: "Conflict",
+      cookbookPath:
+        "/reference/problem-recovery-cookbook/#workflow-core-workflow-execution-in-progress",
+      recovery: {
+        cause:
+          "Another invocation owns a pending or running workflow with the same idempotency key.",
+        userAction: "Retry the same request after the owning execution finishes.",
+        operatorAction:
+          "Inspect the execution status and reconcile abandoned executions before retrying.",
+        retryability: "retryable",
+        redactionPolicy: "operator-only",
+        telemetry: {
+          eventName: "croco.problem.warning",
+          severity: "warning",
+          attributes: ["problem.code", "problem.category", "problem.status"],
+        },
+      },
+      lifecycle: {
+        status: "active",
+      },
+      sources: [
+        {
+          file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
+          line: 48,
           column: 5,
           kind: "problem-constructor",
         },
@@ -24157,7 +24221,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/workflow-core/src/libs/problems/WorkflowProblems.ts",
-          line: 4,
+          line: 5,
           column: 1,
           kind: "problem-class",
         },
