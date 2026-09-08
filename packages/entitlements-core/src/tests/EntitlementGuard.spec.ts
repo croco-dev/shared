@@ -332,28 +332,194 @@ describe("EntitlementGuard", () => {
     ]);
   });
 
-  it("should deny an untrusted request tenant without authenticated tenant evidence", async () => {
+  it.each(["request", "framework Context"] as const)(
+    "should evaluate the %s tenant without a static principal tenant",
+    async (source) => {
+      class TestController {
+        @RequireEntitlement({ feature: "test_feature" })
+        testMethod() {}
+      }
+
+      const checkSpy = vi.spyOn(mockManager, "check");
+      const context = createContext({
+        target: TestController,
+        request: {
+          principal: { type: "apikey", id: "key-1", permissions: [] },
+          ...(source === "request" ? { tenantId: "tenant-dynamic" } : {}),
+        },
+      });
+
+      await Context.run(
+        {
+          requestId: "request-dynamic",
+          ...(source === "framework Context" ? { tenantId: "tenant-dynamic" } : {}),
+        },
+        () => expect(guard.canActivate(context)).resolves.toBe(true),
+      );
+      expect(checkSpy).toHaveBeenCalledExactlyOnceWith(
+        "tenant-dynamic",
+        "test_feature",
+        expect.objectContaining({ ruleId: "entitlement:test_feature" }),
+      );
+      expect(auditSink.events).toEqual([
+        expect.objectContaining({ type: "entitlement.guard.allowed", tenantId: "tenant-dynamic" }),
+      ]);
+    },
+  );
+
+  it("should evaluate organization switches in isolated asynchronous request contexts", async () => {
     class TestController {
+      @RequireEntitlement({ feature: "test_feature" })
       testMethod() {}
     }
-
-    Reflect.defineMetadata(
-      ENTITLEMENT_REQUIRED_KEY,
-      "test_feature",
-      TestController.prototype,
-      "testMethod",
-    );
 
     const checkSpy = vi.spyOn(mockManager, "check");
     const context = createContext({
       target: TestController,
+      request: { user: { id: "user-1", roles: [], permissions: [] } },
+    });
+    for (const tenants of [
+      ["tenant-a", "tenant-b"],
+      ["tenant-b", "tenant-a"],
+    ]) {
+      await Promise.all(
+        tenants.map((tenantId) =>
+          Context.run({ requestId: tenantId, tenantId }, async () => {
+            await Promise.resolve();
+            await expect(guard.canActivate(context)).resolves.toBe(true);
+          }),
+        ),
+      );
+    }
+    expect(checkSpy.mock.calls.map(([tenantId]) => tenantId)).toEqual([
+      "tenant-a",
+      "tenant-b",
+      "tenant-b",
+      "tenant-a",
+    ]);
+    expect(auditSink.events.map(({ tenantId }) => tenantId)).toEqual([
+      "tenant-a",
+      "tenant-b",
+      "tenant-b",
+      "tenant-a",
+    ]);
+    expect(Context.getTenantId()).toBeNull();
+  });
+
+  it.each([
+    {
+      requestTenant: "tenant-b",
+      frameworkTenant: "tenant-a",
+      httpTenant: undefined,
+      source: "request",
+    },
+    {
+      requestTenant: "tenant-a",
+      frameworkTenant: undefined,
+      httpTenant: "tenant-b",
+      source: "HTTP context",
+    },
+    {
+      requestTenant: undefined,
+      frameworkTenant: "tenant-a",
+      httpTenant: "tenant-b",
+      source: "HTTP context",
+    },
+  ])(
+    "should deny conflicting dynamic tenant sources: $source",
+    async ({ requestTenant, frameworkTenant, httpTenant, source }) => {
+      class TestController {
+        @RequireEntitlement({ feature: "test_feature" })
+        testMethod() {}
+      }
+
+      const checkSpy = vi.spyOn(mockManager, "check");
+      const context = createContext({
+        target: TestController,
+        request: { tenantId: requestTenant },
+        httpTenantId: httpTenant,
+      });
+      await Context.run({ requestId: "request-conflict", tenantId: frameworkTenant }, () =>
+        expect(guard.canActivate(context)).rejects.toThrow(`${source} tenantId conflicts`),
+      );
+      expect(checkSpy).not.toHaveBeenCalled();
+      expect(auditSink.events).toEqual([
+        expect.objectContaining({ tenantId: "tenant-a", reason: "tenant_mismatch" }),
+      ]);
+    },
+  );
+
+  it("should reject conflicting principal and user tenants even when dynamic sources agree", async () => {
+    class TestController {
+      @RequireEntitlement({ feature: "test_feature" })
+      testMethod() {}
+    }
+    const checkSpy = vi.spyOn(mockManager, "check");
+    const context = createContext({
+      target: TestController,
       request: {
-        tenantId: "tenant-from-request",
+        principal: { type: "apikey", id: "key-1", permissions: [], tenantId: "tenant-a" },
+        user: createUser("tenant-b"),
+        tenantId: "tenant-a",
       },
     });
-
-    await expect(guard.canActivate(context)).rejects.toThrow("authenticated tenantId not found");
+    await Context.run({ requestId: "request-conflict", tenantId: "tenant-a" }, () =>
+      expect(guard.canActivate(context)).rejects.toThrow(
+        "authenticated principal and user tenantId conflicts",
+      ),
+    );
     expect(checkSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "", 42, {}])(
+    "should reject absent or invalid authoritative tenant sources: %j",
+    async (tenantId) => {
+      class TestController {
+        @RequireEntitlement({ feature: "test_feature" })
+        testMethod() {}
+      }
+      const checkSpy = vi.spyOn(mockManager, "check");
+      const context = createContext({
+        target: TestController,
+        request: { tenantId: tenantId as string },
+        httpTenantId: "tenant-http-only",
+      });
+      await Context.run({ requestId: "request-invalid", tenantId: tenantId as string }, () =>
+        expect(guard.canActivate(context)).rejects.toThrow("authenticated tenantId not found"),
+      );
+      expect(checkSpy).not.toHaveBeenCalled();
+      expect(auditSink.events).toEqual([
+        expect.objectContaining({ reason: "missing_authenticated_tenant" }),
+      ]);
+    },
+  );
+
+  it("should preserve entitlement denials for a dynamically resolved tenant", async () => {
+    class TestController {
+      @RequireEntitlement({ feature: "test_feature" })
+      testMethod() {}
+    }
+    mockManager.checkResult = {
+      granted: false,
+      status: "denied",
+      featureKey: "test_feature",
+      type: "boolean",
+      reason: "not_entitled",
+    };
+    const checkSpy = vi.spyOn(mockManager, "check");
+    const context = createContext({
+      target: TestController,
+      request: { tenantId: "tenant-dynamic" },
+    });
+    await expect(guard.canActivate(context)).rejects.toThrow(EntitlementDeniedProblem);
+    expect(checkSpy).toHaveBeenCalledExactlyOnceWith(
+      "tenant-dynamic",
+      "test_feature",
+      expect.any(Object),
+    );
+    expect(auditSink.events).toEqual([
+      expect.objectContaining({ tenantId: "tenant-dynamic", reason: "not_entitled" }),
+    ]);
   });
 
   it("should deny a request tenant that conflicts with the authenticated user", async () => {
