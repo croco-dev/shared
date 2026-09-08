@@ -351,13 +351,18 @@ export class MeilisearchEngine extends SearchEngine {
   }
 
   private scopeDocument(document: SearchDocument, tenantId: string): SearchDocument {
+    const digest = createHash("sha256")
+      .update(JSON.stringify([tenantId, document.id]))
+      .digest();
     return {
       ...document,
       tenantId,
       _tenantId: tenantId,
-      [DOCUMENT_PRIMARY_KEY]: createHash("sha256")
-        .update(JSON.stringify([tenantId, document.id]))
-        .digest("hex"),
+      // Both allowed ID characters are separators in Meilisearch's default tokenizer.
+      [DOCUMENT_PRIMARY_KEY]: Array.from(digest, (byte) => byte.toString(2).padStart(8, "0"))
+        .join("")
+        .replace(/0/g, "-")
+        .replace(/1/g, "_"),
     };
   }
 

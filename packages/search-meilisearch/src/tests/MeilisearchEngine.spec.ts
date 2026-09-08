@@ -521,6 +521,14 @@ describe("Meilisearch provider conformance", () => {
   });
 
   describe("shared index primary keys", () => {
+    it("encodes every digest bit using only default tokenizer separators", async () => {
+      vi.spyOn(Context, "getTenantId").mockReturnValue("x");
+      await engine.indexDocument("shared", { id: "1", tenantId: "x" });
+      expect(mocks.indexMock.addDocuments.mock.calls[0][0][0]._crocoDocumentId).toBe(
+        "-___--_--_-_--__-__--__-_--_-___-___---_--_-_----__-_-_--___--_-___-_--___-_--_-_----__---_---______--_----_--_--_-__----__-____------__---_--___--__--__---_---_-___-___--__-_--_---------_________----_--__-----_-----__-_____------_-_-_-___---_---_-___--_--",
+      );
+    });
+
     it.each(["single", "bulk"])(
       "preserves colliding tenant documents for %s writes",
       async (mode) => {
@@ -553,7 +561,7 @@ describe("Meilisearch provider conformance", () => {
             expect.objectContaining({ id: "doc-42", _tenantId: "beta", title: "Beta" }),
           ]),
         );
-        for (const key of stored.keys()) expect(key).toMatch(/^[a-f0-9]{64}$/);
+        for (const key of stored.keys()) expect(key).toMatch(/^[-_]{256}$/);
       },
     );
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Context } from "@croco/framework-context";
 import type { SearchHit } from "@croco/search-core";
 import { describe, expect, it, vi } from "vitest";
@@ -18,6 +19,30 @@ const liveConfig: MeilisearchEngineOptions = {
 };
 
 describe("Meilisearch live smoke", () => {
+  it.skipIf(missingLiveSmokeEnv.length > 0)(
+    "does not match internal document keys when searchable fields are discovered by default",
+    async () => {
+      const indexName = `croco_default_search_${Date.now()}`;
+      const engine = new MeilisearchEngine(liveConfig);
+      try {
+        await engine.createIndex({ name: indexName });
+        await Context.run({ requestId: "default-search", tenantId: "x" }, async () => {
+          await engine.indexDocument(indexName, { id: "1", tenantId: "x", title: "hello" });
+          const hashPrefix = createHash("sha256")
+            .update(JSON.stringify(["x", "1"]))
+            .digest("hex")
+            .slice(0, 8);
+          expect((await engine.search(indexName, { query: hashPrefix })).total).toBe(0);
+          expect(
+            (await engine.search(indexName, { query: "hello" })).hits[0].document,
+          ).toMatchObject({ id: "1", title: "hello" });
+        });
+      } finally {
+        await engine.deleteIndex(indexName, { allowGlobalDrop: true });
+      }
+    },
+  );
+
   it.skipIf(missingLiveSmokeEnv.length > 0)(
     "requires MEILISEARCH_HOST and MEILISEARCH_API_KEY for live Meilisearch readiness and search smoke",
     async () => {
