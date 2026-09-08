@@ -1,5 +1,5 @@
 import type { EventBus } from "@croco/events-core";
-import { Container, type ILogger, LOGGER_TOKEN } from "@croco/framework-context";
+import { Container, Context, type ILogger, LOGGER_TOKEN } from "@croco/framework-context";
 import type { MeteringService } from "@croco/metering-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -242,12 +242,18 @@ describe("@AiMetered decorator", () => {
 
       const service = new TestService();
       await service.generate("custom-key-123", "test");
+      await service.generate("custom-key-123", "test");
 
-      expect(mockMeteringService.record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          idempotencyKey: "custom-key-123:prompt",
-        }),
-      );
+      expect(
+        vi.mocked(mockMeteringService.record).mock.calls.map(([record]) => record.idempotencyKey),
+      ).toEqual([
+        "custom-key-123:prompt",
+        "custom-key-123:completion",
+        "custom-key-123:cost",
+        "custom-key-123:prompt",
+        "custom-key-123:completion",
+        "custom-key-123:cost",
+      ]);
     });
 
     it("should use custom metadataExtractor", async () => {
@@ -278,54 +284,6 @@ describe("@AiMetered decorator", () => {
           }),
         }),
       );
-    });
-
-    it("should generate stable default idempotency keys for identical inputs", async () => {
-      class TestService {
-        @AiMetered()
-        async generate(prompt: string, options: { temperature: number }) {
-          return {
-            text: prompt,
-            usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
-            metadata: { modelId: "gpt-4", provider: "openai" },
-            options,
-          };
-        }
-      }
-
-      const service = new TestService();
-
-      await service.generate("hello", { temperature: 0.7 });
-      await service.generate("hello", { temperature: 0.7 });
-
-      const firstKey = vi.mocked(mockMeteringService.record).mock.calls[0]?.[0]?.idempotencyKey;
-      const secondKey = vi.mocked(mockMeteringService.record).mock.calls[3]?.[0]?.idempotencyKey;
-
-      expect(firstKey).toBe(secondKey);
-    });
-
-    it("should ignore object key order when generating default idempotency keys", async () => {
-      class TestService {
-        @AiMetered()
-        async generate(payload: Record<string, unknown>) {
-          return {
-            text: "Response",
-            usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
-            metadata: { modelId: "gpt-4", provider: "openai" },
-            payload,
-          };
-        }
-      }
-
-      const service = new TestService();
-
-      await service.generate({ a: 1, b: 2, nested: { x: 1, y: 2 } });
-      await service.generate({ b: 2, a: 1, nested: { y: 2, x: 1 } });
-
-      const firstKey = vi.mocked(mockMeteringService.record).mock.calls[0]?.[0]?.idempotencyKey;
-      const secondKey = vi.mocked(mockMeteringService.record).mock.calls[3]?.[0]?.idempotencyKey;
-
-      expect(firstKey).toBe(secondKey);
     });
 
     it("BUG-07 스트림 결과의 토큰 사용량 기록", async () => {
@@ -480,6 +438,209 @@ describe("@AiMetered decorator", () => {
       expect(mockMeteringService.record).toHaveBeenCalledWith(
         expect.objectContaining({ meterId: "llm.cost_usd_nanos" }),
       );
+    });
+  });
+
+  describe("independent invocation metering", () => {
+    class TestService {
+      @AiMetered()
+      async generate(_prompt: string) {
+        return {
+          text: "Response",
+          usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+          metadata: { modelId: "gpt-4", provider: "openai" },
+        };
+      }
+
+      @AiMetered()
+      async embed(_prompt: string) {
+        return {
+          embedding: [0.1, 0.2],
+          usage: { tokens: 10 },
+          metadata: { modelId: "text-embedding-3-small", provider: "openai" },
+        };
+      }
+
+      @AiMetered()
+      async *stream(_prompt: string) {
+        yield {
+          delta: "Response",
+          usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+          metadata: { modelId: "gpt-4", provider: "openai" },
+        };
+      }
+    }
+
+    describe.each(["generate", "embed", "stream"] as const)("%s", (method) => {
+      it.each(["without context", "same request", "concurrent same request"])(
+        "should retain both identical invocations %s",
+        async (execution) => {
+          const persisted = new Map<string, Parameters<MeteringService["record"]>[0]>();
+          vi.mocked(mockMeteringService.record).mockImplementation(async (record) => {
+            const key = `${record.tenantId}:${record.meterId}:${record.idempotencyKey}`;
+            if (!persisted.has(key)) {
+              persisted.set(key, record);
+            }
+            return { id: key, tenantId: record.tenantId } as Awaited<
+              ReturnType<MeteringService["record"]>
+            >;
+          });
+          const service = new TestService();
+          const invoke = async () => {
+            if (method === "stream") {
+              const stream = await service.stream("identical prompt");
+              for await (const _chunk of stream) {
+                // Consume the complete provider operation.
+              }
+            } else {
+              await service[method]("identical prompt");
+            }
+          };
+          const invokeTwice = async () => {
+            if (execution === "concurrent same request") {
+              await Promise.all([invoke(), invoke()]);
+            } else {
+              await invoke();
+              await invoke();
+            }
+          };
+
+          if (execution === "without context") {
+            await invokeTwice();
+          } else {
+            await Context.run(
+              { requestId: "shared-request", tenantId: "tenant-context" },
+              invokeTwice,
+            );
+          }
+
+          const tokenMeter = method === "embed" ? "llm.embedding_tokens" : "llm.prompt_tokens";
+          const tokenRecords = [...persisted.values()].filter(
+            (record) => record.meterId === tokenMeter,
+          );
+          expect(tokenRecords.map((record) => record.value)).toEqual([10, 10]);
+          expect(persisted.size).toBe(method === "embed" ? 4 : 6);
+          expect(new Set([...persisted.values()].map((record) => record.tenantId))).toEqual(
+            new Set([execution === "without context" ? "default" : "tenant-context"]),
+          );
+        },
+      );
+    });
+
+    it("should use a fresh default key when the custom extractor returns undefined", async () => {
+      class TestService {
+        @AiMetered({ idempotencyKeyExtractor: () => undefined })
+        async generate() {
+          return {
+            usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+            metadata: { modelId: "gpt-4", provider: "openai" },
+          };
+        }
+      }
+
+      const service = new TestService();
+      await service.generate();
+      await service.generate();
+
+      const keys = vi
+        .mocked(mockMeteringService.record)
+        .mock.calls.filter(([record]) => record.meterId === "llm.prompt_tokens")
+        .map(([record]) => record.idempotencyKey);
+      expect(keys).toHaveLength(2);
+      expect(new Set(keys).size).toBe(2);
+    });
+  });
+
+  describe("tenant resolution", () => {
+    it.each([
+      {
+        name: "explicit tenant over Context and instance",
+        explicit: "explicit",
+        context: "context",
+        instance: "instance",
+        expected: "explicit",
+      },
+      {
+        name: "Context tenant over instance",
+        explicit: undefined,
+        context: "context",
+        instance: "instance",
+        expected: "context",
+      },
+      {
+        name: "Context tenant without instance",
+        explicit: undefined,
+        context: "context",
+        instance: undefined,
+        expected: "context",
+      },
+      {
+        name: "instance tenant without Context",
+        explicit: undefined,
+        context: undefined,
+        instance: "instance",
+        expected: "instance",
+      },
+      {
+        name: "default tenant without Context or instance",
+        explicit: undefined,
+        context: undefined,
+        instance: undefined,
+        expected: "default",
+      },
+    ])("should use $name", async ({ explicit, context, instance, expected }) => {
+      class TestService {
+        tenantId = instance;
+
+        @AiMetered({ tenantId: explicit })
+        async generate() {
+          return {
+            usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+            metadata: { modelId: "gpt-4", provider: "openai" },
+          };
+        }
+      }
+
+      const service = new TestService();
+      if (context === undefined) {
+        await service.generate();
+      } else {
+        await Context.run({ requestId: "tenant-request", tenantId: context }, () =>
+          service.generate(),
+        );
+      }
+
+      expect(
+        vi.mocked(mockMeteringService.record).mock.calls.map(([record]) => record.tenantId),
+      ).toEqual([expected, expected, expected]);
+    });
+
+    it("should isolate Context tenants during concurrent calls on one instance", async () => {
+      class TestService {
+        tenantId = "instance";
+
+        @AiMetered()
+        async generate() {
+          await Promise.resolve();
+          return {
+            usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+            metadata: { modelId: "gpt-4", provider: "openai" },
+          };
+        }
+      }
+
+      const service = new TestService();
+      await Promise.all(
+        ["tenant-a", "tenant-b"].map((tenantId) =>
+          Context.run({ requestId: tenantId, tenantId }, () => service.generate()),
+        ),
+      );
+
+      const tenants = vi
+        .mocked(mockMeteringService.record)
+        .mock.calls.filter(([record]) => record.meterId === "llm.prompt_tokens")
+        .map(([record]) => record.tenantId);
+      expect(tenants.sort()).toEqual(["tenant-a", "tenant-b"]);
     });
   });
 
@@ -820,7 +981,7 @@ describe("@AiMetered decorator", () => {
       expect(mockMeteringService.record).not.toHaveBeenCalled();
     });
 
-    it("should preserve the creation scope service until streaming completes", async () => {
+    it("should preserve the creation service and Context tenant until streaming completes", async () => {
       const scopedMeteringService = {
         record: vi.fn().mockResolvedValue({ id: "scoped-record", tenantId: "tenant-scoped" }),
         getUsage: vi.fn().mockResolvedValue(0),
@@ -850,18 +1011,23 @@ describe("@AiMetered decorator", () => {
         }
       }
 
-      const stream = await runWithLlmMeteringService(scopedLlmMeteringService, () =>
-        new TestService().stream(),
+      const stream = await Context.run(
+        { requestId: "creation-request", tenantId: "tenant-creation" },
+        () => runWithLlmMeteringService(scopedLlmMeteringService, () => new TestService().stream()),
       );
 
-      for await (const _chunk of stream) {
-        // Consume outside the scope that created the stream.
-      }
-
-      expect(scopedMeteringService.record).toHaveBeenCalledTimes(3);
-      expect(scopedMeteringService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ tenantId: "tenant-scoped" }),
+      await Context.run(
+        { requestId: "consumption-request", tenantId: "tenant-consumption" },
+        async () => {
+          for await (const _chunk of stream) {
+            // Consume outside the service and tenant scopes that created the stream.
+          }
+        },
       );
+
+      expect(
+        vi.mocked(scopedMeteringService.record).mock.calls.map(([record]) => record.tenantId),
+      ).toEqual(["tenant-creation", "tenant-creation", "tenant-creation"]);
       expect(mockMeteringService.record).not.toHaveBeenCalled();
     });
   });

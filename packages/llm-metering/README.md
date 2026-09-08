@@ -53,6 +53,13 @@ await runWithLlmMeteringService(metering, () => new LlmFacade().generate());
 `@AiMetered({ metering: "disabled" })`로 의도를 명시해야 합니다. 동시 tenant 요청은
 `runWithLlmMeteringService()`로 요청별 service를 바인딩하며, 전역 service보다 실행 scope가 우선합니다.
 
+`@AiMetered`의 기본 멱등성 키는 호출마다 새로 생성됩니다. 같은 요청 안에서 같은 인자로
+여러 번 호출해도 각각의 사용량을 기록합니다. 재시도 등에 동일한 멱등성 키가 필요하면
+`idempotencyKeyExtractor`가 동일한 키를 반환하도록 지정합니다.
+
+테넌트는 데코레이터의 `tenantId` 옵션, `Context.getTenantId()`, 인스턴스의 `tenantId`,
+`"default"` 순으로 결정됩니다.
+
 ## API 레퍼런스
 
 ### 핵심 클래스
