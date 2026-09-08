@@ -1192,3 +1192,32 @@ describe("PipelineRunner", () => {
     expect(graph.debugDump).toContain("middleware middleware:0:before (short-circuit)");
   });
 });
+
+describe("HttpExecutionContext tenant evidence", () => {
+  beforeEach(() => {
+    Container.reset();
+  });
+
+  it.each(["tenant-request", "tenant-http"])(
+    "preserves existing request tenant %s for guard consistency checks",
+    (tenantId) => {
+      const http = createMockHttpContext();
+      Object.assign(http.raw.req.raw, { tenantId });
+      vi.mocked(http.get).mockReturnValue("tenant-http");
+      const context = new HttpExecutionContext(http, class Controller {}, "handler");
+
+      expect(context.getRequest()).toMatchObject({ tenantId });
+      expect(context.getRequest()).toMatchObject({ tenantId });
+      expect(context.getHttpContext().get("tenantId")).toBe("tenant-http");
+    },
+  );
+
+  it.each([undefined, ""])("injects the HTTP tenant when request tenant is %j", (tenantId) => {
+    const http = createMockHttpContext();
+    Object.assign(http.raw.req.raw, { tenantId });
+    vi.mocked(http.get).mockReturnValue("tenant-http");
+    const context = new HttpExecutionContext(http, class Controller {}, "handler");
+
+    expect(context.getRequest()).toMatchObject({ tenantId: "tenant-http" });
+  });
+});
