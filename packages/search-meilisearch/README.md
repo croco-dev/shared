@@ -80,6 +80,29 @@ await Context.run({ requestId: "req-1", tenantId: "tenant-1" }, async () => {
 - 필터와 정렬 필드는 `A-Z`, `a-z`, 숫자, `_`, `.`, `-`만 허용합니다. 문자열 필터 값은
   quote/backslash를 escape해 tenant filter injection을 막습니다.
 
+## 공유 인덱스의 문서 키와 마이그레이션
+
+`id`는 호출자가 사용하는 원본 문서 ID입니다. 저장 시 `_crocoDocumentId`에 현재 테넌트와 `id`의
+JSON 배열을 SHA-256으로 해시하고, 모든 비트를 `-`와 `_`로 표현한 256자 내부 기본 키를 기록합니다.
+두 문자는 Meilisearch 기본 토크나이저의 구분자이므로 내부 키가 전체 필드 검색에 단어를 추가하지 않습니다.
+외부에서 `nonSeparatorTokens`를 변경하는 경우에는 검색 필드를 명시해 내부 키를 제외해야 합니다.
+이 필드는 엔진 소유이며 입력값을 덮어쓰고
+엔진 검색 결과에서는 제거합니다. 원본 `id` 필터·정렬과 테넌트 필터를 포함한 삭제는 그대로 동작합니다.
+테넌트 토큰으로 Meilisearch를 직접 조회하면 내부 필드도 반환될 수 있지만 `id`는 원본 값입니다.
+
+인덱스는 쓰기 전에 `engine.createIndex`로 생성해야 합니다. `primaryKey`는 생략하거나 `"id"`만 지정할 수
+있으며 실제 Meilisearch 기본 키는 `_crocoDocumentId`입니다. 각 쓰기는 인덱스 메타데이터를 조회해 이
+계약을 검사하므로 writer API key에는 문서 쓰기 권한과 `indexes.get` 권한이 필요합니다.
+기존 `id` 또는 사용자 지정 기본 키 인덱스에 쓰면
+`search-meilisearch/invalid-request`와 `upstreamCode: "incompatible-primary-key"`로 실패합니다.
+인덱스가 없으면 index-not-found Problem으로 실패합니다. `taskWait.enabled: false`로 인덱스를
+생성하는 호출자는 생성 task 완료를 확인한 뒤 첫 문서를 써야 합니다.
+
+업그레이드 시 새 이름의 인덱스를 `createIndex`로 만들고, 원본 데이터 저장소에서 **모든 테넌트**의
+문서를 각 테넌트 컨텍스트로 재색인한 뒤 조회·쓰기 대상을 전환하세요. 이전 버전 writer를 먼저 중지하고,
+전환 전후 테넌트별 문서 수와 조회·삭제 격리를 확인해야 합니다. 기존 인덱스는 자동으로 변경하거나 삭제하지
+않습니다. 이미 덮어써진 검색 문서는 이 패치만으로 복구되지 않으므로 원본 데이터가 필요합니다.
+
 ## 런타임과 설정
 
 | 항목                  | 값                                                             |
@@ -123,5 +146,5 @@ Optional live smoke runs only when both env vars are present:
 ```bash
 MEILISEARCH_HOST=http://localhost:7700 \
 MEILISEARCH_API_KEY=masterKey \
-pnpm --filter @croco/search-meilisearch test -- MeilisearchLiveSmoke
+pnpm --filter @croco/search-meilisearch test:live
 ```

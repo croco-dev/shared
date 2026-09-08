@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Context } from "@croco/framework-context";
 import type { SearchHit } from "@croco/search-core";
 import { describe, expect, it, vi } from "vitest";
@@ -18,6 +19,30 @@ const liveConfig: MeilisearchEngineOptions = {
 };
 
 describe("Meilisearch live smoke", () => {
+  it.skipIf(missingLiveSmokeEnv.length > 0)(
+    "does not match internal document keys when searchable fields are discovered by default",
+    async () => {
+      const indexName = `croco_default_search_${Date.now()}`;
+      const engine = new MeilisearchEngine(liveConfig);
+      try {
+        await engine.createIndex({ name: indexName });
+        await Context.run({ requestId: "default-search", tenantId: "x" }, async () => {
+          await engine.indexDocument(indexName, { id: "1", tenantId: "x", title: "hello" });
+          const hashPrefix = createHash("sha256")
+            .update(JSON.stringify(["x", "1"]))
+            .digest("hex")
+            .slice(0, 8);
+          expect((await engine.search(indexName, { query: hashPrefix })).total).toBe(0);
+          expect(
+            (await engine.search(indexName, { query: "hello" })).hits[0].document,
+          ).toMatchObject({ id: "1", title: "hello" });
+        });
+      } finally {
+        await engine.deleteIndex(indexName, { allowGlobalDrop: true });
+      }
+    },
+  );
+
   it.skipIf(missingLiveSmokeEnv.length > 0)(
     "requires MEILISEARCH_HOST and MEILISEARCH_API_KEY for live Meilisearch readiness and search smoke",
     async () => {
@@ -59,6 +84,17 @@ describe("Meilisearch live smoke", () => {
           title: "Croco Meilisearch live smoke",
         });
 
+        tenantContext.mockReturnValue(`${tenantId}-other`);
+        await engine.bulkIndex(indexName, [
+          {
+            id: "doc-1",
+            kind: "smoke",
+            tenantId: "forged",
+            title: "Other tenant document",
+          },
+        ]);
+        tenantContext.mockReturnValue(tenantId);
+
         const result = await engine.search<{ id: string; title: string }>(indexName, {
           filters: { kind: "smoke" },
           query: "Croco",
@@ -69,6 +105,17 @@ describe("Meilisearch live smoke", () => {
             (hit: SearchHit<{ id: string; title: string }>) => hit.document.id === "doc-1",
           ),
         ).toBe(true);
+        expect(result.hits[0].document).not.toHaveProperty("_crocoDocumentId");
+        expect(result.total).toBe(1);
+        await engine.deleteDocument(indexName, "doc-1");
+        expect((await engine.search(indexName, { query: "" })).total).toBe(0);
+        tenantContext.mockReturnValue(`${tenantId}-other`);
+        const other = await engine.search(indexName, { query: "", filters: { id: "doc-1" } });
+        expect(other.total).toBe(1);
+        expect(other.hits[0].document).toMatchObject({
+          id: "doc-1",
+          title: "Other tenant document",
+        });
       } finally {
         tenantContext.mockRestore();
         await engine.deleteIndex(indexName, { allowGlobalDrop: true });
