@@ -31,7 +31,6 @@ import { createTestLanePlan } from "./test-lane-runner.mts";
 const reportDirectory = join("ci-reports", "package-quality");
 const reportFileName = "spine-promotion.md";
 const catalogMetadataPath = join("docs", "package-catalog.json");
-const fastTestLaneReportPath = join("ci-reports", "package-quality", "fast-test-lane.json");
 const maturityOrder = ["production", "beta", "alpha", "deprecated"] as const;
 
 type MaturityKey = (typeof maturityOrder)[number];
@@ -976,28 +975,30 @@ function readTurboTestTasks(
   return readTurboTestRun(rootDir, startedAt, completedAt).tasks;
 }
 
-function readReleaseFastTestTasks(
+function readReleaseTestTasks(
   report: ReleaseSpineEvidenceReport,
   check: EvidenceCheckResult,
+  lane: "fast" | "integration",
 ): PromotionCommandResult["testTasks"] {
+  const laneReportPath = join("ci-reports", "package-quality", `${lane}-test-lane.json`);
   const artifact = check.artifacts.find(
     (candidate) =>
-      candidate.required && toPosixPath(candidate.path) === toPosixPath(fastTestLaneReportPath),
+      candidate.required && toPosixPath(candidate.path) === toPosixPath(laneReportPath),
   );
   if (!artifact) {
-    throw new Error(`Release test check must own required artifact ${fastTestLaneReportPath}`);
+    throw new Error(`Release ${check.id} check must own required artifact ${laneReportPath}`);
   }
   if (!artifact.exists || !artifact.fresh) {
-    throw new Error(`Release test check artifact ${fastTestLaneReportPath} is missing or stale`);
+    throw new Error(`Release ${check.id} check artifact ${laneReportPath} is missing or stale`);
   }
-  if (toPosixPath(artifact.sourcePath) !== toPosixPath(fastTestLaneReportPath)) {
-    throw new Error(`Release test check artifact source does not match ${fastTestLaneReportPath}`);
+  if (toPosixPath(artifact.sourcePath) !== toPosixPath(laneReportPath)) {
+    throw new Error(`Release ${check.id} check artifact source does not match ${laneReportPath}`);
   }
 
   const laneReport = readJsonFile(resolve(report.rootDir, artifact.sourcePath));
   assertLaneReport(laneReport);
-  if (laneReport.lane !== "fast") {
-    throw new Error(`Release test lane evidence must be fast, received ${laneReport.lane}`);
+  if (laneReport.lane !== lane) {
+    throw new Error(`Release test lane evidence must be ${lane}, received ${laneReport.lane}`);
   }
   if (laneReport.diagnostics.length !== 0) {
     throw new Error("Release test lane evidence must not contain diagnostics");
@@ -1021,9 +1022,20 @@ function readReleaseFastTestTasks(
     }
     commandsByOwner.set(command.owner, command);
   }
-  const expectedPlan = createTestLanePlan(inventory, "fast", laneReport.selectedOwners);
+  const selectedOwners = check.command.flatMap((value, index) =>
+    value === "--owner" ? [check.command[index + 1]] : [],
+  );
+  if (
+    JSON.stringify([...selectedOwners].sort()) !==
+    JSON.stringify([...laneReport.selectedOwners].sort())
+  ) {
+    throw new Error(`Release test lane evidence does not match the selected ${lane}-lane owners`);
+  }
+  const expectedPlan = createTestLanePlan(inventory, lane, selectedOwners);
   if (expectedPlan.length !== laneReport.commands.length) {
-    throw new Error("Release test lane evidence does not cover the exact selected fast-lane plan");
+    throw new Error(
+      `Release test lane evidence does not cover the exact selected ${lane}-lane plan`,
+    );
   }
   for (const expected of expectedPlan) {
     const actual = commandsByOwner.get(expected.owner);
@@ -1034,7 +1046,7 @@ function readReleaseFastTestTasks(
       JSON.stringify(actual.command) !== JSON.stringify(expected.command)
     ) {
       throw new Error(
-        `Release test lane evidence for ${expected.owner} does not match the selected fast-lane plan`,
+        `Release test lane evidence for ${expected.owner} does not match the selected ${lane}-lane plan`,
       );
     }
   }
@@ -1042,7 +1054,7 @@ function readReleaseFastTestTasks(
   return laneReport.commands.map((command) => ({
     packageName: command.owner,
     status: "passed",
-    taskId: `${command.owner}#test`,
+    taskId: `${command.owner}#${lane === "fast" ? "test" : "test:integration"}`,
   }));
 }
 
@@ -1143,7 +1155,15 @@ export function createReleasePromotionEvidenceContext(options: {
   if (testChecks.length !== 1) {
     throw new Error("Release promotion checkpoint must contain exactly one test check");
   }
-  const releaseTestTasks = readReleaseFastTestTasks(report, testChecks[0]);
+  for (const check of report.checks) {
+    if (
+      (check.id === "test" || check.id === "integration-test-lane") &&
+      (check.status === "not_applicable") !== (check.applicable === false)
+    ) {
+      throw new Error(`Release ${check.id} check status does not match its applicability`);
+    }
+  }
+
   return {
     schemaVersion: 1,
     source: "release",
@@ -1182,11 +1202,17 @@ export function createReleasePromotionEvidenceContext(options: {
                   ? "skipped"
                   : check.status === "skipped_prerequisite"
                     ? "skipped"
-                    : "pending",
+                    : check.status === "not_applicable"
+                      ? "skipped"
+                      : "pending",
       runAttempt: options.runAttempt,
       runId: options.runId,
       startedAt: check.startedAt,
-      testTasks: check.id === "test" ? releaseTestTasks : [],
+      testTasks:
+        check.status !== "not_applicable" &&
+        (check.id === "test" || check.id === "integration-test-lane")
+          ? readReleaseTestTasks(report, check, check.id === "test" ? "fast" : "integration")
+          : [],
     })),
   };
 }

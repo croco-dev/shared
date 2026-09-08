@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { dirname, join, resolve } from "node:path";
+import { afterEach, assert, describe, expect, it } from "vitest";
 
 import {
   buildSpinePromotionMarkdown,
@@ -17,6 +17,7 @@ import {
 } from "../spine-promotion-check.mts";
 import { inventoryDigest, readTestInventory } from "../test-inventory.mts";
 import { createTestLanePlan } from "../test-lane-runner.mts";
+import { createVerificationManifest } from "../verification-manifest.mts";
 
 const tempRepos: string[] = [];
 const commitSha = "0123456789abcdef";
@@ -509,6 +510,147 @@ describe("spine-promotion-check.mts", () => {
     expect(createContext).toThrow("stale test inventory digest");
   });
 
+  it.each([
+    {
+      name: "integration-only",
+      packages: ["analytics-posthog"],
+      selected: ["integration-test-lane"],
+    },
+    {
+      name: "fast-only",
+      packages: ["notifications-resend"],
+      selected: ["test"],
+    },
+    {
+      name: "mixed",
+      packages: ["analytics-posthog", "notifications-resend"],
+      selected: ["test", "integration-test-lane"],
+    },
+  ])("handles actual $name inventory selection through promotion", ({ packages, selected }) => {
+    const fixture = createSelectedLaneCheckpoint(packages);
+    const context = createReleasePromotionEvidenceContext(fixture.options);
+
+    for (const check of fixture.checks) {
+      const result = context.commands.find(({ commandId }) => commandId === check.id);
+      expect(check.applicable).toBe(selected.includes(check.id));
+      expect(result?.outcome).toBe(check.applicable ? "passed" : "skipped");
+      expect(result?.testTasks.map(({ packageName }) => packageName)).toEqual(
+        check.applicable
+          ? check.command.flatMap((value, index) =>
+              value === "--owner" ? [check.command[index + 1]] : [],
+            )
+          : [],
+      );
+    }
+    expect(fixture.promotion?.applicable).toBe(true);
+    const report = createSpinePromotionReport({
+      currentCommit: commitSha,
+      evidenceContext: context,
+      packageNames: packages,
+      rootDir: resolve(__dirname, "../.."),
+    });
+    expect(hasSpinePromotionFailures(report)).toBe(false);
+  });
+
+  it.each([
+    ["test", "missing"],
+    ["test", "stale"],
+    ["integration-test-lane", "missing"],
+    ["integration-test-lane", "stale"],
+  ])("rejects %s selected evidence that is %s", (id, failure) => {
+    const fixture = createSelectedLaneCheckpoint(["analytics-posthog", "notifications-resend"]);
+    const checkpoint = JSON.parse(readFileSync(fixture.options.checkpointPath, "utf8")) as {
+      checks: { id: string; artifacts: { exists: boolean; fresh: boolean }[] }[];
+    };
+    const check = checkpoint.checks.find((candidate) => candidate.id === id);
+    assert(check?.artifacts[0], `Missing fixture lane ${id}`);
+    check.artifacts[0][failure === "missing" ? "exists" : "fresh"] = false;
+    writeJson(fixture.options.checkpointPath, checkpoint);
+
+    expect(() => createReleasePromotionEvidenceContext(fixture.options)).toThrow(
+      "missing or stale",
+    );
+  });
+
+  it.each([
+    ["test", true, "not_applicable"],
+    ["test", undefined, "not_applicable"],
+    ["test", false, "passed"],
+    ["integration-test-lane", true, "not_applicable"],
+    ["integration-test-lane", undefined, "not_applicable"],
+    ["integration-test-lane", false, "passed"],
+  ] as const)("rejects %s applicability %s with status %s", (id, applicable, status) => {
+    const fixture = createSelectedLaneCheckpoint(["analytics-posthog", "notifications-resend"]);
+    const checkpoint = JSON.parse(readFileSync(fixture.options.checkpointPath, "utf8")) as {
+      checks: { id: string; applicable?: boolean; status: string }[];
+    };
+    const check = checkpoint.checks.find((candidate) => candidate.id === id);
+    assert(check, `Missing fixture lane ${id}`);
+    check.applicable = applicable;
+    check.status = status;
+    writeJson(fixture.options.checkpointPath, checkpoint);
+
+    expect(() => createReleasePromotionEvidenceContext(fixture.options)).toThrow(
+      "status does not match its applicability",
+    );
+  });
+
+  it.each(["test", "integration-test-lane"])(
+    "preserves a failed %s checkpoint outcome despite a passed lane artifact",
+    (id) => {
+      const fixture = createSelectedLaneCheckpoint(["analytics-posthog", "notifications-resend"]);
+      const checkpoint = JSON.parse(readFileSync(fixture.options.checkpointPath, "utf8")) as {
+        checks: { id: string; status: string }[];
+      };
+      const check = checkpoint.checks.find((candidate) => candidate.id === id);
+      assert(check, `Missing fixture lane ${id}`);
+      check.status = "failed";
+      writeJson(fixture.options.checkpointPath, checkpoint);
+
+      const context = createReleasePromotionEvidenceContext(fixture.options);
+      expect(context.commands.find(({ commandId }) => commandId === id)?.outcome).toBe("failed");
+    },
+  );
+
+  it.each(["fast", "integration"] as const)(
+    "rejects stale inventory, failed commands, and substituted owners in the selected %s lane",
+    (lane) => {
+      const fixture = createSelectedLaneCheckpoint(["analytics-posthog", "notifications-resend"]);
+      const lanePath = join(
+        dirname(fixture.options.checkpointPath),
+        `ci-reports/package-quality/${lane}-test-lane.json`,
+      );
+      const original = JSON.parse(readFileSync(lanePath, "utf8")) as {
+        inventoryDigest: string;
+        selectedOwners: string[];
+        status: string;
+        commands: { status: string; exitCode: number }[];
+      };
+      writeJson(lanePath, { ...original, inventoryDigest: "stale" });
+      expect(() => createReleasePromotionEvidenceContext(fixture.options)).toThrow(
+        "stale test inventory digest",
+      );
+
+      writeJson(lanePath, {
+        ...original,
+        status: "failed",
+        commands: original.commands.map((command) => ({
+          ...command,
+          status: "failed",
+          exitCode: 1,
+        })),
+      });
+      expect(() => createReleasePromotionEvidenceContext(fixture.options)).toThrow(
+        "Test lane evidence is failed",
+      );
+
+      writeJson(lanePath, { ...original, selectedOwners: ["@croco/another-package"] });
+      expect(() => createReleasePromotionEvidenceContext(fixture.options)).toThrow(
+        `selected ${lane}-lane owners`,
+      );
+    },
+  );
+
   it("fails stale promotion metadata outside the beta spine", () => {
     const repo = createTempRepo();
     writePackage(repo, "stable");
@@ -762,39 +904,7 @@ function writeReleaseCheckpoint(
     readonly laneOwners?: readonly string[];
   } = {},
 ): void {
-  const { diagnostics, inventory } = readTestInventory(join(repo, "test-inventory.json"));
-  if (diagnostics.length > 0) {
-    throw new Error(`Invalid fixture test inventory: ${JSON.stringify(diagnostics)}`);
-  }
-  const selectedOwners = options.laneOwners ?? [];
-  const commands = createTestLanePlan(inventory, "fast", selectedOwners).map((command) => ({
-    ...command,
-    durationMs: 1,
-    exitCode: 0,
-    status: "passed",
-    cacheStatus: "miss",
-    executedPaths: command.paths,
-    skippedFiles: [],
-    executionState: "executed",
-    cacheHash: `cache-${command.owner}`,
-  }));
-  writeJson(join(repo, fastTestLaneReportPath), {
-    schemaVersion: "croco.test-lane-report/v2",
-    inventoryVersion: 1,
-    inventoryDigest: inventoryDigest(inventory),
-    lane: "fast",
-    allowLive: false,
-    selectedOwners,
-    executedPaths: commands
-      .flatMap(({ cwd, executedPaths }) =>
-        executedPaths.map((path) => (cwd === "." ? path : `${cwd}/${path}`)),
-      )
-      .sort(),
-    skippedFiles: [],
-    status: "passed",
-    diagnostics: [],
-    commands,
-  });
+  writeLaneReport(repo, "fast", options.laneOwners ?? []);
   writeJson(join(repo, "release-checkpoint.json"), {
     schemaVersion: 1,
     generatedAt: startedAt,
@@ -803,6 +913,13 @@ function writeReleaseCheckpoint(
     checks: [
       {
         id: "test",
+        command: [
+          "node",
+          "scripts/test-lane-runner.mts",
+          "--lane",
+          "fast",
+          ...(options.laneOwners ?? []).flatMap((owner) => ["--owner", owner]),
+        ],
         status: "passed",
         startedAt,
         completedAt,
@@ -831,4 +948,95 @@ function writeReleaseCheckpoint(
     runId,
     runAttempt,
   });
+}
+
+function writeLaneReport(
+  repo: string,
+  lane: "fast" | "integration",
+  laneOwners: readonly string[],
+): void {
+  const { diagnostics, inventory } = readTestInventory(join(repo, "test-inventory.json"));
+  expect(diagnostics).toEqual([]);
+  const selectedOwners = laneOwners;
+  const commands = createTestLanePlan(inventory, lane, selectedOwners).map((command) => ({
+    ...command,
+    durationMs: 1,
+    exitCode: 0,
+    status: "passed",
+    cacheStatus: "miss",
+    executedPaths: command.paths,
+    skippedFiles: [],
+    executionState: "executed",
+    cacheHash: `cache-${command.owner}`,
+  }));
+  writeJson(join(repo, `ci-reports/package-quality/${lane}-test-lane.json`), {
+    schemaVersion: "croco.test-lane-report/v2",
+    inventoryVersion: 1,
+    inventoryDigest: inventoryDigest(inventory),
+    lane,
+    allowLive: false,
+    selectedOwners,
+    executedPaths: commands
+      .flatMap(({ cwd, executedPaths }) =>
+        executedPaths.map((path) => (cwd === "." ? path : `${cwd}/${path}`)),
+      )
+      .sort(),
+    skippedFiles: [],
+    status: "passed",
+    diagnostics: [],
+    commands,
+  });
+}
+
+function createSelectedLaneCheckpoint(packageNames: readonly string[]) {
+  const repo = createTempRepo();
+  const repositoryRoot = resolve(__dirname, "../..");
+  writeFileSync(
+    join(repo, "test-inventory.json"),
+    readFileSync(join(repositoryRoot, "test-inventory.json")),
+  );
+  const manifest = createVerificationManifest("spine", {
+    base: "origin/trunk",
+    head: "HEAD",
+    changedFiles: packageNames.flatMap((name) => [
+      `packages/${name}/src/index.ts`,
+      ...(name === "analytics-posthog"
+        ? ["packages/analytics-posthog/src/tests/Integration.spec.ts"]
+        : []),
+    ]),
+  });
+  const checks = manifest.filter(({ id }) => id === "test" || id === "integration-test-lane");
+  const checkpointPath = join(repo, "release-checkpoint.json");
+  writeJson(checkpointPath, {
+    schemaVersion: 1,
+    generatedAt: startedAt,
+    rootDir: repo,
+    provenance: { commitSha, runId: "run-1", runAttempt: "1" },
+    checks: checks.map((check) => {
+      const lane = check.id === "test" ? "fast" : "integration";
+      if (check.applicable) {
+        const owners = check.command.flatMap((value, index) =>
+          value === "--owner" ? [check.command[index + 1]] : [],
+        );
+        writeLaneReport(repo, lane, owners);
+      }
+      return {
+        ...check,
+        status: check.applicable ? "passed" : "not_applicable",
+        startedAt: check.applicable ? startedAt : null,
+        completedAt: check.applicable ? completedAt : null,
+        artifacts: check.artifacts?.map((artifact) => ({
+          ...artifact,
+          sourcePath: artifact.path,
+          exists: check.applicable,
+          fresh: check.applicable,
+        })),
+      };
+    }),
+  });
+  return {
+    checks,
+    promotion: manifest.find(({ id }) => id === "spine-promotion"),
+    options: { checkpointPath, commitSha, runId: "run-1", runAttempt: "1" },
+  };
 }
