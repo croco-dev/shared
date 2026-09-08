@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, assert, describe, expect, it } from "vitest";
 
 import {
   buildSpinePromotionMarkdown,
@@ -563,12 +563,35 @@ describe("spine-promotion-check.mts", () => {
       checks: { id: string; artifacts: { exists: boolean; fresh: boolean }[] }[];
     };
     const check = checkpoint.checks.find((candidate) => candidate.id === id);
-    if (!check?.artifacts[0]) throw new Error(`Missing fixture lane ${id}`);
+    assert(check?.artifacts[0], `Missing fixture lane ${id}`);
     check.artifacts[0][failure === "missing" ? "exists" : "fresh"] = false;
     writeJson(fixture.options.checkpointPath, checkpoint);
 
     expect(() => createReleasePromotionEvidenceContext(fixture.options)).toThrow(
       "missing or stale",
+    );
+  });
+
+  it.each([
+    ["test", true, "not_applicable"],
+    ["test", undefined, "not_applicable"],
+    ["test", false, "passed"],
+    ["integration-test-lane", true, "not_applicable"],
+    ["integration-test-lane", undefined, "not_applicable"],
+    ["integration-test-lane", false, "passed"],
+  ] as const)("rejects %s applicability %s with status %s", (id, applicable, status) => {
+    const fixture = createSelectedLaneCheckpoint(["analytics-posthog", "notifications-resend"]);
+    const checkpoint = JSON.parse(readFileSync(fixture.options.checkpointPath, "utf8")) as {
+      checks: { id: string; applicable?: boolean; status: string }[];
+    };
+    const check = checkpoint.checks.find((candidate) => candidate.id === id);
+    assert(check, `Missing fixture lane ${id}`);
+    check.applicable = applicable;
+    check.status = status;
+    writeJson(fixture.options.checkpointPath, checkpoint);
+
+    expect(() => createReleasePromotionEvidenceContext(fixture.options)).toThrow(
+      "status does not match its applicability",
     );
   });
 
@@ -580,7 +603,7 @@ describe("spine-promotion-check.mts", () => {
         checks: { id: string; status: string }[];
       };
       const check = checkpoint.checks.find((candidate) => candidate.id === id);
-      if (!check) throw new Error(`Missing fixture lane ${id}`);
+      assert(check, `Missing fixture lane ${id}`);
       check.status = "failed";
       writeJson(fixture.options.checkpointPath, checkpoint);
 
@@ -933,9 +956,7 @@ function writeLaneReport(
   laneOwners: readonly string[],
 ): void {
   const { diagnostics, inventory } = readTestInventory(join(repo, "test-inventory.json"));
-  if (diagnostics.length > 0) {
-    throw new Error(`Invalid fixture test inventory: ${JSON.stringify(diagnostics)}`);
-  }
+  expect(diagnostics).toEqual([]);
   const selectedOwners = laneOwners;
   const commands = createTestLanePlan(inventory, lane, selectedOwners).map((command) => ({
     ...command,

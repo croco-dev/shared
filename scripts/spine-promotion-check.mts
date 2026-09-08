@@ -1155,6 +1155,14 @@ export function createReleasePromotionEvidenceContext(options: {
   if (testChecks.length !== 1) {
     throw new Error("Release promotion checkpoint must contain exactly one test check");
   }
+  for (const check of report.checks) {
+    if (
+      (check.id === "test" || check.id === "integration-test-lane") &&
+      (check.status === "not_applicable") !== (check.applicable === false)
+    ) {
+      throw new Error(`Release ${check.id} check status does not match its applicability`);
+    }
+  }
 
   return {
     schemaVersion: 1,
