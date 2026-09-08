@@ -7,6 +7,7 @@ import {
 } from "@croco/framework-context";
 import { Logger } from "@croco/framework-logger";
 import { Problem, ProblemCategory, ProblemFactory } from "@croco/problems-core";
+import { HttpExceptionFilter } from "@croco/protocols-rest";
 import type { ExceptionFilter, HttpExceptionFilterResponse } from "@croco/protocols-rest";
 import { type Span, trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -166,6 +167,58 @@ describe("PipelineRunner", () => {
     Container.set(Logger, logger as unknown as Logger);
     Container.set(ErrorHandler, new ErrorHandler(logger as unknown as Logger));
   });
+
+  it("rejects conflicting tenants before guards while keeping the request readable by filters", async () => {
+    const http = createMockHttpContext();
+    Object.assign(http.raw.req.raw, { tenantId: "tenant-request" });
+    vi.mocked(http.get).mockReturnValue("tenant-http");
+    const context = new HttpExecutionContext(http, class Controller {}, "handler");
+    const canActivate = vi.fn(() => true);
+    const handler = vi.fn(async () => "should not run");
+    const filter = new HttpExceptionFilter();
+    const catchSpy = vi.spyOn(filter, "catch");
+
+    const result = await createRunner().run(context, handler, {
+      guards: [{ canActivate }],
+      interceptors: [],
+      filters: [filter],
+    });
+
+    expect(canActivate).not.toHaveBeenCalled();
+    expect(handler).not.toHaveBeenCalled();
+    expect(catchSpy).toHaveReturnedWith(expect.objectContaining({ status: 403 }));
+    expect(context.getRequest().url).toBe("http://localhost/test");
+    expect(result).toBeInstanceOf(Response);
+    const response = result as Response;
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: "ACCESS_DENIED", status: 403 });
+    expect(logger.warn).not.toHaveBeenCalledWith("CROCO_HTTP_FILTER_001", expect.anything());
+  });
+
+  it.each([undefined, "", "tenant-http"])(
+    "allows compatible request tenant %j through guards",
+    async (tenantId) => {
+      const http = createMockHttpContext();
+      Object.assign(http.raw.req.raw, { tenantId });
+      vi.mocked(http.get).mockReturnValue("tenant-http");
+      const context = new HttpExecutionContext(http, class Controller {}, "handler");
+      const canActivate = vi.fn(() => {
+        expect(context.getRequest()).toMatchObject({ tenantId: "tenant-http" });
+        return true;
+      });
+      const handler = vi.fn(async () => "allowed");
+
+      await expect(
+        createRunner().run(context, handler, {
+          guards: [{ canActivate }],
+          interceptors: [],
+          filters: [],
+        }),
+      ).resolves.toBe("allowed");
+      expect(canActivate).toHaveBeenCalledOnce();
+      expect(handler).toHaveBeenCalledOnce();
+    },
+  );
 
   it("BUG-03 명시적 의존성으로 PipelineRunner 생성 가능", () => {
     expect(() => createRunner()).not.toThrow();

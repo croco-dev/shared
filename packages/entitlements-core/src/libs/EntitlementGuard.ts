@@ -230,7 +230,10 @@ export class EntitlementGuard implements Guard<RouteExecutionContext> {
   ): EntitlementTenantResolution {
     const principalTenantId = normalizeTenantId(request.principal?.tenantId);
     const userTenantId = normalizeTenantId(user?.tenantId);
-    const authenticatedTenantId = principalTenantId ?? userTenantId;
+    const frameworkTenantId = normalizeTenantId(Context.getTenantId());
+    const requestTenantId = normalizeTenantId(request.tenantId);
+    const authenticatedTenantId =
+      principalTenantId ?? userTenantId ?? frameworkTenantId ?? requestTenantId;
 
     if (!authenticatedTenantId) {
       return {
@@ -245,12 +248,11 @@ export class EntitlementGuard implements Guard<RouteExecutionContext> {
       return tenantMismatch(authenticatedTenantId, "authenticated principal and user");
     }
 
-    const requestTenantId = normalizeTenantId(request.tenantId);
     const httpContextTenantId = context.getHttpContext?.()?.get<string>("tenantId");
     const selections = [
       ["request", requestTenantId],
       ["HTTP context", normalizeTenantId(httpContextTenantId)],
-      ["framework Context", normalizeTenantId(Context.getTenantId())],
+      ["framework Context", frameworkTenantId],
     ] as const;
 
     for (const [source, tenantId] of selections) {
