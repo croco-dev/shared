@@ -35,13 +35,20 @@ describe("createRlsPolicy", () => {
   it.each(["varchar", "text); DROP TABLE orders; --", "", null])(
     "should reject unsupported tenant column type %s",
     (tenantColumnType) => {
-      expect(() =>
+      expect.assertions(2);
+      try {
         createRlsPolicy({
           tableName: "orders",
           // @ts-expect-error Exercise callers without TypeScript validation.
           tenantColumnType,
-        }),
-      ).toThrow(RlsConfigurationProblem);
+        });
+      } catch (error) {
+        expect(error).toBeInstanceOf(RlsConfigurationProblem);
+        expect(error).toMatchObject({
+          detail: "Invalid RLS configuration field: tenantColumnType",
+          extensions: { field: "tenantColumnType", retryable: false },
+        });
+      }
     },
   );
 
