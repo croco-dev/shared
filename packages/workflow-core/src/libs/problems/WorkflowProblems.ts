@@ -1,3 +1,4 @@
+import type { ExecutionError } from "@croco/execution-core";
 import { Problem, ProblemCategory } from "@croco/problems-core";
 import type { SagaExecutionStatus, SagaFailure } from "../saga/types";
 
@@ -39,6 +40,39 @@ export class WorkflowDefinitionProblem extends Problem {
         },
       },
     );
+  }
+}
+
+export class WorkflowExecutionInProgressProblem extends Problem {
+  constructor(workflowName: string, executionId: string, status: "pending" | "running") {
+    super(
+      "workflow-core/workflow-execution-in-progress",
+      ProblemCategory.Conflict,
+      `Workflow '${workflowName}' execution '${executionId}' is ${status}`,
+      { extensions: { workflowName, executionId, workflowStatus: status, retryable: true } },
+    );
+  }
+}
+
+export class WorkflowExecutionFailedProblem extends Problem {
+  readonly failure: ExecutionError;
+
+  constructor(workflowName: string, executionId: string, failure: ExecutionError) {
+    super(
+      "workflow-core/workflow-execution-failed",
+      ProblemCategory.InternalServerError,
+      `Workflow '${workflowName}' execution '${executionId}' failed: ${failure.message}`,
+      {
+        extensions: {
+          workflowName,
+          executionId,
+          ...(failure.code === undefined ? {} : { originalFailureCode: failure.code }),
+          originalFailureMessage: failure.message,
+          retryable: failure.retryable,
+        },
+      },
+    );
+    this.failure = failure;
   }
 }
 

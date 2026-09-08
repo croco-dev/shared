@@ -777,67 +777,106 @@ describe("workflow-core", () => {
     expect(allExecutions).toHaveLength(2);
   });
 
-  it("does not re-enter an idempotent workflow while its existing execution is pending", async () => {
-    @Component()
-    class WebhookTasks {
-      @Task({ name: "billing.pending-webhook" })
-      handleWebhook(): void {}
-    }
+  it.each([
+    ["pending", "workflow-core/workflow-execution-in-progress", true, true],
+    ["running", "workflow-core/workflow-execution-in-progress", true, true],
+    ["failed", "workflow-core/workflow-execution-failed", true, true],
+    ["timed_out", "workflow-core/workflow-execution-failed", true, true],
+    ["cancelled", "execution/invalid-state-transition", true, true],
+    ["failed", "execution/invalid-state-transition", false, true],
+    ["timed_out", "execution/invalid-state-transition", false, true],
+    ["running", "workflow-core/workflow-execution-in-progress", true, false],
+    ["failed", "workflow-core/workflow-execution-failed", true, false],
+    ["cancelled", "execution/invalid-state-transition", true, false],
+  ] as const)(
+    "rejects reuse of a stored %s workflow without mutation",
+    async (status, code, hasFailure, idempotent) => {
+      @Component()
+      class WebhookTasks {
+        @Task({ name: "billing.pending-webhook" })
+        handleWebhook(): void {}
+      }
 
-    @Component()
-    class WebhookWorkflows {
-      @OnWebhook("/webhooks/billing", "POST", { auth: true })
-      @Workflow({
-        name: "billing-pending-webhook",
-        steps: ["billing.pending-webhook"],
-        idempotencyKey: ({ payload }) => `billing-webhook:${getSubscriptionId(payload)}`,
-      })
-      webhook(): void {}
-    }
+      @Component()
+      class WebhookWorkflows {
+        @OnWebhook("/webhooks/billing", "POST", { auth: true })
+        @Workflow({
+          name: "billing-pending-webhook",
+          steps: ["billing.pending-webhook"],
+          idempotencyKey: idempotent
+            ? ({ payload }) => `billing-webhook:${getSubscriptionId(payload)}`
+            : undefined,
+        })
+        webhook(): void {}
+      }
 
-    Container.set(WebhookTasks, new WebhookTasks());
-    Container.set(WebhookWorkflows, new WebhookWorkflows());
+      Container.set(WebhookTasks, new WebhookTasks());
+      Container.set(WebhookWorkflows, new WebhookWorkflows());
 
-    const existingExecution: Execution = {
-      id: "workflow-existing",
-      type: "workflow",
-      status: "pending",
-      payload: { subscriptionId: "sub_123" },
-      attempts: 0,
-      maxAttempts: 1,
-      createdAt: new Date(),
-      idempotencyKey: "billing-webhook:sub_123",
-      metadata: {
-        workflowName: "billing-pending-webhook",
-        workflowInvocationId: "existing-invocation",
-      },
-    };
-    const executionManager = {
-      create: vi.fn().mockResolvedValue(existingExecution),
-      start: vi.fn(),
-      complete: vi.fn(),
-      fail: vi.fn(),
-      cancel: vi.fn(),
-      retry: vi.fn(),
-      updateProgress: vi.fn(),
-      checkpoint: vi.fn(),
-      timeout: vi.fn(),
-    } as unknown as ExecutionManager;
-    const runner = new WorkflowRunner(executionManager, WorkflowRegistry.fromMetadata());
+      const existingExecution: Execution = {
+        id: "workflow-existing",
+        type: "workflow",
+        status,
+        error: hasFailure
+          ? {
+              message: "provider failed",
+              code: "provider/failure",
+              retryable: false,
+              stack: "stored stack",
+            }
+          : undefined,
+        payload: { subscriptionId: "sub_123" },
+        attempts: 0,
+        maxAttempts: 1,
+        createdAt: new Date(),
+        idempotencyKey: "billing-webhook:sub_123",
+        metadata: {
+          workflowName: "billing-pending-webhook",
+          workflowInvocationId: "existing-invocation",
+        },
+      };
+      const executionManager = {
+        create: vi.fn().mockResolvedValue(existingExecution),
+        start: vi.fn(),
+        complete: vi.fn(),
+        fail: vi.fn(),
+        cancel: vi.fn(),
+        retry: vi.fn(),
+        updateProgress: vi.fn(),
+        checkpoint: vi.fn(),
+        timeout: vi.fn(),
+      } as unknown as ExecutionManager;
+      const runner = new WorkflowRunner(executionManager, WorkflowRegistry.fromMetadata());
 
-    const result = await runner.execute("billing-pending-webhook", {
-      subscriptionId: "sub_123",
-    });
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        executionId: "workflow-existing",
-        reused: true,
-        steps: [],
-      }),
-    );
-    expect(executionManager.start).not.toHaveBeenCalled();
-  });
+      const mockSpan = createMockSpan();
+      vi.spyOn(trace, "getTracer").mockReturnValue(createMockTracer(mockSpan.span));
+      await expect(
+        runner.execute("billing-pending-webhook", {
+          subscriptionId: "sub_123",
+        }),
+      ).rejects.toMatchObject({
+        code,
+        ...(code === "workflow-core/workflow-execution-failed"
+          ? {
+              failure: existingExecution.error,
+              extensions: {
+                originalFailureCode: "provider/failure",
+                originalFailureMessage: "provider failed",
+                retryable: false,
+              },
+            }
+          : {}),
+      });
+      expect(executionManager.start).not.toHaveBeenCalled();
+      expect(executionManager.complete).not.toHaveBeenCalled();
+      expect(executionManager.fail).not.toHaveBeenCalled();
+      expect(mockSpan.setAttribute).not.toHaveBeenCalledWith("workflow.reused", true);
+      expect(mockSpan.addEvent).not.toHaveBeenCalledWith(
+        "workflow.execution.reused",
+        expect.anything(),
+      );
+    },
+  );
 
   it("does not duplicate child tasks for a running idempotent workflow", async () => {
     let releaseTask!: () => void;
@@ -876,22 +915,18 @@ describe("workflow-core", () => {
       subscriptionId: "sub_123",
     });
     const started = await waitForWorkflowExecution(manager);
-    const second = await runner.execute("billing-slow-webhook", {
-      subscriptionId: "sub_123",
-    });
-
-    releaseTask();
-    const firstResult = await first;
+    try {
+      await expect(
+        runner.execute("billing-slow-webhook", {
+          subscriptionId: "sub_123",
+        }),
+      ).rejects.toMatchObject({ code: "workflow-core/workflow-execution-in-progress" });
+    } finally {
+      releaseTask();
+      await first;
+    }
     const allExecutions = await manager.list();
-
     expect(started.status).toBe("running");
-    expect(second).toEqual(
-      expect.objectContaining({
-        executionId: firstResult.executionId,
-        reused: true,
-        steps: [],
-      }),
-    );
     expect(handledSubscriptions).toEqual(["sub_123"]);
     expect(allExecutions).toHaveLength(2);
   });
@@ -1217,17 +1252,11 @@ describe("workflow-core", () => {
     } as unknown as ExecutionManager;
     const runner = new WorkflowRunner(executionManager, WorkflowRegistry.fromMetadata());
 
-    const result = await runner.execute("billing-retry-collision", {
-      subscriptionId: "sub_123",
-    });
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        executionId: "workflow-existing",
-        reused: true,
-        steps: [],
+    await expect(
+      runner.execute("billing-retry-collision", {
+        subscriptionId: "sub_123",
       }),
-    );
+    ).rejects.toMatchObject({ code: "execution/invalid-state-transition" });
     expect(executionManager.start).not.toHaveBeenCalled();
   });
 

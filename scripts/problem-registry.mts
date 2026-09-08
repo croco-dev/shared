@@ -1894,6 +1894,24 @@ const recoveryMetadataByCategory = {
 } as const satisfies Record<ProblemCategory, ProblemRecoveryMetadata>;
 
 const recoveryMetadataByCode = {
+  "workflow-core/workflow-execution-in-progress": recovery({
+    cause: "Another invocation owns a pending or running workflow with the same idempotency key.",
+    userAction: "Retry the same request after the owning execution finishes.",
+    operatorAction:
+      "Inspect the execution status and reconcile abandoned executions before retrying.",
+    retryability: "retryable",
+    redactionPolicy: "operator-only",
+    severity: "warning",
+  }),
+  "workflow-core/workflow-execution-failed": recovery({
+    cause: "The workflow matched a previously failed or timed-out execution.",
+    userAction: "Inspect the original failure before requesting an explicit replay.",
+    operatorAction:
+      "Resolve the persisted failure and reconcile possible side effects before replaying.",
+    retryability: "conditional",
+    redactionPolicy: "operator-only",
+    severity: "error",
+  }),
   CROCO_SAAS_PROFILE_MISMATCH: recovery({
     cause: "The generated profile and requested profile do not match.",
     userAction: "Select the generated profile or correct the explicit profile override.",

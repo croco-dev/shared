@@ -35221,6 +35221,18 @@
               "declarationKind": "class"
             },
             {
+              "name": "WorkflowExecutionFailedProblem",
+              "exportKind": "named",
+              "source": "./libs/problems/WorkflowProblems",
+              "declarationKind": "class"
+            },
+            {
+              "name": "WorkflowExecutionInProgressProblem",
+              "exportKind": "named",
+              "source": "./libs/problems/WorkflowProblems",
+              "declarationKind": "class"
+            },
+            {
               "name": "WorkflowNotFoundProblem",
               "exportKind": "named",
               "source": "./libs/problems/WorkflowProblems",
