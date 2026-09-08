@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { Context } from "@croco/framework-context";
 import "reflect-metadata";
 import type { LlmMeteringService } from "../LlmMeteringService";
 import { LlmMeteringServiceRequiredProblem } from "../problems/LlmMeteringProblems";
@@ -67,66 +68,6 @@ export type AiMeteredMetadata = {
 
 let llmMeteringServiceInstance: LlmMeteringService | null = null;
 const llmMeteringServiceScope = new AsyncLocalStorage<LlmMeteringService>();
-
-function normalizeForIdempotency(value: unknown, seen: WeakSet<object>): unknown {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value;
-  }
-
-  if (typeof value === "bigint") {
-    return value.toString();
-  }
-
-  if (typeof value === "undefined") {
-    return "[undefined]";
-  }
-
-  if (typeof value === "function") {
-    return "[function]";
-  }
-
-  if (typeof value === "symbol") {
-    return value.toString();
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeForIdempotency(item, seen));
-  }
-
-  if (typeof value !== "object") {
-    return String(value);
-  }
-
-  if (seen.has(value)) {
-    return "[circular]";
-  }
-
-  seen.add(value);
-
-  const normalizedEntries = Object.entries(value)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, nestedValue]) => [key, normalizeForIdempotency(nestedValue, seen)]);
-
-  seen.delete(value);
-
-  return Object.fromEntries(normalizedEntries);
-}
-
-function createDefaultIdempotencyKey(propertyKey: string | symbol, args: unknown[]): string {
-  const normalizedArgs = normalizeForIdempotency(args, new WeakSet<object>());
-  const hash = createHash("sha256").update(JSON.stringify(normalizedArgs)).digest("hex");
-
-  return `${String(propertyKey)}:${hash}`;
-}
 
 function getResultModelMetadata(result: unknown): { modelId: string; provider: string } {
   const metadata =
@@ -229,9 +170,13 @@ export function AiMetered(options: AiMeteredOptions = {}): MethodDecorator {
         return result;
       }
 
-      const tenantId = metadata.tenantId ?? (this as { tenantId?: string }).tenantId ?? "default";
+      const tenantId =
+        metadata.tenantId ??
+        Context.getTenantId() ??
+        (this as { tenantId?: string }).tenantId ??
+        "default";
       const idempotencyKey =
-        metadata.idempotencyKeyExtractor?.(args) ?? createDefaultIdempotencyKey(propertyKey, args);
+        metadata.idempotencyKeyExtractor?.(args) ?? `${String(propertyKey)}:${randomUUID()}`;
       const additionalMetadata = metadata.metadataExtractor?.(args, result);
 
       if (isAsyncIterable(result)) {
