@@ -21,11 +21,7 @@ export class HttpExecutionContext implements ExecutionContext {
     request.params = this.ctx.req.params;
 
     const contextTenantId = this.ctx.get<string>("tenantId");
-    if (
-      !(typeof request.tenantId === "string" && request.tenantId.length > 0) &&
-      typeof contextTenantId === "string" &&
-      contextTenantId.length > 0
-    ) {
+    if (typeof contextTenantId === "string" && contextTenantId.length > 0) {
       request.tenantId = contextTenantId;
     }
 

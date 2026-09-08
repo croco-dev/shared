@@ -225,15 +225,28 @@ export class PipelineRunner {
   }
 
   private async runGuards(
-    context: ExecutionContext,
+    context: HttpExecutionContext,
     guards: Guard<ExecutionContext>[],
   ): Promise<void> {
     for (const guard of guards) {
-      const canActivate = await guard.canActivate(context);
+      const canActivate = this.hasConsistentTenant(context) && (await guard.canActivate(context));
       if (!canActivate) {
         throw ProblemFactory.forbidden("ACCESS_DENIED", "Access denied");
       }
     }
+  }
+
+  private hasConsistentTenant(context: HttpExecutionContext): boolean {
+    const httpContext = context.getHttpContext();
+    const requestTenantId = (httpContext.raw.req.raw as Request & { tenantId?: unknown }).tenantId;
+    const contextTenantId = httpContext.get<unknown>("tenantId");
+    return !(
+      typeof requestTenantId === "string" &&
+      requestTenantId.length > 0 &&
+      typeof contextTenantId === "string" &&
+      contextTenantId.length > 0 &&
+      requestTenantId !== contextTenantId
+    );
   }
 
   private async runInterceptorChain(
