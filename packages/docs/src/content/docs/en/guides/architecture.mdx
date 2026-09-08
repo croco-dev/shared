@@ -124,6 +124,10 @@ does not initialize or execute a host.
 entrypoint, output format, output directory, and hooks. The deprecated `defineCrocoPreset()` name is
 an alias for that build-time contract; it does not imply runtime composition.
 
+`frontend-vite` and `meta-vite` also have the Tooling/build-target role. `frontend-vite` provides
+Vite configuration helpers; `meta-vite` supplies Vite integration together with routing, server
+actions, and SSR/RSC runtime helpers. Their frontend domain does not change their canonical role.
+
 ### Plugins: Integrations
 
 Integration packages connect Croco to external systems.
@@ -138,9 +142,7 @@ Integration packages connect Croco to external systems.
 Presentation packages connect Croco backends to frontend and SSR application surfaces.
 
 - **`frontend-react`** provides React integration helpers.
-- **`frontend-vite`** provides Vite configuration helpers.
 - **`frontend-cloudflare`** provides Cloudflare SSR handling.
-- **`meta-vite`** provides routing, server actions, and SSR/RSC streaming.
 
 ### Profiles
 
