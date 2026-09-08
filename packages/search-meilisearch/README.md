@@ -89,9 +89,11 @@ JSON 배열을 SHA-256으로 해시한 내부 기본 키를 기록합니다. 이
 
 인덱스는 쓰기 전에 `engine.createIndex`로 생성해야 합니다. `primaryKey`는 생략하거나 `"id"`만 지정할 수
 있으며 실제 Meilisearch 기본 키는 `_crocoDocumentId`입니다. 각 쓰기는 인덱스 메타데이터를 조회해 이
-계약을 검사합니다. 기존 `id` 또는 사용자 지정 기본 키 인덱스에 쓰면
+계약을 검사하므로 writer API key에는 문서 쓰기 권한과 `indexes.get` 권한이 필요합니다.
+기존 `id` 또는 사용자 지정 기본 키 인덱스에 쓰면
 `search-meilisearch/invalid-request`와 `upstreamCode: "incompatible-primary-key"`로 실패합니다.
-인덱스가 없으면 index-not-found Problem으로 실패합니다.
+인덱스가 없으면 index-not-found Problem으로 실패합니다. `taskWait.enabled: false`로 인덱스를
+생성하는 호출자는 생성 task 완료를 확인한 뒤 첫 문서를 써야 합니다.
 
 업그레이드 시 새 이름의 인덱스를 `createIndex`로 만들고, 원본 데이터 저장소에서 **모든 테넌트**의
 문서를 각 테넌트 컨텍스트로 재색인한 뒤 조회·쓰기 대상을 전환하세요. 이전 버전 writer를 먼저 중지하고,
