@@ -334,6 +334,732 @@
       }
     }
   },
+  "roleMetadata": {
+    "description": "packageRoles is the authoritative architecture role source. Roles describe responsibility, not sequential runtime layers. groups remains a secondary historical inventory for compatibility and certification selection.",
+    "runtimeCompatibility": "An explicit empty runtimes array means compatibility is unclaimed; it never means all runtimes are supported. Existing extension runtime claims remain unchanged."
+  },
+  "packageRoles": {
+    "access-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Access"
+    },
+    "access-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Access control"
+    },
+    "admin-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Admin"
+    },
+    "admin-generated": {
+      "role": "Tooling",
+      "subtype": "codegen",
+      "runtimes": [],
+      "domain": "Admin Generated"
+    },
+    "admin-ops": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Admin Ops"
+    },
+    "admin-react": {
+      "role": "Plugins",
+      "subtype": "presentation",
+      "runtimes": ["browser", "node"],
+      "domain": "Admin React"
+    },
+    "analytics-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Analytics"
+    },
+    "analytics-posthog": {
+      "role": "Plugins",
+      "subtype": "integration",
+      "runtimes": ["node", "lambda"],
+      "domain": "Analytics"
+    },
+    "architecture-policy": {
+      "role": "Tooling",
+      "subtype": "policy",
+      "runtimes": [],
+      "domain": "Architecture Policy"
+    },
+    "audit-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Audit"
+    },
+    "audit-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Audit"
+    },
+    "auth-better-auth": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Auth"
+    },
+    "auth-clerk": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Auth"
+    },
+    "auth-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Auth"
+    },
+    "auth-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Auth"
+    },
+    "batch-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Batch"
+    },
+    "batch-qstash": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Batch"
+    },
+    "billing-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Billing"
+    },
+    "billing-polar": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Billing"
+    },
+    "cache-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Cache"
+    },
+    "cli": {
+      "role": "Tooling",
+      "subtype": "cli",
+      "runtimes": [],
+      "domain": "Cli"
+    },
+    "create-croco-app": {
+      "role": "Tooling",
+      "subtype": "cli",
+      "runtimes": [],
+      "domain": "Create Croco App"
+    },
+    "credits-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Credits"
+    },
+    "credits-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Credits"
+    },
+    "customer-health-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Customer Health"
+    },
+    "customer-health-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Customer health"
+    },
+    "dataloader-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Dataloader"
+    },
+    "desktop-codegen": {
+      "role": "Tooling",
+      "subtype": "codegen",
+      "runtimes": [],
+      "domain": "Desktop Codegen"
+    },
+    "diagnostics-core": {
+      "role": "Kernel",
+      "subtype": "runtime",
+      "runtimes": [],
+      "domain": "Diagnostics"
+    },
+    "engagement-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Engagement"
+    },
+    "engagement-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Engagement"
+    },
+    "entitlements-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Entitlements"
+    },
+    "entitlements-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Entitlements"
+    },
+    "esbuild-plugin": {
+      "role": "Tooling",
+      "subtype": "build-target",
+      "runtimes": [],
+      "domain": "Esbuild Plugin"
+    },
+    "events-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Events"
+    },
+    "events-inmemory": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": [],
+      "domain": "Events Inmemory"
+    },
+    "events-tx": {
+      "role": "Plugins",
+      "subtype": "integration",
+      "runtimes": [],
+      "domain": "Events Tx"
+    },
+    "execution-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Execution"
+    },
+    "execution-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Execution"
+    },
+    "features-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Features"
+    },
+    "features-posthog": {
+      "role": "Plugins",
+      "subtype": "integration",
+      "runtimes": ["node", "lambda"],
+      "domain": "Feature flags"
+    },
+    "framework-config": {
+      "role": "Kernel",
+      "subtype": "runtime",
+      "runtimes": [],
+      "domain": "Framework Config"
+    },
+    "framework-context": {
+      "role": "Kernel",
+      "subtype": "runtime",
+      "runtimes": [],
+      "domain": "Framework Context"
+    },
+    "framework-logger": {
+      "role": "Kernel",
+      "subtype": "runtime",
+      "runtimes": [],
+      "domain": "Framework Logger"
+    },
+    "framework-module": {
+      "role": "Kernel",
+      "subtype": "runtime",
+      "runtimes": [],
+      "domain": "Framework Module"
+    },
+    "framework-preset": {
+      "role": "Tooling",
+      "subtype": "build-target",
+      "runtimes": [],
+      "domain": "Framework Preset"
+    },
+    "framework-routes": {
+      "role": "Plugins",
+      "subtype": "integration",
+      "runtimes": [],
+      "domain": "Framework Routes"
+    },
+    "frontend-cloudflare": {
+      "role": "Plugins",
+      "subtype": "presentation",
+      "runtimes": ["cloudflare-workers"],
+      "domain": "Frontend SSR"
+    },
+    "frontend-problems": {
+      "role": "Plugins",
+      "subtype": "presentation",
+      "runtimes": ["browser", "cloudflare-workers"],
+      "domain": "Frontend Problems"
+    },
+    "frontend-react": {
+      "role": "Plugins",
+      "subtype": "presentation",
+      "runtimes": ["browser", "node"],
+      "domain": "Frontend React"
+    },
+    "frontend-vite": {
+      "role": "Tooling",
+      "subtype": "build-target",
+      "runtimes": ["node", "browser", "cloudflare-workers"],
+      "domain": "Frontend Vite"
+    },
+    "gid-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Gid"
+    },
+    "governance-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Governance"
+    },
+    "health-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Health"
+    },
+    "idempotency-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Idempotency"
+    },
+    "impersonation-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Impersonation"
+    },
+    "integrations-posthog": {
+      "role": "Plugins",
+      "subtype": "integration",
+      "runtimes": ["node", "lambda"],
+      "domain": "PostHog"
+    },
+    "invitation-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Invitation"
+    },
+    "invitation-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Invitation"
+    },
+    "lifecycle-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Lifecycle"
+    },
+    "llm-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Llm"
+    },
+    "llm-metering": {
+      "role": "Plugins",
+      "subtype": "integration",
+      "runtimes": [],
+      "domain": "Llm Metering"
+    },
+    "llm-openai": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "LLM"
+    },
+    "membership-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Membership"
+    },
+    "membership-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Membership"
+    },
+    "meta-vite": {
+      "role": "Tooling",
+      "subtype": "build-target",
+      "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
+      "domain": "Frontend routing"
+    },
+    "metering-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Metering"
+    },
+    "metering-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Metering"
+    },
+    "metering-upstash": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Metering"
+    },
+    "metrics-billing": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda", "cloudflare-workers"],
+      "domain": "Metrics"
+    },
+    "metrics-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Metrics"
+    },
+    "migration-runner": {
+      "role": "Tooling",
+      "subtype": "migration",
+      "runtimes": [],
+      "domain": "Migration Runner"
+    },
+    "notifications-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Notifications"
+    },
+    "notifications-react-email": {
+      "role": "Plugins",
+      "subtype": "presentation",
+      "runtimes": ["node", "lambda"],
+      "domain": "Notifications"
+    },
+    "notifications-resend": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Notifications"
+    },
+    "onboarding-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Onboarding"
+    },
+    "onboarding-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Onboarding"
+    },
+    "openapi-spec": {
+      "role": "Tooling",
+      "subtype": "codegen",
+      "runtimes": [],
+      "domain": "Openapi Spec"
+    },
+    "outbox-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Outbox"
+    },
+    "pagination-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Pagination"
+    },
+    "presentation-preset": {
+      "role": "Profiles",
+      "subtype": "composition",
+      "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
+      "domain": "Presentation preset"
+    },
+    "preset-cloudflare": {
+      "role": "Plugins",
+      "subtype": "host",
+      "runtimes": ["cloudflare-workers"],
+      "domain": "Cloudflare Workers host"
+    },
+    "preset-lambda": {
+      "role": "Plugins",
+      "subtype": "host",
+      "runtimes": ["lambda"],
+      "domain": "AWS Lambda host"
+    },
+    "preset-node": {
+      "role": "Plugins",
+      "subtype": "host",
+      "runtimes": ["node"],
+      "domain": "Node host"
+    },
+    "problems-core": {
+      "role": "Kernel",
+      "subtype": "runtime",
+      "runtimes": [],
+      "domain": "Problems"
+    },
+    "protocol-codegen": {
+      "role": "Tooling",
+      "subtype": "codegen",
+      "runtimes": [],
+      "domain": "Protocol Codegen"
+    },
+    "protocols-core": {
+      "role": "Contracts",
+      "subtype": "protocol",
+      "runtimes": [],
+      "domain": "Protocols"
+    },
+    "protocols-desktop": {
+      "role": "Contracts",
+      "subtype": "protocol",
+      "runtimes": [],
+      "domain": "Protocols Desktop"
+    },
+    "protocols-graphql": {
+      "role": "Plugins",
+      "subtype": "protocol",
+      "runtimes": [],
+      "domain": "Protocols Graphql"
+    },
+    "protocols-rest": {
+      "role": "Contracts",
+      "subtype": "protocol",
+      "runtimes": [],
+      "domain": "Protocols Rest"
+    },
+    "protocols-trpc": {
+      "role": "Plugins",
+      "subtype": "protocol",
+      "runtimes": [],
+      "domain": "Protocols Trpc"
+    },
+    "ratelimit-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Ratelimit"
+    },
+    "ratelimit-upstash": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Rate limiting"
+    },
+    "repository-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Repository"
+    },
+    "retry-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Retry"
+    },
+    "rpc-codegen": {
+      "role": "Tooling",
+      "subtype": "codegen",
+      "runtimes": [],
+      "domain": "Rpc Codegen"
+    },
+    "search-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Search"
+    },
+    "search-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Search"
+    },
+    "search-meilisearch": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Search"
+    },
+    "storage-cloudflare": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Storage"
+    },
+    "storage-cloudinary": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Storage"
+    },
+    "storage-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Storage"
+    },
+    "storage-r2": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Storage"
+    },
+    "tasks-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Tasks"
+    },
+    "tasks-qstash": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Tasks"
+    },
+    "telemetry-api": {
+      "role": "Contracts",
+      "subtype": "observability",
+      "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
+      "domain": "Telemetry"
+    },
+    "telemetry-sdk-node": {
+      "role": "Plugins",
+      "subtype": "integration",
+      "runtimes": ["node", "lambda"],
+      "domain": "Telemetry"
+    },
+    "tenant-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Tenant"
+    },
+    "testing": {
+      "role": "Tooling",
+      "subtype": "testing",
+      "runtimes": [],
+      "domain": "Testing"
+    },
+    "testing-resources": {
+      "role": "Tooling",
+      "subtype": "testing",
+      "runtimes": [],
+      "domain": "Testing Resources"
+    },
+    "transports-cloudflare-workers": {
+      "role": "Plugins",
+      "subtype": "host",
+      "runtimes": ["cloudflare-workers"],
+      "domain": "Cloudflare Workers host"
+    },
+    "transports-graphql": {
+      "role": "Plugins",
+      "subtype": "transport",
+      "runtimes": ["node", "lambda"],
+      "domain": "GraphQL transport"
+    },
+    "transports-http": {
+      "role": "Plugins",
+      "subtype": "transport",
+      "runtimes": ["node", "lambda"],
+      "domain": "HTTP transport"
+    },
+    "triggers-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Triggers"
+    },
+    "triggers-qstash": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": ["node", "lambda"],
+      "domain": "Triggers"
+    },
+    "tx-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Tx"
+    },
+    "tx-drizzle": {
+      "role": "Plugins",
+      "subtype": "provider",
+      "runtimes": [],
+      "domain": "Tx Drizzle"
+    },
+    "ui-astryx": {
+      "role": "Plugins",
+      "subtype": "presentation",
+      "runtimes": ["browser", "node"],
+      "domain": "Astryx UI"
+    },
+    "webhooks-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Webhooks"
+    },
+    "workflow-core": {
+      "role": "Contracts",
+      "subtype": "domain",
+      "runtimes": [],
+      "domain": "Workflow"
+    }
+  },
   "groups": {
     "Core": {
       "description": "Framework primitives, context, reliability, transactions, and cross-cutting core utilities",

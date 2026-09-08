@@ -12,6 +12,7 @@ import {
 import type { RuntimeCompositionManifest } from "@croco/framework-context";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import packageRoles from "./data/package-roles.json";
 import { renderEnvironmentTemplate } from "./environment-template.js";
 import { recordStagingCleanupFailure } from "./generation-failure-evidence.js";
 import { createGenerationResult } from "./generation-result.js";
@@ -367,74 +368,39 @@ function createArchitecturePolicyManifest(options: GeneratorOptions): Record<str
       "libs/shared/*/src/**/*.test.ts",
       "libs/shared/*/src/**/*.test.tsx",
     ],
-    packageGroups: {
-      app: {
-        description: "Generated application entrypoints.",
-        paths: ["apps/*"],
-      },
-      "provider-contract": {
-        description: "Generated RPC provider contract package.",
-        packages: [`${options.scope}/provider-rpc`],
-      },
-      provider: {
-        description: "Generated provider adapter packages.",
-        paths: ["libs/shared/provider-*"],
-      },
-      framework: {
-        description: "Croco framework and domain contracts.",
-        packages: [
-          "@croco/*-core",
-          "@croco/diagnostics-core",
-          "@croco/framework-*",
-          "@croco/llm-metering",
-          "@croco/problems-core",
-          "@croco/telemetry-api",
-          "@croco/tx-core",
-        ],
-      },
-      protocols: {
-        description: "Croco protocol and generated contract tooling.",
-        packages: ["@croco/openapi-spec", "@croco/protocols-*", "@croco/rpc-codegen"],
-      },
-      transports: {
-        description: "Croco runtime transports used by the generated app.",
-        packages: ["@croco/transports-*"],
-      },
-      integrations: {
-        description: "Concrete provider/runtime integrations selected by the profile.",
-        packages: [
-          "@croco/*-drizzle",
-          "@croco/*-qstash",
-          "@croco/*-upstash",
-          "@croco/auth-better-auth",
-          "@croco/auth-clerk",
-          "@croco/billing-polar",
-          "@croco/storage-*",
-          "@croco/telemetry-sdk-node",
-          "@croco/triggers-qstash",
-          "@croco/tx-drizzle",
-        ],
-      },
-      tooling: {
-        description: "Build-time generated app tooling.",
-        packages: ["@croco/cli"],
-      },
-    },
+    packageGroups: Object.fromEntries(
+      ["kernel", "contracts", "plugins", "profiles", "tooling", "application"].map((role) => [
+        role,
+        {
+          packages: [
+            ...Object.entries(packageRoles)
+              .filter(([, assigned]) => assigned === role)
+              .map(([name]) => name),
+            ...(role === "contracts" ? [`${options.scope}/provider-rpc`] : []),
+          ],
+          ...(role === "application" ? { paths: ["apps/*"] } : {}),
+          ...(role === "plugins" ? { paths: ["libs/shared/provider-*"] } : {}),
+        },
+      ]),
+    ),
     rules: {
+      forbiddenImports: [
+        {
+          id: "generated-contract-plugin-boundary",
+          from: { groups: ["kernel", "contracts"] },
+          to: { groups: ["plugins"] },
+          message: "Kernel and Contracts cannot import concrete Plugins.",
+          recovery:
+            "Move concrete implementation imports into a Plugin or application composition.",
+        },
+      ],
       allowedGroupImports: [
         {
           id: "generated-app-layer-edges",
           description:
             "Generated app packages can depend on Croco contracts, selected adapters, and the generated provider-rpc contract, but provider packages must not import app entrypoints.",
-          fromGroups: ["app"],
-          allowGroups: [
-            "framework",
-            "protocols",
-            "transports",
-            "integrations",
-            "provider-contract",
-            "tooling",
-          ],
+          fromGroups: ["application"],
+          allowGroups: ["kernel", "contracts", "plugins", "profiles", "tooling"],
           allowPackages: [`${options.scope}/provider-rpc`],
           allowExternal: true,
           message:
@@ -444,12 +410,12 @@ function createArchitecturePolicyManifest(options: GeneratorOptions): Record<str
         },
         {
           id: "generated-provider-layer-edges",
-          fromGroups: ["provider", "provider-contract"],
-          allowGroups: ["framework", "protocols"],
+          fromGroups: ["plugins", "contracts"],
+          allowGroups: ["kernel", "contracts", "plugins", "tooling"],
           allowExternal: true,
           message: "Generated provider packages cannot import app entrypoints.",
           recovery:
-            "Keep provider packages reusable by depending only on Croco contracts, protocols, and external SDKs.",
+            "Keep provider packages reusable by composing Croco contracts, Plugins, tooling, and external SDKs.",
         },
       ],
       publicEntrypoints: {

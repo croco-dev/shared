@@ -4719,6 +4719,12 @@
       "owner": "repo:ci"
     },
     {
+      "path": "scripts/tests/package-roles.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "repo:ci"
+    },
+    {
       "path": "scripts/tests/post-benchmark-comment.spec.ts",
       "lane": "fast",
       "qualifiers": [],

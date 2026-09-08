@@ -18,6 +18,12 @@ import {
   type CertificationPolicy as SharedCertificationPolicy,
 } from "./certification-policy.mts";
 
+import {
+  PACKAGE_ROLE_SUBTYPES,
+  validatePackageRoles,
+  type PackageRoleMetadata,
+} from "./package-roles.mts";
+
 type Mode = "check" | "write";
 
 type Options = {
@@ -49,6 +55,7 @@ type PackageInfo = {
 };
 
 type PackageRecord = PackageInfo & {
+  readonly packageRole: PackageRoleMetadata;
   readonly group: string;
   readonly maturity: MaturityKey;
 };
@@ -320,6 +327,18 @@ function run(options: Options): string[] {
   validateCoverageBaseline(coverage, baseline, violations);
   validatePresentationPresetRuntimeEvidence(options.rootDir, state, violations);
 
+  const roleMapPath = "packages/create-croco-app/src/data/package-roles.json";
+  const generatedRoleMap = `${JSON.stringify(Object.fromEntries(state.packages.map((pkg) => [pkg.name, pkg.packageRole.role.toLowerCase()])), null, 2)}\n`;
+  const roleMapAbsolutePath = join(options.rootDir, roleMapPath);
+  if (options.mode === "write") {
+    writeGeneratedFile(roleMapAbsolutePath, generatedRoleMap);
+  } else if (
+    !existsSync(roleMapAbsolutePath) ||
+    readFileSync(roleMapAbsolutePath, "utf8") !== generatedRoleMap
+  ) {
+    violations.push(`${roleMapPath} canonical role drift detected; run pnpm docs:catalog:write`);
+  }
+
   const generatedCatalog = formatMarkdown(readmePath, generateReadmeCatalog(state));
   const generatedExtensionMatrixDocs = formatMarkdown(
     extensionMatrixDocsPath,
@@ -572,6 +591,11 @@ function loadCatalogState(rootDir: string, violations: string[]): CatalogState {
   const packages = readPackages(rootDir);
   const publicPackages = packages.filter((pkg) => !pkg.private);
   const metadata = readJsonFile<CatalogMetadata>(join(rootDir, catalogMetadataPath));
+  const roleResult = validatePackageRoles(
+    metadata,
+    publicPackages.map((pkg) => pkg.shortName),
+  );
+  if (roleResult.errors.length > 0) throw new Error(roleResult.errors.join("\n"));
   const groups = parseCatalogGroups(metadata.groups, violations);
   const maturity = parseMaturity(metadata.maturity, violations);
   const groupByPackage = validateAssignments("group", groups, publicPackages, violations);
@@ -582,6 +606,7 @@ function loadCatalogState(rootDir: string, violations: string[]): CatalogState {
 
     return {
       ...pkg,
+      packageRole: roleResult.roles[pkg.shortName],
       group,
       maturity: maturityKey,
     };
@@ -1989,6 +2014,13 @@ function validateArchitectureDocs(
   }
 
   const architectureGuide = readRequiredFile(architectureGuideAbsolutePath);
+  for (const role of Object.keys(PACKAGE_ROLE_SUBTYPES)) {
+    if (!architectureGuide.includes(role)) {
+      violations.push(
+        `${architectureGuidePath}: must document canonical role ${role} from packageRoles`,
+      );
+    }
+  }
   validateArchitecturePackageReferences(architectureGuide, state, violations);
   validatePresentationLayerMention(architectureGuide, state, violations);
 }
@@ -2177,7 +2209,7 @@ function validatePresentationLayerMention(
   }
 
   if (!/\bPresentation\b/.test(architectureGuide)) {
-    violations.push(`${architectureGuidePath}: must include the Presentation layer`);
+    violations.push(`${architectureGuidePath}: must include the Presentation plugin boundary`);
   }
 
   const referencesPresentationPackage = presentationGroup.packages.some(
@@ -2190,6 +2222,17 @@ function validatePresentationLayerMention(
       `${architectureGuidePath}: must reference at least one Presentation package from ${catalogMetadataPath}`,
     );
   }
+}
+
+function formatPackageRoles(state: CatalogState): string[] {
+  return [
+    "| Package | Canonical role | Subtype | Domain | Runtime claims |",
+    "| --- | --- | --- | --- | --- |",
+    ...state.packages.map((pkg) => {
+      const role = pkg.packageRole;
+      return `| \`${pkg.name}\` | ${role.role} | ${role.subtype} | ${escapeMarkdownTableCell(role.domain)} | ${role.runtimes.join(", ") || "unclaimed"} |`;
+    }),
+  ];
 }
 
 function generateReadmeCatalog(state: CatalogState): string {
@@ -2214,9 +2257,15 @@ function generateReadmeCatalog(state: CatalogState): string {
     "",
     ...formatSpinePackageTable(state),
     "",
-    "### Package Groups",
+    "### Canonical Package Roles",
     "",
-    "| 그룹 | 역할 | 패키지 수 |",
+    ...formatPackageRoles(state),
+    "",
+    "### Secondary Inventory Groups",
+    "",
+    "These historical inventory buckets retain certification scope and discovery metadata. They are not top-level package roles or dependency layers; `packageRoles` is authoritative.",
+    "",
+    "| 그룹 | 설명 | 패키지 수 |",
     "| --- | --- | ---: |",
   ];
 
@@ -2369,7 +2418,11 @@ function generateDocsReport(
     "",
     ...formatMissingPackages(coverage.missingTests, baseline.allowedMissingTests),
     "",
-    "## Catalog Metadata",
+    "## Canonical Package Roles",
+    "",
+    ...formatPackageRoles(state),
+    "",
+    "## Secondary Inventory Metadata",
     "",
     "| Group | Packages |",
     "| --- | ---: |",
@@ -2419,6 +2472,8 @@ function generateExtensionMatrixDocs(state: CatalogState): string {
     "",
     "# Extension Matrix",
     "",
+    "Canonical roles and subtypes come from `docs/package-catalog.json` `packageRoles`. Inventory headings preserve certification scope, not a dependency stack. Empty canonical runtime lists mean compatibility is unclaimed; they do not imply universal support.",
+    "",
     "> Generated by `pnpm docs:catalog:write`. Do not edit this file by hand.",
     "",
     "This page lists Croco provider, integration, transport, host, and presentation adapter compatibility from `docs/package-catalog.json`. Required configuration, runtime support, package peer dependencies, maturity, package test presence, and certification evidence are intentionally separate so users can evaluate production readiness without treating a passing unit test as a maturity or compatibility certification claim.",
@@ -2453,15 +2508,15 @@ function appendExtensionMatrixTables(
       "",
       `${headingPrefix} ${group}`,
       "",
-      "| Package | Domain | Adapter | Node | Lambda | Workers | Frontend | Required env/config | Peer deps | Features | Maturity | Package tests | Certification |",
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      "| Package | Role / subtype | Domain | Adapter | Node | Lambda | Workers | Frontend | Required env/config | Peer deps | Features | Maturity | Package tests | Certification |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     );
 
     for (const pkg of packages) {
       const maturity = state.maturity.get(pkg.maturity)?.label ?? pkg.maturity;
       const certificationRecords = state.certification.recordsByPackage.get(pkg.shortName) ?? [];
       lines.push(
-        `| \`${pkg.name}\` | ${pkg.extension.domain} | ${pkg.extension.adapter} | ${formatRuntimeSupport(pkg, "node")} | ${formatRuntimeSupport(pkg, "lambda")} | ${formatRuntimeSupport(pkg, "cloudflare-workers")} | ${formatRuntimeSupport(pkg, "browser")} | ${formatList(pkg.extension.requiredEnv)} | ${formatList(pkg.peerDependencies)} | ${formatList(pkg.extension.features)} | ${maturity} | ${formatPackageTestStatus(pkg)} | ${formatCertificationCell(pkg, certificationRecords, state.certification.policy, state.certificationClaimedPackages)} |`,
+        `| \`${pkg.name}\` | ${pkg.packageRole.role} / ${pkg.packageRole.subtype} | ${pkg.extension.domain} | ${pkg.extension.adapter} | ${formatRuntimeSupport(pkg, "node")} | ${formatRuntimeSupport(pkg, "lambda")} | ${formatRuntimeSupport(pkg, "cloudflare-workers")} | ${formatRuntimeSupport(pkg, "browser")} | ${formatList(pkg.extension.requiredEnv)} | ${formatList(pkg.peerDependencies)} | ${formatList(pkg.extension.features)} | ${maturity} | ${formatPackageTestStatus(pkg)} | ${formatCertificationCell(pkg, certificationRecords, state.certification.policy, state.certificationClaimedPackages)} |`,
       );
     }
   }

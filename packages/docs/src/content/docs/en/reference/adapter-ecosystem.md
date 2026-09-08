@@ -10,7 +10,24 @@ protocols, or UI tooling. The extension matrix lists current package support. Th
 what counts as an adapter, which official candidates are prioritized, and what evidence is required
 before an adapter can be treated as compatible or certified.
 
-## Adapter Categories
+## Canonical Roles And Adapter Subtypes
+
+The source of truth is `docs/package-catalog.json` → `packageRoles`. Its top-level roles are Kernel,
+Contracts, Plugins, Application, Profiles, and Tooling. Host, transport, provider, integration, and
+presentation are **Plugin subtypes**, not successive layers. Concrete protocol bindings such as
+`protocols-graphql` and `protocols-trpc` are Plugins with the protocol subtype. Domain, runtime support, maturity,
+certification, and spine membership remain independent metadata. Historical catalog groups are
+secondary inventory labels.
+
+Plugins depend on Contracts and Kernel primitives. Contracts and Kernel must not depend on concrete
+Plugins. Application composition roots select Plugins and Profiles; Profiles express tested,
+opinionated compositions. These are dependency directions, not a runtime pipeline.
+
+`tx-drizzle` is a provider Plugin; `telemetry-api` is Contracts, while `telemetry-sdk-node` is an
+integration Plugin. `presentation-preset` is Profiles. `framework-preset` is build-target Tooling,
+not a runtime adapter. Community ownership is separate from role and subtype.
+
+## Adapter Boundaries And Related Tooling
 
 | Category              | Responsibility                                                                                          | Must not own                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |

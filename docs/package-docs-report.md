@@ -103,7 +103,132 @@ None.
 
 None.
 
-## Catalog Metadata
+## Canonical Package Roles
+
+| Package                                | Canonical role | Subtype       | Domain                  | Runtime claims                            |
+| -------------------------------------- | -------------- | ------------- | ----------------------- | ----------------------------------------- |
+| `@croco/access-core`                   | Contracts      | domain        | Access                  | unclaimed                                 |
+| `@croco/access-drizzle`                | Plugins        | provider      | Access control          | node, lambda                              |
+| `@croco/admin-core`                    | Contracts      | domain        | Admin                   | unclaimed                                 |
+| `@croco/admin-generated`               | Tooling        | codegen       | Admin Generated         | unclaimed                                 |
+| `@croco/admin-ops`                     | Contracts      | domain        | Admin Ops               | unclaimed                                 |
+| `@croco/admin-react`                   | Plugins        | presentation  | Admin React             | browser, node                             |
+| `@croco/analytics-core`                | Contracts      | domain        | Analytics               | unclaimed                                 |
+| `@croco/analytics-posthog`             | Plugins        | integration   | Analytics               | node, lambda                              |
+| `@croco/architecture-policy`           | Tooling        | policy        | Architecture Policy     | unclaimed                                 |
+| `@croco/audit-core`                    | Contracts      | domain        | Audit                   | unclaimed                                 |
+| `@croco/audit-drizzle`                 | Plugins        | provider      | Audit                   | node, lambda                              |
+| `@croco/auth-better-auth`              | Plugins        | provider      | Auth                    | node, lambda                              |
+| `@croco/auth-clerk`                    | Plugins        | provider      | Auth                    | node, lambda                              |
+| `@croco/auth-core`                     | Contracts      | domain        | Auth                    | unclaimed                                 |
+| `@croco/auth-drizzle`                  | Plugins        | provider      | Auth                    | node, lambda                              |
+| `@croco/batch-core`                    | Contracts      | domain        | Batch                   | unclaimed                                 |
+| `@croco/batch-qstash`                  | Plugins        | provider      | Batch                   | node, lambda                              |
+| `@croco/billing-core`                  | Contracts      | domain        | Billing                 | unclaimed                                 |
+| `@croco/billing-polar`                 | Plugins        | provider      | Billing                 | node, lambda                              |
+| `@croco/cache-core`                    | Contracts      | domain        | Cache                   | unclaimed                                 |
+| `@croco/cli`                           | Tooling        | cli           | Cli                     | unclaimed                                 |
+| `create-croco-app`                     | Tooling        | cli           | Create Croco App        | unclaimed                                 |
+| `@croco/credits-core`                  | Contracts      | domain        | Credits                 | unclaimed                                 |
+| `@croco/credits-drizzle`               | Plugins        | provider      | Credits                 | node, lambda                              |
+| `@croco/customer-health-core`          | Contracts      | domain        | Customer Health         | unclaimed                                 |
+| `@croco/customer-health-drizzle`       | Plugins        | provider      | Customer health         | node, lambda                              |
+| `@croco/dataloader-core`               | Contracts      | domain        | Dataloader              | unclaimed                                 |
+| `@croco/desktop-codegen`               | Tooling        | codegen       | Desktop Codegen         | unclaimed                                 |
+| `@croco/diagnostics-core`              | Kernel         | runtime       | Diagnostics             | unclaimed                                 |
+| `@croco/engagement-core`               | Contracts      | domain        | Engagement              | unclaimed                                 |
+| `@croco/engagement-drizzle`            | Plugins        | provider      | Engagement              | node, lambda                              |
+| `@croco/entitlements-core`             | Contracts      | domain        | Entitlements            | unclaimed                                 |
+| `@croco/entitlements-drizzle`          | Plugins        | provider      | Entitlements            | node, lambda                              |
+| `@croco/esbuild-plugin`                | Tooling        | build-target  | Esbuild Plugin          | unclaimed                                 |
+| `@croco/events-core`                   | Contracts      | domain        | Events                  | unclaimed                                 |
+| `@croco/events-inmemory`               | Plugins        | provider      | Events Inmemory         | unclaimed                                 |
+| `@croco/events-tx`                     | Plugins        | integration   | Events Tx               | unclaimed                                 |
+| `@croco/execution-core`                | Contracts      | domain        | Execution               | unclaimed                                 |
+| `@croco/execution-drizzle`             | Plugins        | provider      | Execution               | node, lambda                              |
+| `@croco/features-core`                 | Contracts      | domain        | Features                | unclaimed                                 |
+| `@croco/features-posthog`              | Plugins        | integration   | Feature flags           | node, lambda                              |
+| `@croco/framework-config`              | Kernel         | runtime       | Framework Config        | unclaimed                                 |
+| `@croco/framework-context`             | Kernel         | runtime       | Framework Context       | unclaimed                                 |
+| `@croco/framework-logger`              | Kernel         | runtime       | Framework Logger        | unclaimed                                 |
+| `@croco/framework-module`              | Kernel         | runtime       | Framework Module        | unclaimed                                 |
+| `@croco/framework-preset`              | Tooling        | build-target  | Framework Preset        | unclaimed                                 |
+| `@croco/framework-routes`              | Plugins        | integration   | Framework Routes        | unclaimed                                 |
+| `@croco/frontend-cloudflare`           | Plugins        | presentation  | Frontend SSR            | cloudflare-workers                        |
+| `@croco/frontend-problems`             | Plugins        | presentation  | Frontend Problems       | browser, cloudflare-workers               |
+| `@croco/frontend-react`                | Plugins        | presentation  | Frontend React          | browser, node                             |
+| `@croco/frontend-vite`                 | Tooling        | build-target  | Frontend Vite           | node, browser, cloudflare-workers         |
+| `@croco/gid-core`                      | Contracts      | domain        | Gid                     | unclaimed                                 |
+| `@croco/governance-core`               | Contracts      | domain        | Governance              | unclaimed                                 |
+| `@croco/health-core`                   | Contracts      | domain        | Health                  | unclaimed                                 |
+| `@croco/idempotency-core`              | Contracts      | domain        | Idempotency             | unclaimed                                 |
+| `@croco/impersonation-core`            | Contracts      | domain        | Impersonation           | unclaimed                                 |
+| `@croco/integrations-posthog`          | Plugins        | integration   | PostHog                 | node, lambda                              |
+| `@croco/invitation-core`               | Contracts      | domain        | Invitation              | unclaimed                                 |
+| `@croco/invitation-drizzle`            | Plugins        | provider      | Invitation              | node, lambda                              |
+| `@croco/lifecycle-core`                | Contracts      | domain        | Lifecycle               | unclaimed                                 |
+| `@croco/llm-core`                      | Contracts      | domain        | Llm                     | unclaimed                                 |
+| `@croco/llm-metering`                  | Plugins        | integration   | Llm Metering            | unclaimed                                 |
+| `@croco/llm-openai`                    | Plugins        | provider      | LLM                     | node, lambda                              |
+| `@croco/membership-core`               | Contracts      | domain        | Membership              | unclaimed                                 |
+| `@croco/membership-drizzle`            | Plugins        | provider      | Membership              | node, lambda                              |
+| `@croco/meta-vite`                     | Tooling        | build-target  | Frontend routing        | node, lambda, cloudflare-workers, browser |
+| `@croco/metering-core`                 | Contracts      | domain        | Metering                | unclaimed                                 |
+| `@croco/metering-drizzle`              | Plugins        | provider      | Metering                | node, lambda                              |
+| `@croco/metering-upstash`              | Plugins        | provider      | Metering                | node, lambda                              |
+| `@croco/metrics-billing`               | Plugins        | provider      | Metrics                 | node, lambda, cloudflare-workers          |
+| `@croco/metrics-core`                  | Contracts      | domain        | Metrics                 | unclaimed                                 |
+| `@croco/migration-runner`              | Tooling        | migration     | Migration Runner        | unclaimed                                 |
+| `@croco/notifications-core`            | Contracts      | domain        | Notifications           | unclaimed                                 |
+| `@croco/notifications-react-email`     | Plugins        | presentation  | Notifications           | node, lambda                              |
+| `@croco/notifications-resend`          | Plugins        | provider      | Notifications           | node, lambda                              |
+| `@croco/onboarding-core`               | Contracts      | domain        | Onboarding              | unclaimed                                 |
+| `@croco/onboarding-drizzle`            | Plugins        | provider      | Onboarding              | node, lambda                              |
+| `@croco/openapi-spec`                  | Tooling        | codegen       | Openapi Spec            | unclaimed                                 |
+| `@croco/outbox-core`                   | Contracts      | domain        | Outbox                  | unclaimed                                 |
+| `@croco/pagination-core`               | Contracts      | domain        | Pagination              | unclaimed                                 |
+| `@croco/presentation-preset`           | Profiles       | composition   | Presentation preset     | node, lambda, cloudflare-workers, browser |
+| `@croco/preset-cloudflare`             | Plugins        | host          | Cloudflare Workers host | cloudflare-workers                        |
+| `@croco/preset-lambda`                 | Plugins        | host          | AWS Lambda host         | lambda                                    |
+| `@croco/preset-node`                   | Plugins        | host          | Node host               | node                                      |
+| `@croco/problems-core`                 | Kernel         | runtime       | Problems                | unclaimed                                 |
+| `@croco/protocol-codegen`              | Tooling        | codegen       | Protocol Codegen        | unclaimed                                 |
+| `@croco/protocols-core`                | Contracts      | protocol      | Protocols               | unclaimed                                 |
+| `@croco/protocols-desktop`             | Contracts      | protocol      | Protocols Desktop       | unclaimed                                 |
+| `@croco/protocols-graphql`             | Plugins        | protocol      | Protocols Graphql       | unclaimed                                 |
+| `@croco/protocols-rest`                | Contracts      | protocol      | Protocols Rest          | unclaimed                                 |
+| `@croco/protocols-trpc`                | Plugins        | protocol      | Protocols Trpc          | unclaimed                                 |
+| `@croco/ratelimit-core`                | Contracts      | domain        | Ratelimit               | unclaimed                                 |
+| `@croco/ratelimit-upstash`             | Plugins        | provider      | Rate limiting           | node, lambda                              |
+| `@croco/repository-core`               | Contracts      | domain        | Repository              | unclaimed                                 |
+| `@croco/retry-core`                    | Contracts      | domain        | Retry                   | unclaimed                                 |
+| `@croco/rpc-codegen`                   | Tooling        | codegen       | Rpc Codegen             | unclaimed                                 |
+| `@croco/search-core`                   | Contracts      | domain        | Search                  | unclaimed                                 |
+| `@croco/search-drizzle`                | Plugins        | provider      | Search                  | node, lambda                              |
+| `@croco/search-meilisearch`            | Plugins        | provider      | Search                  | node, lambda                              |
+| `@croco/storage-cloudflare`            | Plugins        | provider      | Storage                 | node, lambda                              |
+| `@croco/storage-cloudinary`            | Plugins        | provider      | Storage                 | node, lambda                              |
+| `@croco/storage-core`                  | Contracts      | domain        | Storage                 | unclaimed                                 |
+| `@croco/storage-r2`                    | Plugins        | provider      | Storage                 | node, lambda                              |
+| `@croco/tasks-core`                    | Contracts      | domain        | Tasks                   | unclaimed                                 |
+| `@croco/tasks-qstash`                  | Plugins        | provider      | Tasks                   | node, lambda                              |
+| `@croco/telemetry-api`                 | Contracts      | observability | Telemetry               | node, lambda, cloudflare-workers, browser |
+| `@croco/telemetry-sdk-node`            | Plugins        | integration   | Telemetry               | node, lambda                              |
+| `@croco/tenant-core`                   | Contracts      | domain        | Tenant                  | unclaimed                                 |
+| `@croco/testing`                       | Tooling        | testing       | Testing                 | unclaimed                                 |
+| `@croco/testing-resources`             | Tooling        | testing       | Testing Resources       | unclaimed                                 |
+| `@croco/transports-cloudflare-workers` | Plugins        | host          | Cloudflare Workers host | cloudflare-workers                        |
+| `@croco/transports-graphql`            | Plugins        | transport     | GraphQL transport       | node, lambda                              |
+| `@croco/transports-http`               | Plugins        | transport     | HTTP transport          | node, lambda                              |
+| `@croco/triggers-core`                 | Contracts      | domain        | Triggers                | unclaimed                                 |
+| `@croco/triggers-qstash`               | Plugins        | provider      | Triggers                | node, lambda                              |
+| `@croco/tx-core`                       | Contracts      | domain        | Tx                      | unclaimed                                 |
+| `@croco/tx-drizzle`                    | Plugins        | provider      | Tx Drizzle              | unclaimed                                 |
+| `@croco/ui-astryx`                     | Plugins        | presentation  | Astryx UI               | browser, node                             |
+| `@croco/webhooks-core`                 | Contracts      | domain        | Webhooks                | unclaimed                                 |
+| `@croco/workflow-core`                 | Contracts      | domain        | Workflow                | unclaimed                                 |
+
+## Secondary Inventory Metadata
 
 | Group        | Packages |
 | ------------ | -------: |

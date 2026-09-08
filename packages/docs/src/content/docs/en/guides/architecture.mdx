@@ -5,9 +5,43 @@ description: Understand Croco's package boundaries, runtime composition, DI cont
 
 ## Introduction
 
-Croco classifies packages by the boundary they own. Framework, protocol, integration, and
-presentation packages are ecosystem groups, not a sequential runtime pipeline. Runtime composition
-uses three independent concepts: Host, Transport, and Build Target.
+Croco assigns each public package one canonical role in `docs/package-catalog.json` under
+`packageRoles`: **Kernel**, **Contracts**, **Plugins**, **Application**, **Profiles**, or **Tooling**.
+Subtype, domain, runtime support, maturity, certification, and spine membership are separate
+metadata. The catalog's historical ecosystem groups remain a secondary inventory classification.
+
+## Package Roles And Dependency Direction
+
+| Role        | Responsibility                                                                                                           | Examples                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Kernel      | Framework runtime primitives: DI, context, module composition, and lifecycle.                                            | `framework-context`, `framework-module`                                                |
+| Contracts   | Provider/runtime-neutral domain and protocol contracts.                                                                  | `repository-core`, `protocols-rest`, `telemetry-api`                                   |
+| Plugins     | Concrete implementations and bindings, with provider, protocol, transport, host, integration, and presentation subtypes. | `tx-drizzle`, `transports-http`, `preset-node`, `telemetry-sdk-node`, `frontend-react` |
+| Application | App-owned modules and the composition root.                                                                              | Generated applications under `apps/*`                                                  |
+| Profiles    | Tested, opinionated plugin/module compositions.                                                                          | `presentation-preset`                                                                  |
+| Tooling     | Build, codegen, testing, and CLI surfaces.                                                                               | `framework-preset`, `rpc-codegen`, `openapi-spec`                                      |
+
+Dependency arrows point from consumer to dependency; they do not describe a request pipeline.
+Applications select profiles and plugins. Profiles compose plugins; plugins depend on contracts and
+kernel primitives. Contracts may depend on kernel primitives, but neither Contracts nor Kernel
+imports concrete Plugins. The architecture policy validates the permitted package edges against
+the same canonical role metadata.
+
+```mermaid
+flowchart LR
+  application[Application] --> profiles[Profiles]
+  application --> plugins[Plugins]
+  application --> contracts[Contracts]
+  profiles --> plugins
+  plugins --> contracts
+  plugins --> kernel[Kernel]
+  contracts --> kernel
+```
+
+`tx-drizzle` is a provider Plugin because it implements transaction and repository contracts with
+Drizzle. `telemetry-api` is Contracts because applications consume its tracing API independently of
+the Node SDK. `telemetry-sdk-node` is the concrete integration Plugin. Package names and secondary
+catalog groups do not override these roles.
 
 ## Host, Transport, And Build Target
 
@@ -35,11 +69,11 @@ The current `preset-*` packages are host-primary compatibility facades. Their ca
 `@croco/framework-preset`. Deprecated preset and entry/handler aliases remain available for
 compatibility; no package rename is required by this model.
 
-## Ecosystem Boundaries
+## Responsibilities Within Roles
 
-### Framework
+### Kernel
 
-The framework packages own application composition and shared runtime contracts.
+Kernel packages own framework runtime primitives and module composition.
 
 - **`framework-context`** provides DI, request context, and runtime capability contracts.
 - **`framework-module`** provides module composition, provider visibility, lifecycle hooks, and
@@ -47,17 +81,18 @@ The framework packages own application composition and shared runtime contracts.
 - **`ApplicationRuntime.bindHostCallback()`** re-enters the owning application scope when a host
   invokes a retained callback and fences that callback after disposal.
 
-### Protocols
+### Contracts And Protocol Plugins
 
-Protocol packages define application-facing contracts without choosing a deployment host.
+Protocol contracts describe application-facing surfaces without choosing a deployment host. Concrete
+protocol library bindings are Plugins with the protocol subtype.
 
 - **`protocols-rest`** offers decorators such as `@Controller` and `@Get`.
-- **`protocols-graphql`** supports code-first GraphQL definitions on Yoga.
-- **`protocols-trpc`** provides tRPC-oriented protocol contracts.
-- **`openapi-spec`** and **`rpc-codegen`** turn protocol metadata into generated contracts and
-  clients.
+- **`protocols-graphql`** is a protocol Plugin for concrete GraphQL/Yoga bindings.
+- **`protocols-trpc`** is a protocol Plugin for concrete tRPC bindings.
+- **`openapi-spec`** and **`rpc-codegen`** are Tooling that turns protocol metadata into generated
+  contracts and clients.
 
-### Transports
+### Plugins: Transports
 
 Transport packages execute protocol surfaces independently from the deployment host.
 
@@ -70,7 +105,7 @@ Transport packages execute protocol surfaces independently from the deployment h
 lifecycle and runtime-context bridge. It remains a supported compatibility surface rather than being
 renamed. New composition uses `@croco/preset-cloudflare`'s `createCloudflareWorkersHost()` API.
 
-### Hosts
+### Plugins: Hosts
 
 Host packages own environment lifecycle and bind transport callbacks.
 
@@ -83,34 +118,40 @@ Host packages own environment lifecycle and bind transport callbacks.
 The same packages also export build-target factories as a compatibility facade, but build metadata
 does not initialize or execute a host.
 
-### Build Targets
+### Tooling: Build Targets
 
 **`framework-preset`** is the canonical build-target contract. `defineCrocoBuildTarget()` describes
 entrypoint, output format, output directory, and hooks. The deprecated `defineCrocoPreset()` name is
 an alias for that build-time contract; it does not imply runtime composition.
 
-### Integrations
+`frontend-vite` and `meta-vite` also have the Tooling/build-target role. `frontend-vite` provides
+Vite configuration helpers; `meta-vite` supplies Vite integration together with routing, server
+actions, and SSR/RSC runtime helpers. Their frontend domain does not change their canonical role.
+
+### Plugins: Integrations
 
 Integration packages connect Croco to external systems.
 
 - **`integrations-posthog`** integrates with PostHog-backed analytics and feature workflows.
-- **`telemetry-api`** and **`telemetry-sdk-node`** provide OpenTelemetry-based tracing APIs and
-  runtime setup.
+- **`telemetry-sdk-node`** provides OpenTelemetry runtime setup; **`telemetry-api`** belongs to
+  Contracts and supplies the application-facing tracing API.
 - External platform wiring stays separate from domain logic and protocol execution.
 
-### Presentation
+### Plugins: Presentation
 
 Presentation packages connect Croco backends to frontend and SSR application surfaces.
 
 - **`frontend-react`** provides React integration helpers.
-- **`frontend-vite`** provides Vite configuration helpers.
 - **`frontend-cloudflare`** provides Cloudflare SSR handling.
-- **`meta-vite`** provides routing, server actions, and SSR/RSC streaming.
-- **`presentation-preset`** composes backend and frontend build configuration for generated apps.
+
+### Profiles
+
+**`presentation-preset`** composes backend and frontend build configuration for generated apps.
+Its role is Profiles, separate from the presentation Plugin subtype.
 
 ## DI Container
 
-Croco's DI container is defined in the framework boundary and reused across the ecosystem. It
+Croco's DI container is defined in the Kernel role and reused across the ecosystem. It
 registers and resolves components, supports singleton, request, and transient scopes, and keeps
 protocol definitions separate from concrete transports and hosts.
 

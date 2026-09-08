@@ -15,8 +15,17 @@
     "packages/*/src/**/*.test.ts"
   ],
   "packageGroups": {
-    "framework": {
-      "description": "Build-time and runtime framework primitives without provider or transport implementations.",
+    "kernel": {
+      "packages": [
+        "@croco/diagnostics-core",
+        "@croco/framework-config",
+        "@croco/framework-context",
+        "@croco/framework-logger",
+        "@croco/framework-module",
+        "@croco/problems-core"
+      ]
+    },
+    "contracts": {
       "packages": [
         "@croco/access-core",
         "@croco/admin-core",
@@ -30,18 +39,11 @@
         "@croco/credits-core",
         "@croco/customer-health-core",
         "@croco/dataloader-core",
-        "@croco/diagnostics-core",
         "@croco/engagement-core",
         "@croco/entitlements-core",
         "@croco/events-core",
-        "@croco/events-inmemory",
         "@croco/execution-core",
         "@croco/features-core",
-        "@croco/framework-config",
-        "@croco/framework-context",
-        "@croco/framework-logger",
-        "@croco/framework-module",
-        "@croco/framework-routes",
         "@croco/gid-core",
         "@croco/governance-core",
         "@croco/health-core",
@@ -50,7 +52,6 @@
         "@croco/invitation-core",
         "@croco/lifecycle-core",
         "@croco/llm-core",
-        "@croco/llm-metering",
         "@croco/membership-core",
         "@croco/metering-core",
         "@croco/metrics-core",
@@ -58,169 +59,127 @@
         "@croco/onboarding-core",
         "@croco/outbox-core",
         "@croco/pagination-core",
-        "@croco/problems-core",
+        "@croco/protocols-core",
+        "@croco/protocols-rest",
         "@croco/ratelimit-core",
         "@croco/repository-core",
         "@croco/retry-core",
         "@croco/search-core",
         "@croco/storage-core",
         "@croco/tasks-core",
-        "@croco/tenant-core",
         "@croco/telemetry-api",
+        "@croco/tenant-core",
         "@croco/triggers-core",
         "@croco/tx-core",
         "@croco/webhooks-core",
         "@croco/workflow-core"
-      ]
+      ],
+      "paths": ["packages/protocols-desktop"]
     },
-    "protocols": {
-      "description": "Protocol contracts and generated protocol artifacts.",
+    "plugins": {
       "packages": [
-        "@croco/admin-generated",
-        "@croco/desktop-codegen",
-        "@croco/openapi-spec",
-        "@croco/protocol-codegen",
-        "@croco/protocols-core",
-        "@croco/protocols-graphql",
-        "@croco/protocols-rest",
-        "@croco/protocols-trpc",
-        "@croco/rpc-codegen"
-      ]
-    },
-    "desktop-contracts": {
-      "description": "Browser-safe desktop contract declarations and schema compiler inputs.",
-      "packages": ["@croco/protocols-desktop"]
-    },
-    "transports": {
-      "description": "Protocol transports that execute application surfaces independently from deployment hosts.",
-      "packages": ["@croco/transports-graphql", "@croco/transports-http"]
-    },
-    "hosts": {
-      "description": "Runtime lifecycle adapters for Node processes, Lambda invocations, and Cloudflare Workers fetch events.",
-      "packages": [
+        "@croco/access-drizzle",
+        "@croco/admin-react",
+        "@croco/analytics-posthog",
+        "@croco/audit-drizzle",
+        "@croco/auth-better-auth",
+        "@croco/auth-clerk",
+        "@croco/auth-drizzle",
+        "@croco/batch-qstash",
+        "@croco/billing-polar",
+        "@croco/credits-drizzle",
+        "@croco/customer-health-drizzle",
+        "@croco/engagement-drizzle",
+        "@croco/entitlements-drizzle",
+        "@croco/events-inmemory",
+        "@croco/events-tx",
+        "@croco/execution-drizzle",
+        "@croco/features-posthog",
+        "@croco/framework-routes",
+        "@croco/frontend-cloudflare",
+        "@croco/frontend-problems",
+        "@croco/frontend-react",
+        "@croco/integrations-posthog",
+        "@croco/invitation-drizzle",
+        "@croco/llm-metering",
+        "@croco/llm-openai",
+        "@croco/membership-drizzle",
+        "@croco/metering-drizzle",
+        "@croco/metering-upstash",
+        "@croco/metrics-billing",
+        "@croco/notifications-react-email",
+        "@croco/notifications-resend",
+        "@croco/onboarding-drizzle",
         "@croco/preset-cloudflare",
         "@croco/preset-lambda",
         "@croco/preset-node",
-        "@croco/transports-cloudflare-workers"
-      ]
-    },
-    "build-targets": {
-      "description": "Build-time entrypoint, output, format, and bundling contracts without runtime lifecycle ownership.",
-      "packages": ["@croco/framework-preset"]
-    },
-    "integrations": {
-      "description": "Concrete datastore, SaaS provider, and external service adapters.",
-      "packages": [
-        "@croco/*-drizzle",
-        "@croco/*-posthog",
-        "@croco/*-qstash",
-        "@croco/*-upstash",
-        "@croco/auth-better-auth",
-        "@croco/auth-clerk",
-        "@croco/billing-polar",
-        "@croco/events-tx",
-        "@croco/llm-openai",
-        "@croco/metrics-billing",
-        "@croco/notifications-resend",
+        "@croco/protocols-graphql",
+        "@croco/protocols-trpc",
+        "@croco/ratelimit-upstash",
+        "@croco/search-drizzle",
         "@croco/search-meilisearch",
         "@croco/storage-cloudflare",
         "@croco/storage-cloudinary",
         "@croco/storage-r2",
+        "@croco/tasks-qstash",
         "@croco/telemetry-sdk-node",
-        "@croco/tx-drizzle"
+        "@croco/transports-cloudflare-workers",
+        "@croco/transports-graphql",
+        "@croco/transports-http",
+        "@croco/triggers-qstash",
+        "@croco/tx-drizzle",
+        "@croco/ui-astryx"
       ]
     },
-    "presentation": {
-      "description": "Frontend, SSR, and presentation adapters.",
-      "packages": [
-        "@croco/admin-react",
-        "@croco/frontend-*",
-        "@croco/meta-vite",
-        "@croco/notifications-react-email",
-        "@croco/presentation-preset",
-        "@croco/ui-*"
-      ]
+    "profiles": {
+      "packages": ["@croco/presentation-preset"]
     },
-    "app": {
-      "description": "Repository-owned CLIs, scaffolds, docs, and release tooling.",
+    "tooling": {
       "packages": [
+        "@croco/admin-generated",
         "@croco/architecture-policy",
         "@croco/cli",
-        "@croco/docs",
+        "create-croco-app",
+        "@croco/desktop-codegen",
         "@croco/esbuild-plugin",
+        "@croco/framework-preset",
+        "@croco/frontend-vite",
+        "@croco/meta-vite",
         "@croco/migration-runner",
-        "@croco/oxlint-rules",
+        "@croco/openapi-spec",
+        "@croco/protocol-codegen",
+        "@croco/rpc-codegen",
         "@croco/testing",
-        "@croco/testing-resources",
-        "create-croco-app"
+        "@croco/testing-resources"
       ]
+    },
+    "application": {
+      "packages": []
+    },
+    "desktop-contracts": {
+      "description": "Browser-safe desktop contract declarations and schema compiler inputs.",
+      "packages": ["@croco/protocols-desktop"]
     }
   },
-  "packageCatalogGroupOverrides": [
-    {
-      "package": "@croco/events-tx",
-      "catalogGroup": "Core",
-      "policyGroup": "integrations",
-      "reason": "events-tx binds event contracts to transaction infrastructure, so architecture policy treats it as an adapter boundary."
-    },
-    {
-      "package": "@croco/telemetry-api",
-      "catalogGroup": "Integration",
-      "policyGroup": "framework",
-      "reason": "telemetry-api is the application-facing telemetry contract consumed by framework/core packages; telemetry-sdk-node remains the runtime integration."
-    },
-    {
-      "package": "@croco/tx-drizzle",
-      "catalogGroup": "Core",
-      "policyGroup": "integrations",
-      "reason": "tx-drizzle is the Drizzle transaction implementation even though the package catalog keeps transaction packages in Core."
-    },
-    {
-      "package": "@croco/protocols-desktop",
-      "catalogGroup": "Protocol",
-      "policyGroup": "desktop-contracts",
-      "reason": "protocols-desktop is a browser-safe contract/compiler boundary with stricter runtime and dependency limits than general protocol packages."
-    }
-  ],
   "rules": {
     "forbiddenImports": [
       {
         "id": "framework-provider-package-boundary",
-        "description": "Framework and core packages must not depend on concrete provider/runtime implementation packages.",
+        "description": "Canonical contract and kernel boundaries exclude concrete Plugins.",
         "from": {
-          "groups": ["framework"]
+          "groups": ["kernel", "contracts", "desktop-contracts"]
         },
         "to": {
-          "packages": [
-            "@croco/*-drizzle",
-            "@croco/*-posthog",
-            "@croco/*-qstash",
-            "@croco/*-upstash",
-            "@croco/auth-better-auth",
-            "@croco/auth-clerk",
-            "@croco/billing-polar",
-            "@croco/events-tx",
-            "@croco/llm-openai",
-            "@croco/metrics-billing",
-            "@croco/notifications-resend",
-            "@croco/search-meilisearch",
-            "@croco/storage-cloudflare",
-            "@croco/storage-cloudinary",
-            "@croco/storage-r2",
-            "@croco/telemetry-sdk-node",
-            "@croco/preset-*",
-            "@croco/transports-*",
-            "@croco/tx-drizzle"
-          ]
+          "groups": ["plugins"]
         },
-        "message": "Framework/core packages cannot import provider or runtime implementation packages.",
+        "message": "Kernel and Contracts cannot import concrete Plugins.",
         "recovery": "Move provider/runtime implementation code behind an adapter package and keep the framework/core package on an explicit contract."
       },
       {
         "id": "framework-provider-sdk-boundary",
         "description": "Framework and core packages must not depend on concrete provider/runtime SDKs.",
         "from": {
-          "groups": ["framework"]
+          "groups": ["kernel", "contracts", "desktop-contracts"]
         },
         "to": {
           "specifiers": [
@@ -267,7 +226,7 @@
           "groups": ["desktop-contracts"]
         },
         "to": {
-          "groups": ["app"]
+          "groups": ["application", "tooling"]
         },
         "appliesTo": ["source"],
         "message": "Desktop protocol contracts cannot import application bootstrap packages.",
@@ -278,13 +237,14 @@
       {
         "id": "desktop-contract-package-dependencies",
         "fromGroups": ["desktop-contracts"],
-        "allowGroups": ["framework", "protocols"],
+        "allowGroups": [],
         "allowSpecifiers": ["vitest", "zod"],
         "allowSameGroup": false,
         "allowExternal": false,
         "appliesTo": ["package-manifest"],
         "message": "Desktop protocol package manifests may depend only on contract libraries and declared test/schema tooling.",
-        "recovery": "Keep protocols-desktop dependencies limited to @croco/problems-core, @croco/protocols-core, vitest, and zod."
+        "recovery": "Keep protocols-desktop dependencies limited to @croco/problems-core, @croco/protocols-core, vitest, and zod.",
+        "allowPackages": ["@croco/problems-core", "@croco/protocols-core"]
       }
     ],
     "publicEntrypoints": {
