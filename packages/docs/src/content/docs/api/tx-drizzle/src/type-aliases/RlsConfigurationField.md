@@ -5,4 +5,4 @@ prev: false
 title: "RlsConfigurationField"
 ---
 
-> **RlsConfigurationField** = `"adminRoles"` \| `"configKey"` \| `"tableName"` \| `"tenantColumn"`
+> **RlsConfigurationField** = `"adminRoles"` \| `"configKey"` \| `"tableName"` \| `"tenantColumn"` \| `"tenantColumnType"`

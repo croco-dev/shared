@@ -54,3 +54,9 @@ const adapter = createRlsTxAdapter(db, {
 ### tenantColumn?
 
 > `optional` **tenantColumn?**: `string`
+
+---
+
+### tenantColumnType?
+
+> `optional` **tenantColumnType?**: `"uuid"` \| `"text"`

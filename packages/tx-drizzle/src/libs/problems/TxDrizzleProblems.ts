@@ -1,6 +1,11 @@
 import { Problem, ProblemCategory } from "@croco/problems-core";
 
-export type RlsConfigurationField = "adminRoles" | "configKey" | "tableName" | "tenantColumn";
+export type RlsConfigurationField =
+  | "adminRoles"
+  | "configKey"
+  | "tableName"
+  | "tenantColumn"
+  | "tenantColumnType";
 
 /** Invalid static configuration for PostgreSQL row-level security helpers. */
 export class RlsConfigurationProblem extends Problem {
