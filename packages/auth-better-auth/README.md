@@ -105,6 +105,8 @@ Better Auth에서 `privateMetadata`라는 이름 자체가 서버 전용 쓰기�
 배열의 문자열 원소를 중복 없이 합칩니다. 테넌트는 `tenantId`, `tenant_id` 순서로, 조직은
 `orgId`, `org_id`, `organizationId`, `organization_id` 순서로 각 키의 선택된 값 중 첫 문자열을
 사용합니다. 이 별칭들은 `trustedUserFields`에서도 개별 키로 지정합니다.
+선택한 테넌트 ID는 `AuthUser.tenantId`에 반영하며, 테넌트 ID가 없으면 선택한 조직 ID를 사용합니다.
+기존 `metadata.tenantId`와 `metadata.orgId`는 각 클레임의 추출값을 그대로 유지합니다.
 
 신뢰하지 않은 위치에서 알려진 claim을 발견하면 `auth-better-auth/untrusted-claims` 코드로
 경고합니다. 기본 출력은 `console.warn`이며 생성자 옵션의 `logger` 또는 plugin의 `provider.logger`에

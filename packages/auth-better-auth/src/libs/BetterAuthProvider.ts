@@ -197,6 +197,7 @@ export class BetterAuthProvider implements AuthProvider<Request> {
       email: typeof userRecord.email === "string" ? userRecord.email : undefined,
       roles: extractRoles(sources),
       permissions: extractPermissions(sources),
+      ...(tenantId !== undefined ? { tenantId } : orgId !== undefined ? { tenantId: orgId } : {}),
       metadata: {
         image: userRecord.image,
         emailVerified: userRecord.emailVerified,

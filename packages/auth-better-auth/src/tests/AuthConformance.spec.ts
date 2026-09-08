@@ -104,6 +104,7 @@ describe("Better Auth conformance", () => {
     email: "user@example.com",
     roles: ["admin"],
     permissions: ["tenant:read"],
+    tenantId: "tenant_123",
     metadata: {
       image: undefined,
       emailVerified: true,
@@ -209,8 +210,7 @@ describe("Better Auth conformance", () => {
         return {
           externalOrgId: "org_123",
           expectedTenantId: "tenant_123",
-          resolvedTenantId:
-            typeof user?.metadata?.tenantId === "string" ? user.metadata.tenantId : null,
+          resolvedTenantId: user?.tenantId ?? null,
           userMetadata: user?.metadata,
           expectedUserMetadata: {
             orgId: "org_123",
