@@ -252,6 +252,7 @@ describe("BetterAuthProvider", () => {
 
         expect(result?.roles).toEqual([]);
         expect(result?.permissions).toEqual([]);
+        expect(result).not.toHaveProperty("tenantId");
         expect(result?.metadata).not.toHaveProperty("tenantId");
         expect(result?.metadata).not.toHaveProperty("orgId");
         expect(console.warn).toHaveBeenCalledOnce();
@@ -298,6 +299,7 @@ describe("BetterAuthProvider", () => {
       const result = await provider.authenticate(createMockRequest());
       expect(result?.roles).toEqual(["member"]);
       expect(result?.permissions).toEqual([]);
+      expect(result).not.toHaveProperty("tenantId");
       expect(result?.metadata).not.toHaveProperty("tenantId");
       expect(result?.metadata).not.toHaveProperty("orgId");
       expect(console.warn).toHaveBeenCalledOnce();
@@ -330,9 +332,40 @@ describe("BetterAuthProvider", () => {
       const result = await provider.authenticate(createMockRequest());
       expect(result?.roles).toEqual(["member", "owner"]);
       expect(result?.permissions).toEqual(["write", "read"]);
+      expect(result?.tenantId).toBe("direct-tenant");
       expect(result?.metadata).toMatchObject({ tenantId: "direct-tenant", orgId: "private-org" });
       expect(warn).toHaveBeenCalledOnce();
       expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [{ tenantId: "tenant-1" }, "tenant-1"],
+      [{ tenant_id: "tenant-1" }, "tenant-1"],
+      [{ orgId: "org-1" }, "org-1"],
+      [{ org_id: "org-1" }, "org-1"],
+      [{ organizationId: "org-1" }, "org-1"],
+      [{ organization_id: "org-1" }, "org-1"],
+      [{ tenantId: "tenant-1", orgId: "org-1" }, "tenant-1"],
+      [{ tenant_id: "tenant-1", orgId: "org-1" }, "tenant-1"],
+      [{ tenantId: "", orgId: "org-1" }, ""],
+      [{ tenantId: 42, orgId: "org-1" }, "org-1"],
+      [{ tenantId: null, orgId: 42 }, undefined],
+      [{}, undefined],
+    ])("should expose trusted tenant claims %j as AuthUser.tenantId", async (claims, tenantId) => {
+      provider = new BetterAuthProvider(
+        createMockBetterAuthFactory({ user: { id: "user-123", serverClaims: claims } }),
+        { trustedMetadataKeys: ["serverClaims"] },
+      );
+
+      const result = await provider.authenticate(createMockRequest());
+
+      expect(result?.tenantId).toBe(tenantId);
+      if (tenantId === undefined) {
+        expect(result).not.toHaveProperty("tenantId");
+      }
+      if (!("tenantId" in claims) && !("tenant_id" in claims)) {
+        expect(result?.metadata).not.toHaveProperty("tenantId");
+      }
     });
 
     it("should snapshot trust options and ignore inherited claims and sources", async () => {
@@ -354,6 +387,7 @@ describe("BetterAuthProvider", () => {
       const result = await provider.authenticate(createMockRequest());
       expect(result?.roles).toEqual([]);
       expect(result?.permissions).toEqual([]);
+      expect(result).not.toHaveProperty("tenantId");
       expect(result?.metadata).not.toHaveProperty("tenantId");
     });
 
@@ -387,6 +421,7 @@ describe("BetterAuthProvider", () => {
       const result = await provider.authenticate(createMockRequest());
       expect(result?.roles).toEqual([]);
       expect(result?.permissions).toEqual([]);
+      expect(result).not.toHaveProperty("tenantId");
       expect(result?.metadata).not.toHaveProperty("tenantId");
       expect(console.warn).toHaveBeenCalledOnce();
     });
