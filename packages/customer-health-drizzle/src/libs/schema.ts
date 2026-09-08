@@ -20,17 +20,27 @@ import { sql } from "drizzle-orm";
 /**
  * 테넌트 건강 점수 이력을 저장하는 PostgreSQL 스키마입니다.
  */
-export const tenantHealthScores = pgTable("tenant_health_scores", {
-  transitionSequence: bigserial("transition_sequence", { mode: "bigint" }).notNull(),
-  tenantId: text("tenant_id").notNull(),
-  overallScore: doublePrecision("overall_score").notNull(),
-  status: text("status").notNull().$type<HealthStatus>(),
-  categoryScores: jsonb("category_scores").$type<Record<SignalCategory, number>>().notNull(),
-  signals: jsonb("signals").notNull(),
-  trend: text("trend").notNull().$type<HealthTrend>(),
-  previousScore: doublePrecision("previous_score"),
-  calculatedAt: timestamp("calculated_at").notNull(),
-});
+export const tenantHealthScores = pgTable(
+  "tenant_health_scores",
+  {
+    transitionSequence: bigserial("transition_sequence", { mode: "bigint" }).primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    overallScore: doublePrecision("overall_score").notNull(),
+    status: text("status").notNull().$type<HealthStatus>(),
+    categoryScores: jsonb("category_scores").$type<Record<SignalCategory, number>>().notNull(),
+    signals: jsonb("signals").notNull(),
+    trend: text("trend").notNull().$type<HealthTrend>(),
+    previousScore: doublePrecision("previous_score"),
+    calculatedAt: timestamp("calculated_at").notNull(),
+  },
+  (table) => [
+    index("tenant_health_scores_tenant_seq_idx").on(
+      table.tenantId,
+      table.transitionSequence.desc(),
+    ),
+    index("tenant_health_scores_tenant_calc_idx").on(table.tenantId, table.calculatedAt.desc()),
+  ],
+);
 
 export const tenantHealthEventIntents = pgTable(
   "tenant_health_event_intents",

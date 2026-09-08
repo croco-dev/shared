@@ -51,6 +51,29 @@ const providers = registry.getProviders();
 `widenHealthScorePrecisionPostgres`를 실행해야 합니다. 이 migration은 현재 점수와 이전 점수
 컬럼을 한 transaction에서 `DOUBLE PRECISION`으로 변환하며 기존 정수 값은 그대로 유지합니다.
 
+## 기존 점수 테이블의 기본 키와 인덱스 적용
+
+스키마 선언 변경만으로 기존 DB가 변경되지는 않습니다. `transition_sequence`가 없는 배포는
+먼저 위의 `addHealthEventIntents(db)` 마이그레이션을 완료하세요. 기본 키와 아래 인덱스가 없는
+기존 테이블에는 다음 SQL을 한 번 적용하세요. Drizzle 마이그레이션으로 같은 변경을 적용했다면
+중복 실행하지 마세요.
+
+```sql
+BEGIN;
+ALTER TABLE tenant_health_scores
+  ADD CONSTRAINT tenant_health_scores_pkey PRIMARY KEY (transition_sequence);
+CREATE INDEX tenant_health_scores_tenant_seq_idx
+  ON tenant_health_scores (tenant_id, transition_sequence DESC);
+CREATE INDEX tenant_health_scores_tenant_calc_idx
+  ON tenant_health_scores (tenant_id, calculated_at DESC);
+COMMIT;
+```
+
+이 작업은 테이블 잠금을 사용하므로 쓰기를 중지할 수 있는 유지보수 시간에 실행하세요.
+중복된 순번이나 NULL이 있으면 기본 키 생성이 실패합니다. 데이터를 확인하고 원인을 해결한 후
+다시 실행하세요. 순번 인덱스는 최신 점수·이력 조회에, 시간 인덱스는 기간별 조회에 사용될 수
+있으며 실제 실행 계획은 PostgreSQL 통계와 조회 범위에 따라 달라집니다.
+
 ## API 레퍼런스
 
 ### `DrizzleHealthScoreStore`

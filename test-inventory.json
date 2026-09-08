@@ -1245,6 +1245,12 @@
       "owner": "@croco/customer-health-drizzle"
     },
     {
+      "path": "packages/customer-health-drizzle/src/tests/HealthScoreSchema.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "@croco/customer-health-drizzle"
+    },
+    {
       "path": "packages/customer-health-drizzle/src/tests/MeteringSignalProvider.spec.ts",
       "lane": "fast",
       "qualifiers": [],
