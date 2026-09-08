@@ -4,7 +4,7 @@
 
 - N+1 문제를 **요청 단위(per-request)**로 해결한다.
 - GraphQL 뿐 아니라 REST에서도 동일한 최적화 이점을 얻을 수 있어야 한다.
-- Croco의 4-계층(Framework → Protocols → Transports → Integrations) 아키텍처와 일관되게 맞춘다.
+- Croco의 역할 기반 아키텍처와 일관되게 맞춘다. 계약은 Contracts, 구체적인 연동은 Plugins로 구분하며 역할 메타데이터는 `docs/package-catalog.json`의 `packageRoles`를 따른다.
 - 구현은 **옵트인(opt-in)** 이며, 모든 데이터 접근을 강제하지 않는다.
 
 ## 배경: N+1 문제란?
@@ -94,7 +94,7 @@ Croco는 `@croco/framework-context`의 `Context`가 AsyncLocalStorage로 request
 
 #### Croco 적합성
 
-- Protocols/Transports 계층(표현/실행 계층)에 최적화 로직이 들어가며, 4-계층 관점에서 재사용성이 낮다.
+- 프로토콜 또는 transport Plugin에 최적화 로직이 들어가므로 다른 프로토콜에서 재사용하기 어렵다.
 
 ---
 
@@ -118,7 +118,7 @@ Croco는 `@croco/framework-context`의 `Context`가 AsyncLocalStorage로 request
 
 #### Croco 적합성
 
-- Croco의 4-계층 구조에서, 배칭은 Transport/Protocol이 아닌 **데이터 접근 경계(Integrations/Repository)**에 두는 것이 자연스럽다.
+- Croco의 역할별 경계 구조에서, 배칭은 Transport/Protocol이 아닌 **데이터 접근 경계(Integrations/Repository)**에 두는 것이 자연스럽다.
 - 기존 AsyncLocalStorage 기반 `Context.getCache()`를 per-request cache로 재사용 가능.
 
 ---
@@ -238,12 +238,12 @@ Croco 적용 시 고려:
 추가로, `pnpm-lock.yaml`에 `@opentelemetry/instrumentation-dataloader`가 이미 존재하므로(의존성 상태에 따라),
 도입 시 자동 계측 옵션도 검토할 수 있다. (단, 본 설계는 의존성 추가/강제를 전제로 하지 않는다.)
 
-## Croco 4-계층 아키텍처와의 정렬
+## Croco 역할별 경계 아키텍처와의 정렬
 
-- Framework (`framework-context`): 요청 스코프 저장소(ALS) 제공 → 로더의 수명/캐시를 안전하게 관리
-- Protocols (`protocols-graphql`, `protocols-rest`): 계약/데코레이터 제공 → 로더 사용을 강제하지 않음
-- Transports (`transports-graphql`, `transports-http`): 요청 진입점에서 `Context.run()` 실행 → per-request 로더 활성화
-- Integrations/데이터 접근(앱 코드의 Repository/Service): 실제 배칭 로직 배치 → transport에 독립적인 성능 개선
+- Kernel (`framework-context`): 요청 스코프 저장소(ALS) 제공 → 로더의 수명/캐시를 안전하게 관리
+- Contracts (`protocols-rest`)와 protocol Plugin (`protocols-graphql`): 계약/데코레이터 제공 → 로더 사용을 강제하지 않음
+- Transport Plugins (`transports-graphql`, `transports-http`): 요청 진입점에서 `Context.run()` 실행 → per-request 로더 활성화
+- Application 데이터 접근(앱 코드의 Repository/Service): 실제 배칭 로직 배치 → transport에 독립적인 성능 개선
 
 ## 구현 가이드(블루프린트)
 

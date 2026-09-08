@@ -2468,6 +2468,40 @@ describe("E2E: generate()", () => {
       },
       diagnostics: [],
     });
+    expect(Object.keys(architecturePolicyManifest.packageGroups).sort()).toEqual([
+      "application",
+      "contracts",
+      "kernel",
+      "plugins",
+      "profiles",
+      "tooling",
+    ]);
+    expect(architecturePolicyManifest.packageGroups.contracts.packages).toEqual(
+      expect.arrayContaining([
+        "@test/provider-rpc",
+        "@croco/telemetry-api",
+        "@croco/protocols-core",
+      ]),
+    );
+    expect(architecturePolicyManifest.packageGroups.plugins.packages).toEqual(
+      expect.arrayContaining([
+        "@croco/tx-drizzle",
+        "@croco/protocols-trpc",
+        "@croco/protocols-graphql",
+      ]),
+    );
+    expect(architecturePolicyManifest.packageGroups.tooling.packages).toContain(
+      "@croco/framework-preset",
+    );
+    expect(architecturePolicyManifest.packageGroups.profiles.packages).toContain(
+      "@croco/presentation-preset",
+    );
+    expect(architecturePolicyManifest.rules.forbiddenImports).toContainEqual(
+      expect.objectContaining({
+        from: { groups: ["kernel", "contracts"] },
+        to: { groups: ["plugins"] },
+      }),
+    );
     expect(architecturePolicyManifest).toMatchObject({
       schemaVersion: "croco.architecture-policy/v1",
       policyName: "my-saas-generated-app",
@@ -2484,6 +2518,47 @@ describe("E2E: generate()", () => {
         }),
       },
     });
+    const providerFixture = join(testDir, "libs/shared/provider-policy-fixture");
+    mkdirSync(join(providerFixture, "src"), { recursive: true });
+    writeFileSync(
+      join(providerFixture, "package.json"),
+      JSON.stringify({ name: "@test/provider-policy-fixture" }),
+    );
+    writeFileSync(join(providerFixture, "src/index.ts"), 'import "@croco/tx-drizzle";\n');
+    const contractFixture = join(testDir, "libs/shared/provider-rpc/src/policy-fixture.ts");
+    writeFileSync(contractFixture, 'import "@croco/tx-drizzle";\n');
+    const policyCheck = spawnSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        "--input-type=module",
+        "-e",
+        `import { checkArchitecturePolicy, readArchitecturePolicyManifest } from ${JSON.stringify(join(WORKSPACE_ROOT, "packages/architecture-policy/src/index.ts"))};
+      console.log(JSON.stringify(checkArchitecturePolicy({ rootDir: process.argv[1], manifest: readArchitecturePolicyManifest(process.argv[2]) })));`,
+        testDir,
+        join(testDir, "croco.arch.json"),
+      ],
+      { encoding: "utf8" },
+    );
+    expect(policyCheck.status, policyCheck.stderr).toBe(0);
+    const policyReport = JSON.parse(policyCheck.stdout) as {
+      diagnostics: { file: string; ruleId: string; importSpecifier: string }[];
+    };
+    expect(
+      policyReport.diagnostics.filter((diagnostic) =>
+        diagnostic.file.includes("provider-policy-fixture"),
+      ),
+    ).toEqual([]);
+    expect(policyReport.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ruleId: "generated-contract-plugin-boundary",
+          importSpecifier: "@croco/tx-drizzle",
+        }),
+      ]),
+    );
+    rmSync(providerFixture, { recursive: true });
+    rmSync(contractFixture);
     expect(profileManifest.packages).toEqual(
       expect.arrayContaining([
         "@croco/transports-cloudflare-workers",

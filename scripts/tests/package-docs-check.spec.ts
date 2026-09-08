@@ -91,6 +91,29 @@ describe("package-docs-check.mts", () => {
     );
   });
 
+  it("rejects a public package without canonical role metadata", () => {
+    const root = createCommandValidationRoot();
+    const path = join(root, "docs/package-catalog.json");
+    const catalog = JSON.parse(readFileSync(path, "utf-8"));
+    delete catalog.packageRoles;
+    writeJson(path, catalog);
+    const result = runScript(root, "--write");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("packageRoles");
+  });
+
+  it("rejects drift in the canonical role map shipped with generated applications", () => {
+    const root = createCommandValidationRoot();
+    const written = runScript(root, "--write");
+    expect(written.status, written.stdout).toBe(0);
+    const path = join(root, "packages/create-croco-app/src/data/package-roles.json");
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ "@croco/alpha": "contracts" });
+    writeJson(path, { "@croco/alpha": "plugins" });
+    const checked = runScript(root, "--check");
+    expect(checked.status).toBe(1);
+    expect(checked.stdout).toContain("canonical role drift detected");
+  });
+
   it("writes the README package catalog and documentation report from package manifests", () => {
     const root = createTempRoot();
     writePackage(root, "alpha", { name: "@croco/alpha" });
@@ -124,6 +147,8 @@ describe("package-docs-check.mts", () => {
     expect(readme).toContain("<!-- CROCO:PACKAGE-CATALOG:START -->");
     expect(readme).toContain("현재 카탈로그는 **2개 public package**");
     expect(readme).toContain("Croco 1.0 Spine");
+    expect(readme).toContain("Canonical Package Roles");
+    expect(readme).toContain("Contracts");
     expect(readme).toContain("release-critical compatibility scope");
     expect(readme).toContain(
       "Current 1.0 spine status: 2 spine packages; 0 production-ready, 2 beta, 0 alpha/WIP, 0 deprecated; 2 beta promotion records.",
@@ -394,7 +419,7 @@ describe("package-docs-check.mts", () => {
     const result = runScript(root, "--write");
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("references missing package removed");
+    expect(result.stdout).toContain("packageRoles.removed refers to a package that is not public");
   });
 
   it("fails when spine metadata references a package that no longer exists", () => {
@@ -972,7 +997,7 @@ function writeDefaultPublicDocs(root: string): void {
       "title: Architecture",
       "---",
       "",
-      "Croco follows the current layered architecture.",
+      "Croco uses Kernel, Contracts, Plugins, Application, Profiles, and Tooling roles.",
       "",
       "- `alpha` is a fixture package.",
       "",
@@ -1041,6 +1066,19 @@ function writeCatalogMetadata(
     betaPackages.filter((packageName) => spinePackageNameSet.has(packageName));
   writeJson(join(root, "docs", "package-catalog.json"), {
     schemaVersion: 1,
+    packageRoles: Object.fromEntries(
+      packageNames.map((name) => [
+        name,
+        {
+          role: "Contracts",
+          subtype: "domain",
+          domain: "Fixture",
+          runtimes: extensionPackages.includes(name)
+            ? (options.extensionRuntimesByPackage?.[name] ?? ["node"])
+            : [],
+        },
+      ]),
+    ),
     spine: {
       label: "Croco 1.0 spine",
       description: "Fixture release-critical package set.",

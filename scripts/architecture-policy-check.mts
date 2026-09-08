@@ -9,6 +9,8 @@ import {
 } from "../packages/architecture-policy/src/index.ts";
 import type { ArchitecturePolicyManifest } from "../packages/architecture-policy/src/index.ts";
 
+import { loadPackageRoles } from "./package-roles.mts";
+
 type Options = {
   readonly manifest: string;
   readonly rootDir: string;
@@ -26,13 +28,6 @@ type WorkspacePackage = {
   readonly shortName: string;
 };
 
-type PackageCatalogGroupOverride = {
-  readonly catalogGroup: string;
-  readonly packageName: string;
-  readonly policyGroup: string;
-  readonly reason: string;
-};
-
 type PackageCatalogGroupViolation = {
   readonly message: string;
   readonly recovery: string;
@@ -46,23 +41,7 @@ type PackageCatalogGroupConsistencyReport = {
   readonly violations: readonly PackageCatalogGroupViolation[];
 };
 
-type CatalogMetadata = {
-  readonly groups?: unknown;
-};
-
 const packageCatalogPath = join("docs", "package-catalog.json");
-const packageCatalogGroupToPolicyGroup = new Map<string, string>([
-  ["Core", "framework"],
-  ["Domain", "framework"],
-  ["Provider", "integrations"],
-  ["Integration", "integrations"],
-  ["Protocol", "protocols"],
-  ["Transport", "transports"],
-  ["Host", "hosts"],
-  ["Build Target", "build-targets"],
-  ["Presentation", "presentation"],
-  ["Tooling", "app"],
-]);
 
 function parseArgs(args: readonly string[]): Options {
   let manifest = "croco.arch.json";
@@ -184,99 +163,46 @@ function checkPackageCatalogGroupConsistency(options: {
     rootDir,
     options.manifest.packageRoots ?? ["packages"],
   );
-  const packageByName = new Map(packages.map((pkg) => [pkg.name, pkg]));
-  const packageByShortName = new Map(packages.map((pkg) => [pkg.shortName, pkg]));
-  const catalogGroups = readPackageCatalogGroups(rootDir, packageByShortName, violations);
-  const overrides = readPackageCatalogGroupOverrides(
-    options.manifest.packageCatalogGroupOverrides,
-    packageByName,
-    violations,
-  );
-  const overridesByPackage = new Map(overrides.map((override) => [override.packageName, override]));
-
-  for (const pkg of packages) {
-    const catalogGroupMatches = catalogGroups.get(pkg.shortName) ?? [];
-    const architectureGroupMatches = findMatchingArchitecturePackageGroups(options.manifest, pkg);
-
-    if (catalogGroupMatches.length === 0) {
+  if (!existsSync(join(rootDir, packageCatalogPath))) {
+    violations.push({
+      message: "docs/package-catalog.json is missing",
+      recovery: "Restore docs/package-catalog.json before running architecture policy checks.",
+      evidence: packageCatalogPath,
+    });
+  } else {
+    const { roles, errors } = loadPackageRoles(
+      rootDir,
+      packages.map((pkg) => pkg.shortName),
+    );
+    for (const message of errors) {
       violations.push({
-        message: `public package ${pkg.shortName} is missing package catalog group metadata`,
-        recovery: `Add ${pkg.shortName} to exactly one docs/package-catalog.json groups.*.packages array.`,
+        message,
+        recovery: "Correct docs/package-catalog.json packageRoles metadata.",
         evidence: packageCatalogPath,
       });
-      continue;
     }
-
-    if (catalogGroupMatches.length > 1) {
-      violations.push({
-        message: `package ${pkg.shortName} appears in multiple package catalog groups (${catalogGroupMatches.join(", ")})`,
-        recovery: `Keep ${pkg.shortName} in one catalog group before comparing architecture policy group membership.`,
-        evidence: packageCatalogPath,
-      });
-      continue;
+    for (const pkg of packages) {
+      const role = roles[pkg.shortName];
+      if (!role) continue;
+      const groups = findMatchingArchitecturePackageGroups(options.manifest, pkg).filter(
+        (group) => group !== "desktop-contracts" || pkg.name !== "@croco/protocols-desktop",
+      );
+      const expected = role.role.toLowerCase();
+      if (groups.length !== 1 || groups[0] !== expected) {
+        violations.push({
+          message: `public package ${pkg.name} has canonical role ${role.role} but croco.arch.json assigns ${groups.length ? groups.join(", ") : "no group"}`,
+          recovery: `Assign ${pkg.name} to exactly packageGroups.${expected}; role overrides are not supported.`,
+          evidence: relative(rootDir, options.manifestPath),
+        });
+      }
     }
-
-    if (architectureGroupMatches.length === 0) {
-      violations.push({
-        message: `public package ${pkg.name} is not classified by croco.arch.json packageGroups`,
-        recovery: `Add ${pkg.name} to exactly one croco.arch.json packageGroups entry or add a matching package pattern.`,
-        evidence: relative(rootDir, options.manifestPath),
-      });
-      continue;
-    }
-
-    if (architectureGroupMatches.length > 1) {
-      violations.push({
-        message: `public package ${pkg.name} matches multiple croco.arch.json packageGroups (${architectureGroupMatches.join(", ")})`,
-        recovery: `Make ${pkg.name} match exactly one architecture policy package group.`,
-        evidence: relative(rootDir, options.manifestPath),
-      });
-      continue;
-    }
-
-    const catalogGroup = catalogGroupMatches[0];
-    const policyGroup = architectureGroupMatches[0];
-    const expectedPolicyGroup = packageCatalogGroupToPolicyGroup.get(catalogGroup);
-    if (!expectedPolicyGroup) {
-      violations.push({
-        message: `package ${pkg.shortName} uses unsupported package catalog group ${catalogGroup}`,
-        recovery: `Add an architecture-policy mapping for catalog group ${catalogGroup} before using it.`,
-        evidence: packageCatalogPath,
-      });
-      continue;
-    }
-
-    const override = overridesByPackage.get(pkg.name);
-    const overrideMatchesActual =
-      override?.catalogGroup === catalogGroup && override.policyGroup === policyGroup;
-    const groupMismatch = policyGroup !== expectedPolicyGroup;
-
-    if (override && !overrideMatchesActual) {
-      violations.push({
-        message: `packageCatalogGroupOverrides entry for ${pkg.name} expects catalog=${override.catalogGroup} policy=${override.policyGroup} but actual catalog=${catalogGroup} policy=${policyGroup}`,
-        recovery: `Update or remove the stale override for ${pkg.name}.`,
-        evidence: relative(rootDir, options.manifestPath),
-      });
-      continue;
-    }
-
-    if (override && !groupMismatch) {
-      violations.push({
-        message: `packageCatalogGroupOverrides entry for ${pkg.name} is no longer needed`,
-        recovery: `Remove the override now that ${pkg.name} has matching catalog and architecture policy groups.`,
-        evidence: relative(rootDir, options.manifestPath),
-      });
-      continue;
-    }
-
-    if (groupMismatch && !overrideMatchesActual) {
-      violations.push({
-        message: `package ${pkg.name} catalog group ${catalogGroup} maps to policy group ${expectedPolicyGroup} but croco.arch.json assigns ${policyGroup}`,
-        recovery: `Move ${pkg.name} to packageGroups.${expectedPolicyGroup} or add a packageCatalogGroupOverrides entry with package, catalogGroup, policyGroup, and reason.`,
-        evidence: relative(rootDir, options.manifestPath),
-      });
-      continue;
-    }
+  }
+  if (options.manifest.packageCatalogGroupOverrides !== undefined) {
+    violations.push({
+      message: "packageCatalogGroupOverrides is obsolete",
+      recovery: "Remove packageCatalogGroupOverrides and align packageGroups with packageRoles.",
+      evidence: relative(rootDir, options.manifestPath),
+    });
   }
 
   return {
@@ -318,147 +244,6 @@ function readPublicWorkspacePackages(
   });
 }
 
-function readPackageCatalogGroups(
-  rootDir: string,
-  packageByShortName: ReadonlyMap<string, WorkspacePackage>,
-  violations: PackageCatalogGroupViolation[],
-): ReadonlyMap<string, readonly string[]> {
-  const catalogPath = join(rootDir, packageCatalogPath);
-  if (!existsSync(catalogPath)) {
-    violations.push({
-      message: "docs/package-catalog.json is missing",
-      recovery: "Restore docs/package-catalog.json before running architecture policy checks.",
-      evidence: packageCatalogPath,
-    });
-    return new Map();
-  }
-
-  const metadata = readJsonFile<CatalogMetadata>(catalogPath);
-  if (!isRecord(metadata.groups)) {
-    violations.push({
-      message: "docs/package-catalog.json groups must be an object",
-      recovery: "Restore package catalog group metadata before running architecture policy checks.",
-      evidence: packageCatalogPath,
-    });
-    return new Map();
-  }
-
-  const assignments = new Map<string, string[]>();
-  for (const [groupName, groupConfig] of Object.entries(metadata.groups)) {
-    if (!isRecord(groupConfig)) {
-      violations.push({
-        message: `docs/package-catalog.json groups.${groupName} must be an object`,
-        recovery: `Make groups.${groupName} contain a packages string array.`,
-        evidence: packageCatalogPath,
-      });
-      continue;
-    }
-
-    const packageNames = readStringArray(groupConfig.packages);
-    if (!packageNames) {
-      violations.push({
-        message: `docs/package-catalog.json groups.${groupName}.packages must be a string array`,
-        recovery: `Set groups.${groupName}.packages to the package short names assigned to ${groupName}.`,
-        evidence: packageCatalogPath,
-      });
-      continue;
-    }
-
-    for (const packageName of packageNames) {
-      if (!packageByShortName.has(packageName)) {
-        violations.push({
-          message: `package catalog group ${groupName} references missing public package ${packageName}`,
-          recovery: `Remove ${packageName} from docs/package-catalog.json or restore packages/${packageName}.`,
-          evidence: packageCatalogPath,
-        });
-        continue;
-      }
-
-      const current = assignments.get(packageName) ?? [];
-      current.push(groupName);
-      assignments.set(packageName, current);
-    }
-  }
-
-  return assignments;
-}
-
-function readPackageCatalogGroupOverrides(
-  value: unknown,
-  packageByName: ReadonlyMap<string, WorkspacePackage>,
-  violations: PackageCatalogGroupViolation[],
-): PackageCatalogGroupOverride[] {
-  if (value === undefined) {
-    return [];
-  }
-
-  if (!Array.isArray(value)) {
-    violations.push({
-      message: "croco.arch.json packageCatalogGroupOverrides must be an array",
-      recovery:
-        "Set packageCatalogGroupOverrides to an array of explicit package override objects.",
-      evidence: "croco.arch.json",
-    });
-    return [];
-  }
-
-  const overrides: PackageCatalogGroupOverride[] = [];
-  const seenPackages = new Set<string>();
-  for (const [index, entry] of value.entries()) {
-    const location = `croco.arch.json packageCatalogGroupOverrides[${index}]`;
-    if (!isRecord(entry)) {
-      violations.push({
-        message: `${location} must be an object`,
-        recovery: "Each override must include package, catalogGroup, policyGroup, and reason.",
-        evidence: "croco.arch.json",
-      });
-      continue;
-    }
-
-    const packageName = readNonEmptyString(entry.package);
-    const catalogGroup = readNonEmptyString(entry.catalogGroup);
-    const policyGroup = readNonEmptyString(entry.policyGroup);
-    const reason = readNonEmptyString(entry.reason);
-    if (!packageName || !catalogGroup || !policyGroup || !reason) {
-      violations.push({
-        message: `${location} must include non-empty package, catalogGroup, policyGroup, and reason fields`,
-        recovery:
-          "Make the override explicit enough to review why catalog and policy group membership differ.",
-        evidence: "croco.arch.json",
-      });
-      continue;
-    }
-
-    if (!packageByName.has(packageName)) {
-      violations.push({
-        message: `${location} references missing public package ${packageName}`,
-        recovery: `Remove the override or restore the public workspace package named ${packageName}.`,
-        evidence: "croco.arch.json",
-      });
-      continue;
-    }
-
-    if (seenPackages.has(packageName)) {
-      violations.push({
-        message: `${location} duplicates an override for ${packageName}`,
-        recovery: `Keep one packageCatalogGroupOverrides entry for ${packageName}.`,
-        evidence: "croco.arch.json",
-      });
-      continue;
-    }
-
-    seenPackages.add(packageName);
-    overrides.push({
-      packageName,
-      catalogGroup,
-      policyGroup,
-      reason,
-    });
-  }
-
-  return overrides;
-}
-
 function findMatchingArchitecturePackageGroups(
   manifest: ArchitecturePolicyManifest,
   pkg: WorkspacePackage,
@@ -487,22 +272,6 @@ function formatPackageCatalogGroupViolation(violation: PackageCatalogGroupViolat
 
 function readJsonFile<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf-8")) as T;
-}
-
-function readStringArray(value: unknown): readonly string[] | null {
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
-    return null;
-  }
-
-  return value;
-}
-
-function readNonEmptyString(value: unknown): string | null {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function toShortPackageName(packageName: string): string {

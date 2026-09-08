@@ -20,227 +20,86 @@ type ArchitecturePackageGroup = {
   readonly paths?: readonly string[];
 };
 
-type PackageCatalogGroupOverride = {
-  readonly package: string;
-  readonly catalogGroup: string;
-  readonly policyGroup: string;
-  readonly reason: string;
-};
-
 describe("architecture-policy-check.mts", () => {
-  afterAll(() => {
-    vi.resetConfig();
-  });
-
+  afterAll(() => vi.resetConfig());
   afterEach(() => {
-    for (const root of tempRoots.splice(0)) {
-      rmSync(root, { force: true, recursive: true });
-    }
+    for (const root of tempRoots.splice(0)) rmSync(root, { force: true, recursive: true });
   });
 
-  it("passes when public package catalog groups match architecture policy groups", () => {
+  it("passes when canonical package roles match policy groups", () => {
     const root = createTempRoot();
     writePackage(root, "alpha");
     writePackage(root, "provider");
-    writePackageCatalog(root, {
-      Core: ["alpha"],
-      Provider: ["provider"],
-    });
+    writePackageCatalog(root, { Contracts: ["alpha"], Plugins: ["provider"] });
     writeArchitectureManifest(root, {
-      framework: { packages: ["@croco/alpha"] },
-      integrations: { packages: ["@croco/provider"] },
+      contracts: { packages: ["@croco/alpha"] },
+      plugins: { packages: ["@croco/provider"] },
     });
-
-    const result = runScript(root);
-
-    expect(result.status).toBe(0);
-    expect(result.output).toContain(
-      "architecture-policy: package catalog group consistency passed",
-    );
+    expect(runScript(root).status).toBe(0);
   });
 
-  it("fails when a public package is missing architecture policy classification", () => {
+  it.each([
+    [{}, "no group"],
+    [{ plugins: { packages: ["@croco/alpha"] } }, "plugins"],
+    [
+      { contracts: { packages: ["@croco/alpha"] }, kernel: { packages: ["@croco/alpha"] } },
+      "contracts, kernel",
+    ],
+  ])("rejects missing, mismatched, or overlapping canonical classification", (groups, actual) => {
     const root = createTempRoot();
     writePackage(root, "alpha");
-    writePackageCatalog(root, {
-      Core: ["alpha"],
-    });
-    writeArchitectureManifest(root, {
-      framework: { packages: [] },
-    });
-
+    writePackageCatalog(root, { Contracts: ["alpha"] });
+    writeArchitectureManifest(root, groups);
     const result = runScript(root);
-
     expect(result.status).toBe(1);
     expect(result.output).toContain(
-      "public package @croco/alpha is not classified by croco.arch.json packageGroups",
+      `canonical role Contracts but croco.arch.json assigns ${actual}`,
     );
+    expect(result.output).toContain("Assign @croco/alpha to exactly packageGroups.contracts");
   });
 
-  it("fails when a public package is missing package catalog group metadata", () => {
+  it("rejects missing canonical role metadata", () => {
     const root = createTempRoot();
     writePackage(root, "alpha");
-    writePackageCatalog(root, {
-      Core: [],
-    });
-    writeArchitectureManifest(root, {
-      framework: { packages: ["@croco/alpha"] },
-    });
-
+    writePackageCatalog(root, {});
+    writeArchitectureManifest(root, { contracts: { packages: ["@croco/alpha"] } });
     const result = runScript(root);
-
     expect(result.status).toBe(1);
-    expect(result.output).toContain(
-      "public package alpha is missing package catalog group metadata",
-    );
+    expect(result.output).toContain("packageRoles.alpha is required");
   });
 
-  it("fails with an actionable diagnostic when the package catalog file is missing", () => {
+  it("fails with recovery when the role catalog is missing", () => {
     const root = createTempRoot();
     writePackage(root, "alpha");
-    writeArchitectureManifest(root, {
-      framework: { packages: ["@croco/alpha"] },
-    });
-
+    writeArchitectureManifest(root, {});
     const result = runScript(root);
-
     expect(result.status).toBe(1);
-    expect(result.output).toContain("docs/package-catalog.json is missing");
-    expect(result.output).toContain(
-      "Restore docs/package-catalog.json before running architecture policy checks.",
-    );
+    expect(result.output).toContain("Restore docs/package-catalog.json");
   });
 
-  it("fails when one public package appears in multiple catalog groups", () => {
-    const root = createTempRoot();
-    writePackage(root, "alpha");
-    writePackageCatalog(root, {
-      Core: ["alpha"],
-      Domain: ["alpha"],
-    });
-    writeArchitectureManifest(root, {
-      framework: { packages: ["@croco/alpha"] },
-    });
-
-    const result = runScript(root);
-
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("package alpha appears in multiple package catalog groups");
-  });
-
-  it("fails when one public package matches multiple architecture policy groups", () => {
-    const root = createTempRoot();
-    writePackage(root, "alpha");
-    writePackageCatalog(root, {
-      Core: ["alpha"],
-    });
-    writeArchitectureManifest(root, {
-      app: { packages: ["@croco/alpha"] },
-      framework: { packages: ["@croco/alpha"] },
-    });
-
-    const result = runScript(root);
-
-    expect(result.status).toBe(1);
-    expect(result.output).toContain(
-      "public package @croco/alpha matches multiple croco.arch.json packageGroups",
-    );
-  });
-
-  it("fails when catalog and architecture groups differ without an override", () => {
-    const root = createTempRoot();
-    writePackage(root, "alpha");
-    writePackageCatalog(root, {
-      Tooling: ["alpha"],
-    });
-    writeArchitectureManifest(root, {
-      framework: { packages: ["@croco/alpha"] },
-    });
-
-    const result = runScript(root);
-
-    expect(result.status).toBe(1);
-    expect(result.output).toContain(
-      "package @croco/alpha catalog group Tooling maps to policy group app but croco.arch.json assigns framework",
-    );
-  });
-
-  it("uses manifest packageRoots when discovering public packages", () => {
+  it("uses custom package roots", () => {
     const root = createTempRoot();
     writePackage(root, "alpha", "libs");
-    writePackageCatalog(root, {
-      Core: ["alpha"],
-    });
-    writeArchitectureManifest(
-      root,
-      {
-        framework: { packages: ["@croco/alpha"] },
-      },
-      [],
-      ["libs"],
-    );
-
-    const result = runScript(root);
-
-    expect(result.status).toBe(0);
-    expect(result.output).toContain(
-      "architecture-policy: package catalog group consistency passed for 1 public package(s)",
-    );
+    writePackageCatalog(root, { Contracts: ["alpha"] });
+    writeArchitectureManifest(root, { contracts: { packages: ["@croco/alpha"] } }, ["libs"]);
+    expect(runScript(root).status).toBe(0);
   });
 
-  it("allows explicit package-level overrides for intentional catalog and policy group differences", () => {
+  it.each(["Kernel", "Contracts"])("rejects %s source imports into concrete Plugins", (role) => {
     const root = createTempRoot();
-    writePackage(root, "events-tx");
-    writePackageCatalog(root, {
-      Core: ["events-tx"],
+    writePackage(root, "alpha");
+    writePackage(root, "provider");
+    writePackageCatalog(root, { [role]: ["alpha"], Plugins: ["provider"] });
+    writeArchitectureManifest(root, {
+      [role.toLowerCase()]: { packages: ["@croco/alpha"] },
+      plugins: { packages: ["@croco/provider"] },
     });
-    writeArchitectureManifest(
-      root,
-      {
-        integrations: { packages: ["@croco/events-tx"] },
-      },
-      [
-        {
-          package: "@croco/events-tx",
-          catalogGroup: "Core",
-          policyGroup: "integrations",
-          reason: "The transaction-backed event package is an adapter boundary.",
-        },
-      ],
-    );
-
+    mkdirSync(join(root, "packages/alpha/src"), { recursive: true });
+    writeFileSync(join(root, "packages/alpha/src/index.ts"), 'import "@croco/provider";\n');
     const result = runScript(root);
-
-    expect(result.status).toBe(0);
-  });
-
-  it("fails stale overrides that no longer match the actual catalog and policy groups", () => {
-    const root = createTempRoot();
-    writePackage(root, "events-tx");
-    writePackageCatalog(root, {
-      Core: ["events-tx"],
-    });
-    writeArchitectureManifest(
-      root,
-      {
-        framework: { packages: ["@croco/events-tx"] },
-      },
-      [
-        {
-          package: "@croco/events-tx",
-          catalogGroup: "Core",
-          policyGroup: "integrations",
-          reason: "The transaction-backed event package is an adapter boundary.",
-        },
-      ],
-    );
-
-    const result = runScript(root);
-
     expect(result.status).toBe(1);
-    expect(result.output).toContain(
-      "packageCatalogGroupOverrides entry for @croco/events-tx expects catalog=Core policy=integrations but actual catalog=Core policy=framework",
-    );
+    expect(result.output).toContain("architecture-policy/forbidden-import");
+    expect(result.output).toContain("Move concrete implementation imports into Plugins");
   });
 });
 
@@ -289,15 +148,18 @@ function writePackageCatalog(
   groups: Readonly<Record<string, readonly string[]>>,
 ): void {
   writeJson(join(root, "docs", "package-catalog.json"), {
-    schemaVersion: 1,
-    groups: Object.fromEntries(
-      Object.entries(groups).map(([groupName, packages]) => [
-        groupName,
-        {
-          description: `${groupName} packages`,
-          packages,
-        },
-      ]),
+    packageRoles: Object.fromEntries(
+      Object.entries(groups).flatMap(([role, packages]) =>
+        packages.map((name) => [
+          name,
+          {
+            role,
+            subtype: role === "Plugins" ? "provider" : role === "Kernel" ? "runtime" : "domain",
+            runtimes: [],
+            domain: "test",
+          },
+        ]),
+      ),
     ),
   });
 }
@@ -305,7 +167,6 @@ function writePackageCatalog(
 function writeArchitectureManifest(
   root: string,
   packageGroups: Readonly<Record<string, ArchitecturePackageGroup>>,
-  overrides: readonly PackageCatalogGroupOverride[] = [],
   packageRoots: readonly string[] = ["packages"],
 ): void {
   writeJson(join(root, "croco.arch.json"), {
@@ -314,8 +175,16 @@ function writeArchitectureManifest(
     include: packageRoots.map((packageRoot) => `${packageRoot}/*/src/**/*.ts`),
     ignore: [],
     packageGroups,
-    ...(overrides.length > 0 ? { packageCatalogGroupOverrides: overrides } : {}),
-    rules: {},
+    rules: {
+      forbiddenImports: [
+        {
+          id: "canonical-plugin-boundary",
+          from: { groups: ["kernel", "contracts"] },
+          to: { groups: ["plugins"] },
+          recovery: "Move concrete implementation imports into Plugins.",
+        },
+      ],
+    },
   });
 }
 

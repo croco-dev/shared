@@ -317,8 +317,10 @@ service:
 
 ## Architecture Notes
 
-- 5-계층: Framework → Protocols → Transports → Integrations → Presentation
-- **Presentation** (신규): frontend-react/frontend-vite/frontend-cloudflare + 신규 codegen 패키지(rpc-codegen, openapi-spec). 사용자 코드(apps/console-web)와 직접 닿는 어댑터 계층.
+- Canonical roles: Kernel, Contracts, Plugins, Application, Profiles, Tooling. `docs/package-catalog.json`의 `packageRoles`가 source of truth이며 domain, subtype, runtimes는 별도 메타데이터다.
+- 의존 방향: Application은 Profiles/Plugins/Contracts를 조합하고, Plugins는 Contracts/Kernel에 의존한다. Kernel/Contracts는 구체적인 Plugins에 의존하지 않는다. 역할은 요청 실행 순서가 아니다.
+- `tx-drizzle`은 provider Plugin, `telemetry-api`는 Contracts다. Protocol, Host, Transport, Integration, Presentation은 Plugin subtype이다. `protocols-graphql`과 `protocols-trpc`는 구체적인 protocol Plugin이다.
+- `framework-preset`은 build-target Tooling, `presentation-preset`은 Profiles다. Host 수명주기, Transport 실행, Build Target 산출물 계약은 별도 책임이다.
 - DI: typedi + 커스텀 Container 래퍼
 - AsyncLocalStorage: request-scoped context
 - 이벤트 기반 아키텍처 (events-core + events-inmemory)
