@@ -138,6 +138,8 @@ annual.toString();
 ## 구현 포인트
 
 - 외부 결제사는 `BillingGateway`를 구현해 연결합니다.
+- 커스텀 `BillingStore.saveOrder()`는 `(billingAccountId, id)`를 기준으로 upsert해야 합니다.
+  웹훅 재시도에서 같은 주문을 다시 저장해도 주문 이력이 중복되지 않아야 합니다.
 - 체크아웃 호출자는 같은 논리적 구매 의도에 같은 `idempotencyKey`를 재사용해야 합니다. 운영 환경의
   `checkoutIdempotencyStore`는 모든 애플리케이션 인스턴스가 공유하는 durable adapter여야 합니다.
 - `BillingGateway.createCheckout()` 구현은 전달된 provider operation key로 같은 checkout session을

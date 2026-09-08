@@ -1406,6 +1406,62 @@ describe("PolarWebhookHandler", () => {
       },
     );
 
+    it.each(["publication", "completion"] as const)(
+      "retries %s failure without duplicating the order or its logical event",
+      async (operation) => {
+        const store = new InMemoryBillingStore();
+        const publisher = createMockEventPublisher();
+        publisher.publishNow = vi.fn();
+        const delivered = new Set<string>();
+        const failure = new Error(`${operation} unavailable`);
+        vi.mocked(publisher.publishIdempotently).mockImplementation(async (event) => {
+          delivered.add(event.eventId);
+          if (
+            operation === "publication" &&
+            vi.mocked(publisher.publishIdempotently).mock.calls.length === 1
+          )
+            throw failure;
+        });
+        if (operation === "completion") {
+          vi.spyOn(store, "completeWebhook").mockRejectedValueOnce(failure);
+        }
+        const event = {
+          id: "evt-order-durable-retry",
+          type: "order.paid",
+          data: {
+            id: "order-retry",
+            amount: 9900,
+            currency: "USD",
+            billing_reason: "purchase",
+            customer: { externalId: "tenant-123", metadata: {} },
+            createdAt: "2026-01-31T00:00:00Z",
+          },
+        };
+        vi.mocked(mockVerifyPolarWebhook).mockReturnValue(event);
+        const deps = { store, eventPublisher: publisher, planRegistry: mockPlanRegistry };
+        await expect(new PolarWebhookHandler(config, deps).handle("{}", {})).rejects.toMatchObject({
+          status: 500,
+          cause: failure,
+        });
+        await expect(new PolarWebhookHandler(config, deps).handle("{}", {})).resolves.toMatchObject(
+          {
+            success: true,
+          },
+        );
+        expect(await store.findOrdersByAccount("tenant-123")).toHaveLength(1);
+        expect(publisher.publishNow).not.toHaveBeenCalled();
+        expect(publisher.publishIdempotently).toHaveBeenCalledTimes(2);
+        expect(delivered.size).toBe(1);
+        expect(vi.mocked(publisher.publishIdempotently).mock.calls[1]?.[0]).toMatchObject({
+          tenantId: "tenant-123",
+          externalOrderId: "order-retry",
+          amount: 9900,
+          currency: "USD",
+          timestamp: new Date("2026-01-31T00:00:00Z"),
+        });
+      },
+    );
+
     it.each([new Error("storage unavailable"), { reason: "storage unavailable" }])(
       "preserves the processing cause and rollback failure diagnostics",
       async (failure) => {

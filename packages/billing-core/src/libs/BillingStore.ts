@@ -119,6 +119,7 @@ export abstract class BillingStore {
   abstract listPendingLifecycleCommands(limit: number): Promise<BillingLifecycleCommand[]>;
 
   // Order
+  // Upsert by (billingAccountId, id). Webhook retries must not append duplicate orders.
   abstract saveOrder(order: Order): Promise<void>;
   abstract findOrdersByAccount(billingAccountId: string): Promise<Order[]>;
 

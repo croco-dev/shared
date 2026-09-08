@@ -192,6 +192,10 @@ reservation을 해제합니다. 구독이 past-due 상태를 벗어나면 reserv
 | `order.created` | delivery를 멱등 처리하지만 결제 주문으로 저장하지 않음 |
 | `order.updated` | delivery를 멱등 처리하지만 결제 주문으로 저장하지 않음 |
 
+`order.paid` 재시도에서는 같은 계정·주문 ID로 주문을 upsert하고, 같은 webhook의 결제 이벤트를
+동일한 이벤트 ID로 `publishIdempotently`에 전달합니다. 커스텀 `BillingStore.saveOrder`도 이 upsert
+계약을 지켜야 하며, 발행 어댑터는 저장 이후 실패한 요청의 재전달을 중복 발행 없이 처리해야 합니다.
+
 `order.paid`의 공식 `billing_reason`은 `Order.reason`과 `OrderPaidEvent.reason`에 전달됩니다.
 `subscription_create`는 구독 시작 결제, `subscription_cycle`은 정기 갱신,
 `subscription_update`는 구독 변경 결제, `purchase`는 `one_time`으로 정규화됩니다.

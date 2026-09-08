@@ -318,6 +318,48 @@ describe("InMemoryBillingStore", () => {
       expect(result).toEqual([order1, order2]);
     });
 
+    it("should upsert repeated order IDs within an account without duplicating other orders", async () => {
+      const order: Order = {
+        id: "order-1",
+        billingAccountId: "tenant-1",
+        externalOrderId: "ext-order-1",
+        amount: 1000,
+        currency: "USD",
+        reason: "subscription_cycle",
+        paidAt: new Date(),
+      };
+      const otherOrder = { ...order, id: "order-2", externalOrderId: "ext-order-2" };
+      await store.saveOrder(order);
+      await store.saveOrder(otherOrder);
+      await store.saveOrder({ ...order });
+
+      expect(await store.findOrdersByAccount("tenant-1")).toEqual([order, otherOrder]);
+
+      const updatedOrder = { ...order, amount: 2000 };
+      await store.saveOrder(updatedOrder);
+
+      expect(await store.findOrdersByAccount("tenant-1")).toEqual([updatedOrder, otherOrder]);
+    });
+
+    it("should preserve matching order IDs in different accounts during retries", async () => {
+      const order: Order = {
+        id: "order-1",
+        billingAccountId: "tenant-1",
+        externalOrderId: "ext-order-1",
+        amount: 1000,
+        currency: "USD",
+        reason: "one_time",
+        paidAt: new Date(),
+      };
+      const otherAccountOrder = { ...order, billingAccountId: "tenant-2", amount: 2000 };
+      await store.saveOrder(order);
+      await store.saveOrder(otherAccountOrder);
+      await store.saveOrder({ ...order });
+
+      expect(await store.findOrdersByAccount("tenant-1")).toEqual([order]);
+      expect(await store.findOrdersByAccount("tenant-2")).toEqual([otherAccountOrder]);
+    });
+
     it("should return empty array when no orders exist", async () => {
       const result = await store.findOrdersByAccount("non-existent");
       expect(result).toEqual([]);
