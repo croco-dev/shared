@@ -23025,7 +23025,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/tx-drizzle/src/libs/problems/TxDrizzleProblems.ts",
-          line: 6,
+          line: 11,
           column: 1,
           kind: "problem-class",
         },
@@ -23056,7 +23056,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/tx-drizzle/src/libs/problems/TxDrizzleProblems.ts",
-          line: 56,
+          line: 61,
           column: 1,
           kind: "problem-class",
         },
@@ -23088,7 +23088,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/tx-drizzle/src/libs/problems/TxDrizzleProblems.ts",
-          line: 28,
+          line: 33,
           column: 1,
           kind: "problem-class",
         },
@@ -23120,7 +23120,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/tx-drizzle/src/libs/problems/TxDrizzleProblems.ts",
-          line: 75,
+          line: 80,
           column: 1,
           kind: "problem-class",
         },
@@ -23152,7 +23152,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/tx-drizzle/src/libs/problems/TxDrizzleProblems.ts",
-          line: 20,
+          line: 25,
           column: 1,
           kind: "problem-class",
         },

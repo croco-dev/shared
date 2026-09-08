@@ -48,7 +48,12 @@ export function validateRlsPolicyOptions(options: {
   readonly configKey: string;
   readonly tableName: string;
   readonly tenantColumn: string;
+  readonly tenantColumnType: "uuid" | "text";
 }): ValidatedRlsPolicyOptions {
+  if (options.tenantColumnType !== "uuid" && options.tenantColumnType !== "text") {
+    throw new RlsConfigurationProblem("tenantColumnType");
+  }
+
   const tableName = validateQualifiedIdentifier(options.tableName, "tableName", [1, 2]);
   const finalTableName = tableName.at(-1);
   if (!finalTableName) {

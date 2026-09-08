@@ -159,6 +159,7 @@ type TxOptions = InferTxOptions<typeof db>;
 
 - 테이블 이름: `table` 또는 `schema.table`
 - 테넌트 컬럼과 관리자 역할: 단일 식별자
+- 테넌트 컬럼 타입: `tenantColumnType: "uuid" | "text"`. 기본값은 기존 동작과 같은 `"uuid"`입니다. `text` 컬럼에 문자열·슬러그 ID를 저장한다면 `"text"`를 지정하여 UUID 캐스팅을 생략합니다. 기존 정책은 이 옵션만 변경해도 갱신되지 않으므로 마이그레이션에서 정책을 다시 생성해야 합니다.
 - 설정 키: 정확히 `namespace.parameter` 두 부분
 - 각 식별자 부분: `[A-Za-z_][A-Za-z0-9_$]*`, 최대 63 UTF-8 바이트
 - 미리 따옴표 처리된 이름은 허용하지 않습니다. 논리 이름을 전달하면 헬퍼가 PostgreSQL 식별자 인용을 적용합니다.

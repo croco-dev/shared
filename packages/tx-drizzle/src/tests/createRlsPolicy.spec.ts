@@ -12,6 +12,46 @@ describe("createRlsPolicy", () => {
     expect(sql).toContain("OR pg_has_role(current_user, 'app_admin', 'member')");
   });
 
+  it.each(["uuid", "text"] as const)(
+    "should honor explicit %s tenant columns",
+    (tenantColumnType) => {
+      const policySql = createRlsPolicy({
+        tableName: "orders",
+        tenantColumnType,
+        adminRoles: [],
+      });
+
+      expect(policySql).toContain(
+        "\"tenant_id\" = current_setting('app.current_tenant', true)" +
+          (tenantColumnType === "uuid" ? "::uuid" : "") +
+          "\n  );",
+      );
+      if (tenantColumnType === "text") {
+        expect(policySql).not.toContain("::uuid");
+      }
+    },
+  );
+
+  it.each(["varchar", "text); DROP TABLE orders; --", "", null])(
+    "should reject unsupported tenant column type %s",
+    (tenantColumnType) => {
+      expect.assertions(2);
+      try {
+        createRlsPolicy({
+          tableName: "orders",
+          // @ts-expect-error Exercise callers without TypeScript validation.
+          tenantColumnType,
+        });
+      } catch (error) {
+        expect(error).toBeInstanceOf(RlsConfigurationProblem);
+        expect(error).toMatchObject({
+          detail: "Invalid RLS configuration field: tenantColumnType",
+          extensions: { field: "tenantColumnType", retryable: false },
+        });
+      }
+    },
+  );
+
   it("should honor custom tenant column, config key, and admin roles", () => {
     const sql = createRlsPolicy({
       tableName: "orders",
