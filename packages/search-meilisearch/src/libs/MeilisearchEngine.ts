@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Component, Context } from "@croco/framework-context";
 import type { RetryPolicy } from "@croco/retry-core";
 import { RetryTemplate } from "@croco/retry-core";
@@ -26,6 +27,8 @@ import {
   TenantTokenNotConfiguredProblem,
 } from "./problems/MeilisearchProblems";
 import type { MeilisearchDeleteIndexOptions, MeilisearchEngineOptions } from "./types";
+
+const DOCUMENT_PRIMARY_KEY = "_crocoDocumentId";
 
 const MEILISEARCH_RETRY_POLICY: RetryPolicy = {
   shouldRetry(error: unknown, attempt: number, maxAttempts: number): boolean {
@@ -99,7 +102,11 @@ export class MeilisearchEngine extends SearchEngine {
     );
 
     return {
-      hits: result.hits.map((h) => ({ document: h as T })),
+      hits: result.hits.map((hit) => {
+        const document = { ...hit };
+        delete document[DOCUMENT_PRIMARY_KEY];
+        return { document: document as T };
+      }),
       total: result.estimatedTotalHits ?? 0,
       query,
       processingTimeMs: result.processingTimeMs || 0,
@@ -116,9 +123,13 @@ export class MeilisearchEngine extends SearchEngine {
     this.validateDocument(document, "indexDocument");
     const tenantId = this.getTenantId("indexDocument");
     const index = client.index(indexName);
+    await this.validateIndexPrimaryKey(client, indexName, "indexDocument", options);
     const task = await this.runOperation(
       "indexDocument",
-      () => index.addDocuments([{ ...document, tenantId, _tenantId: tenantId }]),
+      () =>
+        index.addDocuments([this.scopeDocument(document, tenantId)], {
+          primaryKey: DOCUMENT_PRIMARY_KEY,
+        }),
       { documentId: document.id, indexName },
       { operation: "indexDocument", options },
       true,
@@ -150,10 +161,11 @@ export class MeilisearchEngine extends SearchEngine {
 
     const tenantId = this.getTenantId("bulkIndex");
     const index = client.index(indexName);
-    const docsWithTenant = documents.map((doc) => ({ ...doc, tenantId, _tenantId: tenantId }));
+    await this.validateIndexPrimaryKey(client, indexName, "bulkIndex", options);
+    const docsWithTenant = documents.map((doc) => this.scopeDocument(doc, tenantId));
     const task = await this.runOperation(
       "bulkIndex",
-      () => index.addDocuments(docsWithTenant),
+      () => index.addDocuments(docsWithTenant, { primaryKey: DOCUMENT_PRIMARY_KEY }),
       { indexName },
       { operation: "bulkIndex", options },
       true,
@@ -199,9 +211,20 @@ export class MeilisearchEngine extends SearchEngine {
     this.validateAttributeNames(config.searchableFields, "createIndex");
     this.validateAttributeNames(config.sortableFields, "createIndex");
 
+    if (config.primaryKey !== undefined && config.primaryKey !== "id") {
+      throw new MeilisearchInvalidRequestProblem(
+        {
+          operation: "createIndex",
+          indexName: config.name,
+          upstreamCode: "incompatible-primary-key",
+        },
+        "Meilisearch shared indexes require the logical document primary key 'id'",
+      );
+    }
+
     const createTask = await this.runOperation(
       "createIndex",
-      () => client.createIndex(config.name, { primaryKey: config.primaryKey || "id" }),
+      () => client.createIndex(config.name, { primaryKey: DOCUMENT_PRIMARY_KEY }),
       { indexName: config.name },
       { operation: "createIndex", options },
     );
@@ -325,6 +348,38 @@ export class MeilisearchEngine extends SearchEngine {
         }),
       {},
     );
+  }
+
+  private scopeDocument(document: SearchDocument, tenantId: string): SearchDocument {
+    return {
+      ...document,
+      tenantId,
+      _tenantId: tenantId,
+      [DOCUMENT_PRIMARY_KEY]: createHash("sha256")
+        .update(JSON.stringify([tenantId, document.id]))
+        .digest("hex"),
+    };
+  }
+
+  private async validateIndexPrimaryKey(
+    client: MeiliSearch,
+    indexName: string,
+    operation: "indexDocument" | "bulkIndex",
+    options: SearchOperationOptions,
+  ): Promise<void> {
+    const info = await this.runOperation(
+      operation,
+      () => client.index(indexName).getRawInfo(),
+      { indexName },
+      { operation, options },
+      true,
+    );
+    if (info.primaryKey !== DOCUMENT_PRIMARY_KEY) {
+      throw new MeilisearchInvalidRequestProblem(
+        { operation, indexName, upstreamCode: "incompatible-primary-key" },
+        "Recreate the index with MeilisearchEngine.createIndex and reindex tenant documents before writing",
+      );
+    }
   }
 
   private getTenantId(operation: string): string {

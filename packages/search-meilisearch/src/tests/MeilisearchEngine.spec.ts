@@ -24,6 +24,7 @@ type ProblemConstructor<TProblem extends Error> = Function & {
 
 const mocks = vi.hoisted(() => {
   const index = {
+    getRawInfo: vi.fn(),
     search: vi.fn(),
     addDocuments: vi.fn(),
     deleteDocuments: vi.fn(),
@@ -118,6 +119,7 @@ describe("Meilisearch provider conformance", () => {
       hits: [],
       processingTimeMs: 0,
     });
+    mocks.indexMock.getRawInfo.mockResolvedValue({ primaryKey: "_crocoDocumentId" });
     mocks.indexMock.addDocuments.mockResolvedValue({ taskUid: 1 });
     mocks.indexMock.deleteDocuments.mockResolvedValue({ taskUid: 2 });
     mocks.indexMock.updateSettings.mockResolvedValue({ taskUid: 3 });
@@ -484,7 +486,9 @@ describe("Meilisearch provider conformance", () => {
         sortableFields: ["price"],
       });
 
-      expect(mocks.clientMock.createIndex).toHaveBeenCalledWith("products", { primaryKey: "id" });
+      expect(mocks.clientMock.createIndex).toHaveBeenCalledWith("products", {
+        primaryKey: "_crocoDocumentId",
+      });
       expect(mocks.indexMock.updateSettings).toHaveBeenCalledWith({
         filterableAttributes: ["_tenantId", "id", "category"],
         searchableAttributes: ["title"],
@@ -516,6 +520,100 @@ describe("Meilisearch provider conformance", () => {
     });
   });
 
+  describe("shared index primary keys", () => {
+    it.each(["single", "bulk"])(
+      "preserves colliding tenant documents for %s writes",
+      async (mode) => {
+        const stored = new Map<string, Record<string, unknown>>();
+        mocks.indexMock.addDocuments.mockImplementation(async (documents, options) => {
+          const primaryKey = options?.primaryKey ?? "id";
+          for (const document of documents) {
+            stored.set(document[primaryKey], { ...document });
+          }
+          return { taskUid: 1 };
+        });
+        const write = async (tenantId: string, title: string) =>
+          Context.run({ requestId: tenantId, tenantId }, async () => {
+            const document = {
+              id: "doc-42",
+              tenantId: "forged",
+              _crocoDocumentId: "forged",
+              title,
+            };
+            if (mode === "single") await engine.indexDocument("shared", document);
+            else await engine.bulkIndex("shared", [document]);
+          });
+        await Promise.all([write("alpha", "Alpha"), write("beta", "Beta")]);
+        expect(stored.size).toBe(2);
+        await write("alpha", "Updated");
+        expect(stored.size).toBe(2);
+        expect([...stored.values()]).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: "doc-42", _tenantId: "alpha", title: "Updated" }),
+            expect.objectContaining({ id: "doc-42", _tenantId: "beta", title: "Beta" }),
+          ]),
+        );
+        for (const key of stored.keys()) expect(key).toMatch(/^[a-f0-9]{64}$/);
+      },
+    );
+
+    it("keeps tuple boundaries and Unicode distinct", async () => {
+      for (const [tenantId, id] of [
+        ["a___b", "c"],
+        ["a", "b___c"],
+        ["테넌트", "문서/1"],
+      ]) {
+        await Context.run({ requestId: "key", tenantId }, () =>
+          engine.indexDocument("shared", { id, tenantId }),
+        );
+      }
+      const keys = mocks.indexMock.addDocuments.mock.calls.map(
+        ([docs]) => docs[0]._crocoDocumentId,
+      );
+      expect(new Set(keys).size).toBe(3);
+    });
+
+    it.each(["id", "sku", null])(
+      "rejects an incompatible existing primary key %s before writing",
+      async (primaryKey) => {
+        vi.spyOn(Context, "getTenantId").mockReturnValue("alpha");
+        mocks.indexMock.getRawInfo.mockResolvedValue({ primaryKey });
+        await expect(
+          engine.indexDocument("old", { id: "1", tenantId: "alpha" }),
+        ).rejects.toMatchObject({
+          extensions: { upstreamCode: "incompatible-primary-key" },
+        });
+        await expect(
+          engine.bulkIndex("old", [{ id: "1", tenantId: "alpha" }]),
+        ).rejects.toMatchObject({
+          extensions: { upstreamCode: "incompatible-primary-key" },
+        });
+        expect(mocks.indexMock.addDocuments).not.toHaveBeenCalled();
+      },
+    );
+
+    it("rejects custom primary keys before creating an index", async () => {
+      await expect(engine.createIndex({ name: "shared", primaryKey: "sku" })).rejects.toThrow(
+        MeilisearchInvalidRequestProblem,
+      );
+      expect(mocks.clientMock.createIndex).not.toHaveBeenCalled();
+    });
+
+    it("returns original ids without provider primary keys", async () => {
+      vi.spyOn(Context, "getTenantId").mockReturnValue("alpha");
+      mocks.indexMock.search.mockResolvedValue({
+        hits: [{ id: "doc-42", _crocoDocumentId: "internal", title: "Alpha" }],
+        estimatedTotalHits: 1,
+      });
+      const result = await engine.search("shared", { query: "", filters: { id: "doc-42" } });
+      expect(result.hits[0].document).toEqual({ id: "doc-42", title: "Alpha" });
+      expect(mocks.indexMock.search).toHaveBeenCalledWith(
+        "",
+        expect.objectContaining({ filter: ['id = "doc-42"', '_tenantId = "alpha"'] }),
+      );
+    });
+  });
+
   describe("document writes", () => {
     it("adds the active tenant to indexed documents and waits for the task", async () => {
       vi.spyOn(Context, "getTenantId").mockReturnValue("tenant-1");
@@ -527,14 +625,17 @@ describe("Meilisearch provider conformance", () => {
         title: "test",
       });
 
-      expect(mocks.indexMock.addDocuments).toHaveBeenCalledWith([
-        expect.objectContaining({
-          _tenantId: "tenant-1",
-          id: "1",
-          tenantId: "tenant-1",
-          title: "test",
-        }),
-      ]);
+      expect(mocks.indexMock.addDocuments).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            _tenantId: "tenant-1",
+            id: "1",
+            tenantId: "tenant-1",
+            title: "test",
+          }),
+        ],
+        { primaryKey: "_crocoDocumentId" },
+      );
       expect(mocks.clientMock.waitForTask).toHaveBeenCalledWith(1, {});
     });
 
@@ -546,10 +647,13 @@ describe("Meilisearch provider conformance", () => {
         { id: "2", tenantId: "ignored", title: "Two" },
       ]);
 
-      expect(mocks.indexMock.addDocuments).toHaveBeenCalledWith([
-        expect.objectContaining({ _tenantId: "tenant-1", id: "1", tenantId: "tenant-1" }),
-        expect.objectContaining({ _tenantId: "tenant-1", id: "2", tenantId: "tenant-1" }),
-      ]);
+      expect(mocks.indexMock.addDocuments).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({ _tenantId: "tenant-1", id: "1", tenantId: "tenant-1" }),
+          expect.objectContaining({ _tenantId: "tenant-1", id: "2", tenantId: "tenant-1" }),
+        ],
+        { primaryKey: "_crocoDocumentId" },
+      );
     });
 
     it("treats empty bulk index input as a deterministic no-op", async () => {

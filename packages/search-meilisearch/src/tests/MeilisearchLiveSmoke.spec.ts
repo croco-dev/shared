@@ -59,6 +59,17 @@ describe("Meilisearch live smoke", () => {
           title: "Croco Meilisearch live smoke",
         });
 
+        tenantContext.mockReturnValue(`${tenantId}-other`);
+        await engine.bulkIndex(indexName, [
+          {
+            id: "doc-1",
+            kind: "smoke",
+            tenantId: "forged",
+            title: "Other tenant document",
+          },
+        ]);
+        tenantContext.mockReturnValue(tenantId);
+
         const result = await engine.search<{ id: string; title: string }>(indexName, {
           filters: { kind: "smoke" },
           query: "Croco",
@@ -69,6 +80,17 @@ describe("Meilisearch live smoke", () => {
             (hit: SearchHit<{ id: string; title: string }>) => hit.document.id === "doc-1",
           ),
         ).toBe(true);
+        expect(result.hits[0].document).not.toHaveProperty("_crocoDocumentId");
+        expect(result.total).toBe(1);
+        await engine.deleteDocument(indexName, "doc-1");
+        expect((await engine.search(indexName, { query: "" })).total).toBe(0);
+        tenantContext.mockReturnValue(`${tenantId}-other`);
+        const other = await engine.search(indexName, { query: "", filters: { id: "doc-1" } });
+        expect(other.total).toBe(1);
+        expect(other.hits[0].document).toMatchObject({
+          id: "doc-1",
+          title: "Other tenant document",
+        });
       } finally {
         tenantContext.mockRestore();
         await engine.deleteIndex(indexName, { allowGlobalDrop: true });
