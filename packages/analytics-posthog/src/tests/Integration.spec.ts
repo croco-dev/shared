@@ -59,6 +59,92 @@ describe("PostHog Integration", () => {
     Container.remove(POSTHOG_ANALYTICS_MANAGER_OPTIONS);
   });
 
+  describe("without a registered logger", () => {
+    beforeEach(() => {
+      Container.remove(LOGGER_TOKEN);
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.spyOn(console, "info").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it.each(["capture", "identify", "group"] as const)(
+      "should contain synchronous %s failures and warn through the console",
+      (operation) => {
+        const clientMethod = operation === "group" ? "groupIdentify" : operation;
+        vi.spyOn(postHogClient.getClient(), clientMethod).mockImplementationOnce(() => {
+          throw new Error("provider-secret");
+        });
+
+        expect(() => {
+          if (operation === "group") analyticsManager.group("tenant", "tenant-1");
+          else analyticsManager[operation]("test-event");
+        }).not.toThrow();
+
+        expect(console.warn).toHaveBeenCalledExactlyOnceWith(`PostHog ${operation} failed`, {
+          ...(operation === "capture" ? { event: "test-event" } : { operation }),
+          errorName: "Error",
+          problemCode: `analytics-posthog/${operation}-failed`,
+        });
+        expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain("provider-secret");
+      },
+    );
+
+    it.each(["capture", "identify", "group"] as const)(
+      "should observe asynchronous %s failures and warn through the console",
+      async (operation) => {
+        const clientMethod = operation === "group" ? "groupIdentify" : operation;
+        vi.spyOn(postHogClient.getClient(), clientMethod).mockRejectedValueOnce(
+          new Error("provider-secret"),
+        );
+
+        if (operation === "group") analyticsManager.group("tenant", "tenant-1");
+        else analyticsManager[operation]("test-event");
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(console.warn).toHaveBeenCalledExactlyOnceWith(`PostHog ${operation} failed`, {
+          ...(operation === "capture" ? { event: "test-event" } : { operation }),
+          errorName: "Error",
+          problemCode: `analytics-posthog/${operation}-failed`,
+        });
+      },
+    );
+
+    it("should preserve the flush Problem and warn through the console", async () => {
+      vi.spyOn(postHogClient.getClient(), "flush").mockRejectedValueOnce(new Error("flush-secret"));
+
+      await expect(analyticsManager.flush()).rejects.toBeInstanceOf(PostHogAnalyticsFlushProblem);
+      expect(console.warn).toHaveBeenCalledExactlyOnceWith("PostHog analytics flush failed", {
+        errorName: "Error",
+        problemCode: "analytics-posthog/flush-failed",
+      });
+    });
+
+    it("should report all disabled operations through the console without calling the provider", async () => {
+      Container.set(POSTHOG_ANALYTICS_MANAGER_OPTIONS, { enabled: false });
+      const disabledManager = new PostHogAnalyticsManager(postHogClient);
+      const provider = vi.spyOn(postHogClient, "getClient");
+      const flush = vi.spyOn(postHogClient, "flush");
+
+      disabledManager.capture("disabled-event");
+      disabledManager.identify("user-1");
+      disabledManager.group("tenant", "tenant-1");
+      await disabledManager.flush();
+
+      expect(provider).not.toHaveBeenCalled();
+      expect(flush).not.toHaveBeenCalled();
+      expect(console.info).toHaveBeenCalledTimes(4);
+      for (const operation of ["capture", "identify", "group", "flush"]) {
+        expect(console.info).toHaveBeenCalledWith(
+          "PostHog analytics operation skipped because analytics is disabled",
+          expect.objectContaining({ provider: "posthog", operation }),
+        );
+      }
+    });
+  });
+
   it("should resolve analytics manager", () => {
     expect(analyticsManager).toBeInstanceOf(PostHogAnalyticsManager);
   });

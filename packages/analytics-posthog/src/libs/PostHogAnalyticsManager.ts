@@ -156,8 +156,8 @@ export class PostHogAnalyticsManager extends AnalyticsManager {
     });
   }
 
-  private getLogger(): ILogger {
-    return Container.get(LOGGER_TOKEN);
+  private getLogger(): Pick<ILogger, "info" | "warn"> {
+    return Container.getOptional(LOGGER_TOKEN) ?? console;
   }
 }
 
