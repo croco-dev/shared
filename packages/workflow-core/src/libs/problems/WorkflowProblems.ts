@@ -68,7 +68,7 @@ export class WorkflowExecutionFailedProblem extends Problem {
           executionId,
           ...(failure.code === undefined ? {} : { originalFailureCode: failure.code }),
           originalFailureMessage: failure.message,
-          retryable: failure.retryable,
+          retryable: false,
         },
       },
     );

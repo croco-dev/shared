@@ -24143,7 +24143,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
         userAction: "Inspect the original failure before requesting an explicit replay.",
         operatorAction:
           "Resolve the persisted failure and reconcile possible side effects before replaying.",
-        retryability: "conditional",
+        retryability: "not-retryable",
         redactionPolicy: "operator-only",
         telemetry: {
           eventName: "croco.problem.error",

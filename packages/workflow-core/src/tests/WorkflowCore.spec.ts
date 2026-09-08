@@ -821,7 +821,7 @@ describe("workflow-core", () => {
           ? {
               message: "provider failed",
               code: "provider/failure",
-              retryable: false,
+              retryable: true,
               stack: "stored stack",
             }
           : undefined,

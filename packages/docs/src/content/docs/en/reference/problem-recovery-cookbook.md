@@ -780,7 +780,7 @@ This cookbook documents 770 public Croco Problem codes. The deterministic JSON r
 | [`workflow-core/saga-replay-invalid`](#workflow-core-saga-replay-invalid)                                                             | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
 | [`workflow-core/saga-store-conflict`](#workflow-core-saga-store-conflict)                                                             | Conflict              |    409 | conditional   | safe-message  | active    |       1 |
 | [`workflow-core/workflow-definition-invalid`](#workflow-core-workflow-definition-invalid)                                             | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
-| [`workflow-core/workflow-execution-failed`](#workflow-core-workflow-execution-failed)                                                 | InternalServerError   |    500 | conditional   | operator-only | active    |       1 |
+| [`workflow-core/workflow-execution-failed`](#workflow-core-workflow-execution-failed)                                                 | InternalServerError   |    500 | not-retryable | operator-only | active    |       1 |
 | [`workflow-core/workflow-execution-in-progress`](#workflow-core-workflow-execution-in-progress)                                       | Conflict              |    409 | retryable     | operator-only | active    |       1 |
 | [`workflow-core/workflow-not-found`](#workflow-core-workflow-not-found)                                                               | NotFound              |    404 | not-retryable | public        | active    |       1 |
 
@@ -14598,7 +14598,7 @@ Sources:
 
 - Category: `InternalServerError`
 - HTTP status: `500` Internal Server Error
-- Retryability: `conditional`
+- Retryability: `not-retryable`
 - Redaction policy: `operator-only`
 - Lifecycle: `active`
 - Cause: The workflow matched a previously failed or timed-out execution.
