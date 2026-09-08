@@ -298,7 +298,12 @@ export class InMemoryBillingStore extends BillingStore {
 
   async saveOrder(order: Order): Promise<void> {
     const existing = this.orders.get(order.billingAccountId) ?? [];
-    existing.push(order);
+    const index = existing.findIndex((savedOrder) => savedOrder.id === order.id);
+    if (index === -1) {
+      existing.push(order);
+    } else {
+      existing[index] = order;
+    }
     this.orders.set(order.billingAccountId, existing);
   }
 

@@ -15,7 +15,11 @@ import {
   WebhookAlreadyProcessedProblem,
 } from "@croco/billing-core";
 import type { DomainEvent } from "@croco/events-core";
-import { DefaultEventSerializer, EventRegistry } from "@croco/events-core";
+import {
+  DefaultEventSerializer,
+  EventRegistry,
+  restoreSerializedEventIdentity,
+} from "@croco/events-core";
 import { Problem } from "@croco/problems-core";
 import { Trace } from "@croco/telemetry-api";
 import { ZodError } from "zod";
@@ -187,29 +191,25 @@ export class PolarWebhookHandler {
       return this.processSubscriptionEventAtomically(eventId, parsedEvent);
     }
 
-    let rollbackErrorMessage: string | null = null;
-
     const shouldProcess = await this.reserveWebhook(eventId, eventType);
     if (!shouldProcess) {
       return { success: true, eventId };
     }
 
     try {
-      await this.processParsedEvent(parsedEvent);
+      await this.processParsedEvent(eventId, parsedEvent);
       await this.store.completeWebhook(eventId);
 
       return { success: true, eventId };
     } catch (error) {
-      rollbackErrorMessage = await this.tryRollbackWebhook(eventId);
+      const rollbackErrorMessage = await this.tryRollbackWebhook(eventId);
       const baseErrorMessage = `Event processing failed: ${this.getErrorMessage(error)}`;
-
-      return {
-        success: false,
-        eventId,
-        error: rollbackErrorMessage
+      throw new WebhookProcessingProblem(
+        rollbackErrorMessage
           ? `${baseErrorMessage}; rollback failed: ${rollbackErrorMessage}`
           : baseErrorMessage,
-      };
+        this.getProcessingCause(error),
+      );
     }
   }
 
@@ -222,11 +222,10 @@ export class PolarWebhookHandler {
       transition = await this.prepareSubscriptionTransition(eventId, event);
     } catch (error) {
       if (error instanceof WebhookAlreadyProcessedProblem) return { success: true, eventId };
-      return {
-        success: false,
-        eventId,
-        error: `Event processing failed: ${this.getErrorMessage(error)}`,
-      };
+      throw new WebhookProcessingProblem(
+        `Event processing failed: ${this.getErrorMessage(error)}`,
+        this.getProcessingCause(error),
+      );
     }
 
     if (transition.state === "completed") {
@@ -247,11 +246,10 @@ export class PolarWebhookHandler {
       await this.store.completeWebhook(eventId);
       return { success: true, eventId };
     } catch (error) {
-      return {
-        success: false,
-        eventId,
-        error: `Event processing failed: ${this.getErrorMessage(error)}`,
-      };
+      throw new WebhookProcessingProblem(
+        `Event processing failed: ${this.getErrorMessage(error)}`,
+        this.getProcessingCause(error),
+      );
     }
   }
 
@@ -272,9 +270,9 @@ export class PolarWebhookHandler {
     }
   }
 
-  private async processParsedEvent(event: ParsedWebhookEvent): Promise<void> {
+  private async processParsedEvent(eventId: string, event: ParsedWebhookEvent): Promise<void> {
     if (event.kind === "order") {
-      await this.handleOrderEvent(event.eventType, event.payload);
+      await this.handleOrderEvent(eventId, event.eventType, event.payload);
     }
   }
 
@@ -439,7 +437,7 @@ export class PolarWebhookHandler {
             )
             .map((domainEvent, index) => ({
               ...this.eventSerializer.serialize(domainEvent),
-              eventId: this.subscriptionIntentEventId(eventId, domainEvent.eventName, index),
+              eventId: this.webhookIntentEventId(eventId, domainEvent.eventName, index),
             })),
       });
     } catch (error) {
@@ -453,7 +451,11 @@ export class PolarWebhookHandler {
     }
   }
 
-  private async handleOrderEvent(eventType: string, payload: ParsedOrderPayload): Promise<void> {
+  private async handleOrderEvent(
+    eventId: string,
+    eventType: string,
+    payload: ParsedOrderPayload,
+  ): Promise<void> {
     await this.store.saveOrder({
       id: payload.id,
       billingAccountId: payload.tenantId,
@@ -471,8 +473,13 @@ export class PolarWebhookHandler {
       reason: payload.reason,
     });
 
-    for (const event of domainEvents) {
-      await this.eventPublisher.publishNow(event);
+    for (const [index, event] of domainEvents.entries()) {
+      restoreSerializedEventIdentity(
+        event,
+        this.webhookIntentEventId(eventId, event.eventName, index),
+        payload.paidAt.toISOString(),
+      );
+      await this.eventPublisher.publishIdempotently(event);
     }
   }
 
@@ -526,11 +533,7 @@ export class PolarWebhookHandler {
     return `croco:billing:polar:subscription:${externalSubscriptionId}:past_due`;
   }
 
-  private subscriptionIntentEventId(
-    webhookEventId: string,
-    eventName: string,
-    index: number,
-  ): string {
+  private webhookIntentEventId(webhookEventId: string, eventName: string, index: number): string {
     return createHash("sha256")
       .update(`billing-polar:${webhookEventId}:${index}:${eventName}`)
       .digest("hex");
@@ -572,6 +575,13 @@ export class PolarWebhookHandler {
     } catch (error) {
       return this.getErrorMessage(error);
     }
+  }
+
+  private getProcessingCause(error: unknown): Error {
+    if (error instanceof Error) return error;
+    const cause = new Error("Webhook processing rejected with a non-Error value");
+    Object.defineProperty(cause, "cause", { value: error });
+    return cause;
   }
 
   private getErrorMessage(error: unknown): string {

@@ -555,14 +555,17 @@ describe("PolarWebhookHandler", () => {
         },
       } as never);
 
-      const result = await handler.handle("{}", {
-        "webhook-id": "evt-reservation-failure",
+      await expect(
+        handler.handle("{}", {
+          "webhook-id": "evt-reservation-failure",
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        cause: { cause: error },
+        detail: expect.stringContaining("Webhook transition commit failed"),
       });
-      expect(result).toMatchObject({
-        success: false,
-        error: expect.stringContaining("Webhook transition commit failed"),
-      });
-      expect(result.error).not.toContain(error.message);
+
       expect(mockStore.saveSubscription).not.toHaveBeenCalled();
       expect(mockEventPublisher.publishNow).not.toHaveBeenCalled();
       expect(mockStore.completeWebhook).not.toHaveBeenCalled();
@@ -585,14 +588,17 @@ describe("PolarWebhookHandler", () => {
         },
       } as never);
 
-      const result = await handler.handle("{}", {
-        "webhook-id": "evt-non-error-reservation-failure",
+      await expect(
+        handler.handle("{}", {
+          "webhook-id": "evt-non-error-reservation-failure",
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        cause: { cause: { cause: rejection } },
+        detail: expect.stringContaining("Webhook transition commit failed"),
       });
-      expect(result).toMatchObject({
-        success: false,
-        error: expect.stringContaining("Webhook transition commit failed"),
-      });
-      expect(result.error).not.toContain(rejection.constraint);
+
       expect(mockStore.saveSubscription).not.toHaveBeenCalled();
       expect(mockEventPublisher.publishNow).not.toHaveBeenCalled();
       expect(mockStore.completeWebhook).not.toHaveBeenCalled();
@@ -676,17 +682,19 @@ describe("PolarWebhookHandler", () => {
         eventPublisher: publisher,
         planRegistry: mockPlanRegistry,
       });
-      const first = await firstHandler.handle(JSON.stringify(eventData), {
-        "webhook-id": eventData.id,
+      await expect(
+        firstHandler.handle(JSON.stringify(eventData), {
+          "webhook-id": eventData.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        detail: expect.stringContaining("unavailable"),
       });
       const retry = await retryHandler.handle(JSON.stringify(eventData), {
         "webhook-id": eventData.id,
       });
 
-      expect(first).toMatchObject({
-        success: false,
-        error: expect.stringContaining("unavailable"),
-      });
       expect(retry).toEqual({ success: true, eventId: eventData.id });
       expect(vi.mocked(publisher.publishNow).mock.calls).toHaveLength(2);
       expect(vi.mocked(publisher.publishNow).mock.calls[1]?.[0]).toBeInstanceOf(PlanChangedEvent);
@@ -736,15 +744,19 @@ describe("PolarWebhookHandler", () => {
         planRegistry: mockPlanRegistry,
       });
 
-      const first = await firstHandler.handle(JSON.stringify(eventData), {
-        "webhook-id": eventData.id,
+      await expect(
+        firstHandler.handle(JSON.stringify(eventData), {
+          "webhook-id": eventData.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
       });
       const retry = await retryHandler.handle(JSON.stringify(eventData), {
         "webhook-id": eventData.id,
       });
       const publishedEvents = vi.mocked(publisher.publishNow).mock.calls.map(([event]) => event);
 
-      expect(first).toMatchObject({ success: false });
       expect(retry).toEqual({ success: true, eventId: eventData.id });
       expect(publishedEvents.filter((event) => event instanceof PlanChangedEvent)).toHaveLength(1);
       expect(
@@ -806,14 +818,18 @@ describe("PolarWebhookHandler", () => {
         planRegistry: mockPlanRegistry,
       });
 
-      const first = await firstHandler.handle(JSON.stringify(eventData), {
-        "webhook-id": eventData.id,
+      await expect(
+        firstHandler.handle(JSON.stringify(eventData), {
+          "webhook-id": eventData.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
       });
       const retry = await retryHandler.handle(JSON.stringify(eventData), {
         "webhook-id": eventData.id,
       });
 
-      expect(first).toMatchObject({ success: false });
       expect(retry).toEqual({ success: true, eventId: eventData.id });
       expect(publisher.publishIdempotently).toHaveBeenCalledTimes(2);
       expect(deliveredEventIds.size).toBe(1);
@@ -947,8 +963,14 @@ describe("PolarWebhookHandler", () => {
         "webhook-id": firstEvent.id,
       });
       await started;
-      const contender = await secondHandler.handle(JSON.stringify(secondEvent), {
-        "webhook-id": secondEvent.id,
+      await expect(
+        secondHandler.handle(JSON.stringify(secondEvent), {
+          "webhook-id": secondEvent.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        detail: expect.stringContaining("already in progress"),
       });
       releasePublication?.();
       const ownerResult = await owner;
@@ -956,10 +978,6 @@ describe("PolarWebhookHandler", () => {
         "webhook-id": secondEvent.id,
       });
 
-      expect(contender).toMatchObject({
-        success: false,
-        error: expect.stringContaining("already in progress"),
-      });
       expect(ownerResult).toEqual({ success: true, eventId: firstEvent.id });
       expect(retryResult).toEqual({ success: true, eventId: secondEvent.id });
       expect(publisher.publishIdempotently).toHaveBeenCalledTimes(1);
@@ -1010,18 +1028,19 @@ describe("PolarWebhookHandler", () => {
       };
       vi.mocked(mockVerifyPolarWebhook).mockReturnValue(eventData);
 
-      const firstResult = await handler.handle(JSON.stringify(eventData), {
-        "webhook-id": eventData.id,
+      await expect(
+        handler.handle(JSON.stringify(eventData), {
+          "webhook-id": eventData.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        detail: expect.stringContaining("subscriber unavailable"),
       });
       const retryResult = await handler.handle(JSON.stringify(eventData), {
         "webhook-id": eventData.id,
       });
 
-      expect(firstResult).toMatchObject({
-        success: false,
-        eventId: eventData.id,
-        error: expect.stringContaining("subscriber unavailable"),
-      });
       expect(retryResult).toEqual({ success: true, eventId: eventData.id });
       expect(mockEventPublisher.publishNow).toHaveBeenCalledTimes(2);
       expect(vi.mocked(mockEventPublisher.publishNow).mock.calls[1]?.[0]).toBeInstanceOf(
@@ -1151,8 +1170,14 @@ describe("PolarWebhookHandler", () => {
       const nextPastDue = createEvent("evt-reset-past-due-t3", "past_due");
 
       await handler.handle(JSON.stringify(firstPastDue), { "webhook-id": firstPastDue.id });
-      const failedRecovery = await handler.handle(JSON.stringify(recovery), {
-        "webhook-id": recovery.id,
+      await expect(
+        handler.handle(JSON.stringify(recovery), {
+          "webhook-id": recovery.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        detail: expect.stringContaining("Webhook transition commit failed"),
       });
       const retriedRecovery = await handler.handle(JSON.stringify(recovery), {
         "webhook-id": recovery.id,
@@ -1161,10 +1186,6 @@ describe("PolarWebhookHandler", () => {
         "webhook-id": nextPastDue.id,
       });
 
-      expect(failedRecovery).toMatchObject({
-        success: false,
-        error: expect.stringContaining("Webhook transition commit failed"),
-      });
       expect(retriedRecovery).toEqual({ success: true, eventId: recovery.id });
       expect(nextPastDueResult).toEqual({ success: true, eventId: nextPastDue.id });
       expect(
@@ -1211,18 +1232,19 @@ describe("PolarWebhookHandler", () => {
       };
       vi.mocked(mockVerifyPolarWebhook).mockReturnValue(eventData);
 
-      const firstResult = await handler.handle(JSON.stringify(eventData), {
-        "webhook-id": eventData.id,
+      await expect(
+        handler.handle(JSON.stringify(eventData), {
+          "webhook-id": eventData.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        detail: expect.stringContaining("completion unavailable"),
       });
       const retryResult = await handler.handle(JSON.stringify(eventData), {
         "webhook-id": eventData.id,
       });
 
-      expect(firstResult).toMatchObject({
-        success: false,
-        eventId: eventData.id,
-        error: expect.stringContaining("completion unavailable"),
-      });
       expect(retryResult).toEqual({ success: true, eventId: eventData.id });
       expect(mockEventPublisher.publishNow).toHaveBeenCalledTimes(1);
       expect(mockStore.failWebhook).not.toHaveBeenCalledWith(eventData.id);
@@ -1322,12 +1344,15 @@ describe("PolarWebhookHandler", () => {
 
       vi.mocked(mockVerifyPolarWebhook).mockReturnValue(eventData);
 
-      const result = await handler.handle(JSON.stringify(eventData), {
-        "webhook-id": "evt-retryable-failure",
+      await expect(
+        handler.handle(JSON.stringify(eventData), {
+          "webhook-id": "evt-retryable-failure",
+        }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        detail: expect.stringContaining("Webhook transition commit failed"),
       });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("Webhook transition commit failed");
       expect(mockStore.reserveWebhook).toHaveBeenCalledWith(
         "evt-retryable-failure",
         "subscription.created",
@@ -1342,6 +1367,129 @@ describe("PolarWebhookHandler", () => {
       vi.mocked(mockStore.reserveWebhook).mockResolvedValue(undefined);
       vi.mocked(mockStore.completeWebhook).mockResolvedValue(undefined);
     });
+
+    it.each(["saveOrder", "publishNow", "completeWebhook"] as const)(
+      "rejects %s failures with their cause and allows the same event to retry",
+      async (operation) => {
+        const failure = new Error(`${operation} unavailable`);
+        const target =
+          operation === "publishNow" ? mockEventPublisher.publishNow : mockStore[operation];
+        vi.mocked(target).mockRejectedValueOnce(failure);
+        const event = {
+          id: "evt-order-retry",
+          type: "order.paid",
+          data: {
+            id: "order-retry",
+            amount: 9900,
+            currency: "USD",
+            billing_reason: "purchase",
+            customer: { externalId: "tenant-123", metadata: {} },
+            createdAt: "2026-01-31T00:00:00Z",
+          },
+        };
+        vi.mocked(mockVerifyPolarWebhook).mockReturnValue(event);
+        const first = handler.handle("{}", { "webhook-id": event.id });
+        const concurrent = handler.handle("{}", { "webhook-id": event.id });
+        await Promise.all(
+          [first, concurrent].map(async (attempt) => {
+            await expect(attempt).rejects.toBeInstanceOf(WebhookProcessingProblem);
+            await expect(attempt).rejects.toMatchObject({ status: 500, cause: failure });
+          }),
+        );
+        expect(mockStore.reserveWebhook).toHaveBeenCalledTimes(1);
+        expect(mockStore.failWebhook).toHaveBeenCalledExactlyOnceWith(event.id);
+        await expect(handler.handle("{}", { "webhook-id": event.id })).resolves.toEqual({
+          success: true,
+          eventId: event.id,
+        });
+        expect(mockStore.reserveWebhook).toHaveBeenCalledTimes(2);
+      },
+    );
+
+    it.each(["publication", "completion"] as const)(
+      "retries %s failure without duplicating the order or its logical event",
+      async (operation) => {
+        const store = new InMemoryBillingStore();
+        const publisher = createMockEventPublisher();
+        publisher.publishNow = vi.fn();
+        const delivered = new Set<string>();
+        const failure = new Error(`${operation} unavailable`);
+        vi.mocked(publisher.publishIdempotently).mockImplementation(async (event) => {
+          delivered.add(event.eventId);
+          if (
+            operation === "publication" &&
+            vi.mocked(publisher.publishIdempotently).mock.calls.length === 1
+          )
+            throw failure;
+        });
+        if (operation === "completion") {
+          vi.spyOn(store, "completeWebhook").mockRejectedValueOnce(failure);
+        }
+        const event = {
+          id: "evt-order-durable-retry",
+          type: "order.paid",
+          data: {
+            id: "order-retry",
+            amount: 9900,
+            currency: "USD",
+            billing_reason: "purchase",
+            customer: { externalId: "tenant-123", metadata: {} },
+            createdAt: "2026-01-31T00:00:00Z",
+          },
+        };
+        vi.mocked(mockVerifyPolarWebhook).mockReturnValue(event);
+        const deps = { store, eventPublisher: publisher, planRegistry: mockPlanRegistry };
+        await expect(new PolarWebhookHandler(config, deps).handle("{}", {})).rejects.toMatchObject({
+          status: 500,
+          cause: failure,
+        });
+        await expect(new PolarWebhookHandler(config, deps).handle("{}", {})).resolves.toMatchObject(
+          {
+            success: true,
+          },
+        );
+        expect(await store.findOrdersByAccount("tenant-123")).toHaveLength(1);
+        expect(publisher.publishNow).not.toHaveBeenCalled();
+        expect(publisher.publishIdempotently).toHaveBeenCalledTimes(2);
+        expect(delivered.size).toBe(1);
+        expect(vi.mocked(publisher.publishIdempotently).mock.calls[1]?.[0]).toMatchObject({
+          tenantId: "tenant-123",
+          externalOrderId: "order-retry",
+          amount: 9900,
+          currency: "USD",
+          timestamp: new Date("2026-01-31T00:00:00Z"),
+        });
+      },
+    );
+
+    it.each([new Error("storage unavailable"), { reason: "storage unavailable" }])(
+      "preserves the processing cause and rollback failure diagnostics",
+      async (failure) => {
+        vi.mocked(mockStore.saveOrder).mockRejectedValueOnce(failure);
+        vi.mocked(mockStore.failWebhook).mockRejectedValueOnce(new Error("rollback unavailable"));
+        vi.mocked(mockVerifyPolarWebhook).mockReturnValue({
+          id: "evt-order-rollback",
+          type: "order.paid",
+          data: {
+            id: "order-rollback",
+            amount: 9900,
+            currency: "USD",
+            billing_reason: "purchase",
+            customer: { externalId: "tenant-123", metadata: {} },
+            createdAt: "2026-01-31T00:00:00Z",
+          },
+        });
+        await expect(
+          handler.handle("{}", { "webhook-id": "evt-order-rollback" }),
+        ).rejects.toMatchObject({
+          code: "WEBHOOK_PROCESSING_FAILED",
+          status: 500,
+          cause: failure instanceof Error ? failure : { cause: failure },
+          detail: expect.stringContaining("rollback failed: rollback unavailable"),
+        });
+        expect(mockStore.completeWebhook).not.toHaveBeenCalled();
+      },
+    );
 
     it("order.paid 이벤트 처리 → store 저장 + 이벤트 발행", async () => {
       const eventData = {
@@ -1633,13 +1781,14 @@ describe("PolarWebhookHandler", () => {
         },
       } as never);
 
-      const result = await handler.handle("{}", { "webhook-id": "evt-unknown-plan" });
-
-      expect(result).toMatchObject({
-        success: false,
-        eventId: "evt-unknown-plan",
-        error: expect.stringContaining("billing/unknown-provider-plan-mapping"),
+      await expect(
+        handler.handle("{}", { "webhook-id": "evt-unknown-plan" }),
+      ).rejects.toMatchObject({
+        code: "WEBHOOK_PROCESSING_FAILED",
+        status: 500,
+        detail: expect.stringContaining("billing/unknown-provider-plan-mapping"),
       });
+
       expect(mockStore.saveSubscription).not.toHaveBeenCalled();
       expect(mockEventPublisher.publishNow).not.toHaveBeenCalled();
       expect(mockStore.failWebhook).not.toHaveBeenCalledWith("evt-unknown-plan");
