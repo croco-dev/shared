@@ -160,7 +160,11 @@ const result = await handler.handle(requestBody, requestHeaders);
 또는 clock-skew를 거부하면 Croco는 안정적인 `WEBHOOK_VALIDATION_FAILED` Problem code와 HTTP
 400 status로 정규화하고, webhook secret/signature 값은 응답 detail에 노출하지 않습니다.
 구독 이벤트의 Polar product/price 조합은 `PlanRegistry`의 게시된 버전과 정확히 일치해야 하며,
-알 수 없는 조합은 `billing/unknown-provider-plan-mapping` Problem으로 실패합니다.
+알 수 없는 조합을 포함해 구독 전이, 주문 저장, 이벤트 발행 또는 완료 기록에 실패하면
+`WebhookProcessingProblem`을 throw합니다. HTTP 트랜스포트는 이를 500으로 응답하므로 Polar가
+재전달할 수 있습니다. 원인 오류는 `cause`에 보존되며, 알 수 없는 조합의 원인 코드는
+`billing/unknown-provider-plan-mapping`입니다. 호출자는 실패를 catch한 뒤 200으로 응답하지 않아야 합니다.
+성공한 처리와 이미 완료된 이벤트의 재전달은 `{ success: true, eventId }`를 반환합니다.
 
 ## 웹훅 이벤트 타입
 

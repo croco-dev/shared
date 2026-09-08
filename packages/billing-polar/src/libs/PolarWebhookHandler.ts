@@ -187,8 +187,6 @@ export class PolarWebhookHandler {
       return this.processSubscriptionEventAtomically(eventId, parsedEvent);
     }
 
-    let rollbackErrorMessage: string | null = null;
-
     const shouldProcess = await this.reserveWebhook(eventId, eventType);
     if (!shouldProcess) {
       return { success: true, eventId };
@@ -200,16 +198,14 @@ export class PolarWebhookHandler {
 
       return { success: true, eventId };
     } catch (error) {
-      rollbackErrorMessage = await this.tryRollbackWebhook(eventId);
+      const rollbackErrorMessage = await this.tryRollbackWebhook(eventId);
       const baseErrorMessage = `Event processing failed: ${this.getErrorMessage(error)}`;
-
-      return {
-        success: false,
-        eventId,
-        error: rollbackErrorMessage
+      throw new WebhookProcessingProblem(
+        rollbackErrorMessage
           ? `${baseErrorMessage}; rollback failed: ${rollbackErrorMessage}`
           : baseErrorMessage,
-      };
+        this.getProcessingCause(error),
+      );
     }
   }
 
@@ -222,11 +218,10 @@ export class PolarWebhookHandler {
       transition = await this.prepareSubscriptionTransition(eventId, event);
     } catch (error) {
       if (error instanceof WebhookAlreadyProcessedProblem) return { success: true, eventId };
-      return {
-        success: false,
-        eventId,
-        error: `Event processing failed: ${this.getErrorMessage(error)}`,
-      };
+      throw new WebhookProcessingProblem(
+        `Event processing failed: ${this.getErrorMessage(error)}`,
+        this.getProcessingCause(error),
+      );
     }
 
     if (transition.state === "completed") {
@@ -247,11 +242,10 @@ export class PolarWebhookHandler {
       await this.store.completeWebhook(eventId);
       return { success: true, eventId };
     } catch (error) {
-      return {
-        success: false,
-        eventId,
-        error: `Event processing failed: ${this.getErrorMessage(error)}`,
-      };
+      throw new WebhookProcessingProblem(
+        `Event processing failed: ${this.getErrorMessage(error)}`,
+        this.getProcessingCause(error),
+      );
     }
   }
 
@@ -572,6 +566,13 @@ export class PolarWebhookHandler {
     } catch (error) {
       return this.getErrorMessage(error);
     }
+  }
+
+  private getProcessingCause(error: unknown): Error {
+    if (error instanceof Error) return error;
+    const cause = new Error("Webhook processing rejected with a non-Error value");
+    Object.defineProperty(cause, "cause", { value: error });
+    return cause;
   }
 
   private getErrorMessage(error: unknown): string {
