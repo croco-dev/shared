@@ -10,6 +10,8 @@ import { GRAPHQL_GUARDS_KEY, GRAPHQL_ROLES_KEY, RESOLVERS_KEY } from "../libs/co
 import { GraphQLResolver } from "../libs/decorators";
 import { GraphQLAuthGuard } from "../libs/guards/AuthGuard";
 import { GuardChain } from "../libs/guards/GuardChain";
+import { GuardInterceptor } from "../libs/interceptors/GuardInterceptor";
+import { GuardDeniedProblem } from "../libs/problems/GuardProblems";
 import { GraphQLRolesGuard, type UserWithRoles } from "../libs/guards/RolesGuard";
 import type { GraphQLGuardContext } from "../libs/types/GuardTypes";
 
@@ -157,6 +159,56 @@ describe("GraphQLAuthGuard", () => {
 describe("GraphQLRolesGuard", () => {
   beforeEach(() => {
     MetadataStorage.clear();
+  });
+
+  it.each([undefined, null, "root", 0, false, BigInt(1), Symbol("root")])(
+    "should deny access without throwing when root is %s",
+    (root) => {
+      const guard = new GraphQLRolesGuard();
+
+      expect(guard.canActivate(createMockContext({ root }))).toBe(false);
+    },
+  );
+
+  it("should reject a missing target through the guard interceptor before invoking the resolver", async () => {
+    const interceptor = new GuardInterceptor([new GraphQLRolesGuard()]);
+    const next = { handle: vi.fn().mockResolvedValue("protected") };
+
+    await expect(
+      interceptor.intercept(createMockContext({ root: undefined }), next),
+    ).rejects.toBeInstanceOf(GuardDeniedProblem);
+    expect(next.handle).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { roles: ["admin"], allowed: true },
+    { roles: ["user"], allowed: false },
+    { roles: [], allowed: false },
+  ])("should enforce explicit resolver roles for $roles", ({ roles, allowed }) => {
+    class TestResolver {
+      testMethod() {}
+    }
+    Reflect.defineMetadata(GRAPHQL_ROLES_KEY, ["admin"], TestResolver.prototype, "testMethod");
+    const guard = new GraphQLRolesGuard(new TestResolver(), "testMethod");
+
+    for (const root of [undefined, null, "root", {}]) {
+      expect(guard.canActivate(createMockContext({ root, context: { user: { roles } } }))).toBe(
+        allowed,
+      );
+    }
+  });
+
+  it("should enforce metadata on function roots", () => {
+    const resolver = () => {};
+    Reflect.defineMetadata(GRAPHQL_ROLES_KEY, ["admin"], resolver, "test");
+    const guard = new GraphQLRolesGuard();
+
+    expect(guard.canActivate(createMockContext({ root: resolver }))).toBe(false);
+    expect(
+      guard.canActivate(
+        createMockContext({ root: resolver, context: { user: { roles: ["admin"] } } }),
+      ),
+    ).toBe(true);
   });
 
   it("should allow access when no roles are required", () => {
