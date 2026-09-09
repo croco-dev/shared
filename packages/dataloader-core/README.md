@@ -55,7 +55,8 @@ const user = await loader.load(123);
 Outside `Context.run()`, each `createBatchLoader()` result retains its own lazily created
 loader for batching and caching. Its cache lasts for the lifetime of that result; use
 `clear()` or `clearAll()` to invalidate it, or create a separate loader per background job.
-Request-context caches remain isolated from this standalone cache.
+Request-context caches remain isolated from standalone caches. `resolveScope()` also
+isolates standalone caches: returning to a previous scope reuses that scope’s cache.
 
 ### With Context
 

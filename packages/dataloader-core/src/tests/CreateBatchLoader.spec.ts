@@ -62,6 +62,39 @@ describe("createBatchLoader outside a request context", () => {
     expect(batchFn).toHaveBeenCalledTimes(2);
   });
 
+  it("isolates standalone caches when the dynamic scope changes", async () => {
+    let scope: string | null = null;
+    const batchFn = vi.fn(async (keys: readonly number[]) => keys.map((key) => `${scope}:${key}`));
+    const loader = createBatchLoader({ name: "scoped", batchFn, resolveScope: () => scope });
+    expect(await loader.load(1)).toBe("null:1");
+    scope = "tx-a";
+    expect(await loader.load(1)).toBe("tx-a:1");
+    loader.prime(2, "primed-a");
+    scope = "tx-b";
+    expect(await loader.loadMany([1, 2])).toEqual(["tx-b:1", "tx-b:2"]);
+    loader.clearAll();
+    scope = "tx-a";
+    expect(await loader.loadMany([1, 2])).toEqual(["tx-a:1", "primed-a"]);
+    scope = null;
+    expect(await loader.load(1)).toBe("null:1");
+    expect(batchFn).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps overlapping standalone scope batches separate", async () => {
+    let scope = "tx-a";
+    const batchFn = vi.fn(async (keys: readonly number[]) => keys.map((key) => key * 2));
+    const loader = createBatchLoader({ name: "scoped", batchFn, resolveScope: () => scope });
+    const first = loader.load(1);
+    scope = "tx-b";
+    const second = loader.load(2);
+    scope = "tx-a";
+    const third = loader.load(3);
+    expect(await Promise.all([first, second, third])).toEqual([2, 4, 6]);
+    expect(batchFn).toHaveBeenCalledTimes(2);
+    expect(batchFn).toHaveBeenCalledWith([1, 3]);
+    expect(batchFn).toHaveBeenCalledWith([2]);
+  });
+
   it("still batches with caching disabled without retaining results", async () => {
     const batchFn = vi.fn(async (keys: readonly number[]) => keys.map((key) => key * 2));
     const loader = createBatchLoader({ name: "uncached", batchFn, cache: false });
