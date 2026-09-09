@@ -105,9 +105,9 @@ function mergeContractInputSchemas(
   decoratorInputSchemas: RouteInputSchemas,
 ): RouteInputSchemas {
   return {
-    body: contractInputSchemas.body,
-    path: contractInputSchemas.path,
-    query: contractInputSchemas.query,
+    body: contractInputSchemas.body ?? decoratorInputSchemas.body,
+    path: contractInputSchemas.path ?? decoratorInputSchemas.path,
+    query: contractInputSchemas.query ?? decoratorInputSchemas.query,
     headers: decoratorInputSchemas.headers,
   };
 }

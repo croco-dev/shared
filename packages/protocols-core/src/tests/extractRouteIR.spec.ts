@@ -304,6 +304,89 @@ describe("extractRouteIR", () => {
     ]);
   });
 
+  it.each(["response-only", "body", "params", "query", "all"] as const)(
+    "should preserve decorator inputs and prefer declared contract schemas for %s contracts",
+    (declaredInput) => {
+      const bodySchema = z.object({ name: z.string().min(1) });
+      const idSchema = z.string().uuid();
+      const filterSchema = z.string().min(1);
+      const headerSchema = z.string().min(1);
+      const responseSchema = z.object({ id: z.string() });
+      const contractBody = z.object({ title: z.string() });
+      const contractParams = z.object({ id: z.number() });
+      const contractQuery = z.object({ filter: z.boolean() });
+      const contract = {
+        method: "POST" as const,
+        path: "/users/:id",
+        response: responseSchema,
+        ...(declaredInput === "body" || declaredInput === "all" ? { body: contractBody } : {}),
+        ...(declaredInput === "params" || declaredInput === "all"
+          ? { params: contractParams }
+          : {}),
+        ...(declaredInput === "query" || declaredInput === "all" ? { query: contractQuery } : {}),
+      };
+
+      @Controller("/users")
+      class UsersController {
+        @Post("/:id")
+        updateUser(
+          @Body(bodySchema) _body: unknown,
+          @Param("id", idSchema) _id: string,
+          @Query("filter", filterSchema) _filter: string,
+          @Header("x-tenant-id", headerSchema) _tenantId: string,
+        ): void {}
+      }
+
+      const decoratorRoute = extractRouteIR(UsersController)[0];
+      attachRouteContract(UsersController, "updateUser", contract);
+      const route = extractRouteIR(UsersController)[0];
+
+      expect(route?.inputSchemas.body).toBe(contract.body ?? bodySchema);
+      expect(route?.inputSchema).toBe(route?.inputSchemas.body);
+      if (contract.params) {
+        expect(route?.inputSchemas.path).toBe(contract.params);
+      } else {
+        expect((route?.inputSchemas.path as z.AnyZodObject).shape.id).toBe(idSchema);
+        expect(route?.inputSchemas.path?.safeParse({ id: "invalid" }).success).toBe(false);
+      }
+      if (contract.query) {
+        expect(route?.inputSchemas.query).toBe(contract.query);
+      } else {
+        expect((route?.inputSchemas.query as z.AnyZodObject).shape.filter).toBe(filterSchema);
+        expect(route?.inputSchemas.query?.safeParse({ filter: "" }).success).toBe(false);
+      }
+      expect((route?.inputSchemas.headers as z.AnyZodObject).shape["x-tenant-id"]).toBe(
+        headerSchema,
+      );
+      expect(route?.params).toEqual(decoratorRoute?.params);
+      expect(route?.outputSchema).toBe(responseSchema);
+      expect(route?.routeContract?.inputSchemas).toEqual({
+        body: contract.body ?? null,
+        path: contract.params ?? null,
+        query: contract.query ?? null,
+        headers: null,
+      });
+    },
+  );
+
+  it("should keep absent inputs null for a response-only contract without parameters", () => {
+    @Controller("/users")
+    class UsersController {
+      @Get("/")
+      listUsers(): void {}
+    }
+    attachRouteContract(UsersController, "listUsers", {
+      method: "GET",
+      path: "/users",
+      response: z.array(z.string()),
+    });
+
+    const route = extractRouteIR(UsersController)[0];
+
+    expect(route?.inputSchema).toBeNull();
+    expect(route?.inputSchemas).toEqual({ body: null, path: null, query: null, headers: null });
+  });
+
   it("should extract route contract Problem responses from contract metadata", () => {
     @Controller("/users")
     class UsersController {
