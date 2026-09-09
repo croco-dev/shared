@@ -126,6 +126,41 @@ describe("R2StorageProvider", () => {
     provider = new R2StorageProvider(configService, logger);
   });
 
+  describe("missing object errors", () => {
+    describe.each(["NoSuchKey", "NotFound"])("%s", (name) => {
+      it.each([
+        ["absent", {}],
+        ["empty", { $metadata: {} }],
+        ["non-404", { $metadata: { httpStatusCode: 400 } }],
+      ])("recognizes the name with %s metadata", async (_label, metadata) => {
+        const error = Object.assign(new Error("Missing object"), { name }, metadata);
+        mockSend.mockRejectedValue(error);
+
+        for (const operation of ["get", "getStream", "getMetadata"] as const) {
+          const result = provider[operation]("missing.txt");
+          await expect(result).rejects.toBeInstanceOf(FileNotFoundProblem);
+          await expect(result).rejects.toMatchObject({ cause: error });
+        }
+        await expect(provider.exists("missing.txt")).resolves.toBe(false);
+      });
+    });
+
+    it.each(["AccessDenied", "ServiceUnavailable"])(
+      "preserves unrelated %s errors",
+      async (name) => {
+        const error = Object.assign(new Error("Storage failure"), {
+          name,
+          $metadata: { httpStatusCode: 403 },
+        });
+        mockSend.mockRejectedValue(error);
+
+        for (const operation of ["get", "getStream", "getMetadata", "exists"] as const) {
+          await expect(provider[operation]("test.txt")).rejects.toBe(error);
+        }
+      },
+    );
+  });
+
   describe("storage provider conformance", () => {
     it.each(
       createStorageProviderConformanceSuite({
