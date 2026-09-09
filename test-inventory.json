@@ -1269,6 +1269,12 @@
       "owner": "@croco/dataloader-core"
     },
     {
+      "path": "packages/dataloader-core/src/tests/CreateBatchLoader.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "@croco/dataloader-core"
+    },
+    {
       "path": "packages/dataloader-core/src/tests/TransactionAware.spec.ts",
       "lane": "fast",
       "qualifiers": [],
