@@ -451,12 +451,12 @@ export class R2StorageProvider extends BaseStorageProvider {
   }
 
   private isNotFoundError(error: unknown): boolean {
+    if (error instanceof Error && (error.name === "NotFound" || error.name === "NoSuchKey")) {
+      return true;
+    }
     if (error && typeof error === "object" && "$metadata" in error) {
       const metadata = error.$metadata as { httpStatusCode?: number };
       return metadata.httpStatusCode === 404;
-    }
-    if (error instanceof Error && "name" in error) {
-      return error.name === "NotFound";
     }
     return false;
   }
