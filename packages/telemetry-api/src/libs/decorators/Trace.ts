@@ -158,7 +158,7 @@ function setTraceOptions(
 }
 
 /**
- * 메서드 실행을 Span으로 감싸는 데코레이터입니다.
+ * 비동기 메서드 실행을 Span으로 감싸는 데코레이터입니다.
  */
 export function Trace<Args extends unknown[] = unknown[], ReturnType = unknown>(
   options: TraceDecoratorOptions = {},
