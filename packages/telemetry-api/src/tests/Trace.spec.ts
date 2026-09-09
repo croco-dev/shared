@@ -1,6 +1,8 @@
+import { runInNewContext } from "node:vm";
 import {
   context,
   type Exception,
+  SpanStatusCode,
   type SpanOptions as OtelSpanOptions,
   type Span,
   type Tracer,
@@ -131,6 +133,122 @@ describe("Trace", () => {
 
     expect(result).toBe(1);
   });
+
+  it.each([undefined, null, false, 0, "value", { value: 1 }, () => 42, { then: "value" }])(
+    "should return synchronous value %j unchanged and end its span immediately",
+    (value) => {
+      const mockSpan = createMockSpan();
+      const parentSpan = trace.getSpan(context.active());
+      vi.spyOn(tracerModule, "getTracer").mockReturnValue(createMockTracer(mockSpan.span));
+
+      class TestService {
+        value = value;
+
+        run(argument: string) {
+          expect(argument).toBe("input");
+          expect(trace.getSpan(context.active())).toBe(mockSpan.span);
+          expect(mockSpan.end).not.toHaveBeenCalled();
+          return this.value;
+        }
+      }
+
+      decorateMethodWithTrace(TestService.prototype, "run", {});
+      expect(new TestService().run("input")).toBe(value);
+      expect(mockSpan.end).toHaveBeenCalledTimes(1);
+      expect(mockSpan.recordException).not.toHaveBeenCalled();
+      expect(mockSpan.setStatus).not.toHaveBeenCalled();
+      expect(trace.getSpan(context.active())).toBe(parentSpan);
+    },
+  );
+
+  it.each([new Error("sync failure"), "sync failure"])(
+    "should record and synchronously rethrow %j while ending its span once",
+    (error) => {
+      const mockSpan = createMockSpan();
+      const parentSpan = trace.getSpan(context.active());
+      vi.spyOn(tracerModule, "getTracer").mockReturnValue(createMockTracer(mockSpan.span));
+
+      class TestService {
+        run(): never {
+          throw error;
+        }
+      }
+
+      decorateMethodWithTrace(TestService.prototype, "run", {});
+      let caught: unknown;
+      try {
+        new TestService().run();
+      } catch (failure) {
+        caught = failure;
+      }
+      expect(caught).toBe(error);
+      expect(mockSpan.end).toHaveBeenCalledTimes(1);
+      expect(mockSpan.recordException).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: "sync failure" }),
+      );
+      expect(mockSpan.setStatus).toHaveBeenCalledWith({
+        code: SpanStatusCode.ERROR,
+        message: "sync failure",
+      });
+      expect(trace.getSpan(context.active())).toBe(parentSpan);
+    },
+  );
+
+  it.each(["resolve", "reject"] as const)(
+    "should keep the span open until a returned Promise settles via %s",
+    async (outcome) => {
+      const mockSpan = createMockSpan();
+      vi.spyOn(tracerModule, "getTracer").mockReturnValue(createMockTracer(mockSpan.span));
+      const deferred = Promise.withResolvers<object>();
+      const value = { outcome };
+      class TestService {
+        run(): Promise<object> {
+          return deferred.promise;
+        }
+      }
+      decorateMethodWithTrace(TestService.prototype, "run", {});
+      const result = new TestService().run();
+      expect(mockSpan.end).not.toHaveBeenCalled();
+      if (outcome === "resolve") {
+        deferred.resolve(value);
+        await expect(result).resolves.toBe(value);
+        expect(mockSpan.recordException).not.toHaveBeenCalled();
+      } else {
+        const error = new Error("deferred failure");
+        deferred.reject(error);
+        await expect(result).rejects.toBe(error);
+        expect(mockSpan.recordException).toHaveBeenCalledTimes(1);
+      }
+      expect(mockSpan.end).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["object", "function", "cross-realm"] as const)(
+    "should await a %s Promise-like return without requiring catch or finally methods",
+    async (kind) => {
+      const mockSpan = createMockSpan();
+      vi.spyOn(tracerModule, "getTracer").mockReturnValue(createMockTracer(mockSpan.span));
+      const promise = Promise.resolve(42);
+      const then = promise.then.bind(promise);
+      const value: PromiseLike<number> =
+        kind === "cross-realm"
+          ? runInNewContext("Promise.resolve(42)")
+          : kind === "function"
+            ? Object.assign(() => {}, { then })
+            : { then };
+      class TestService {
+        run(): PromiseLike<number> {
+          return value;
+        }
+      }
+      decorateMethodWithTrace(TestService.prototype, "run", {});
+      const result = new TestService().run();
+      expect(mockSpan.end).not.toHaveBeenCalled();
+      await expect(result).resolves.toBe(42);
+      expect(mockSpan.end).toHaveBeenCalledTimes(1);
+      expect(mockSpan.recordException).not.toHaveBeenCalled();
+    },
+  );
 
   it("should preserve active span context after await", async () => {
     class TestService {

@@ -9,13 +9,21 @@ export type TraceDecoratorOptions = {
 
 const traceOptionsStore = new WeakMap<object, Map<string | symbol, TraceDecoratorOptions>>();
 
-type TraceableReturn<ReturnType> = Promise<ReturnType> | AsyncIterable<ReturnType>;
+type TraceableReturn<ReturnType> = ReturnType | Promise<ReturnType> | AsyncIterable<ReturnType>;
 type TraceableMethod<Args extends unknown[], ReturnType> = (
   ...args: Args
 ) => TraceableReturn<ReturnType>;
 
 function isAsyncIterable<ReturnType>(value: unknown): value is AsyncIterable<ReturnType> {
   return typeof value === "object" && value !== null && Symbol.asyncIterator in value;
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    ((typeof value === "object" && value !== null) || typeof value === "function") &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
 }
 
 async function finalizeAsyncIterator<ReturnType>(
@@ -150,7 +158,7 @@ function setTraceOptions(
 }
 
 /**
- * 비동기 메서드 실행을 Span으로 감싸는 데코레이터입니다.
+ * 메서드 실행을 Span으로 감싸는 데코레이터입니다.
  */
 export function Trace<Args extends unknown[] = unknown[], ReturnType = unknown>(
   options: TraceDecoratorOptions = {},
@@ -185,7 +193,12 @@ export function Trace<Args extends unknown[] = unknown[], ReturnType = unknown>(
             return traceAsyncIterable(result, span);
           }
 
-          return result
+          if (!isPromiseLike(result)) {
+            span.end();
+            return result;
+          }
+
+          return Promise.resolve(result)
             .catch((error) => {
               recordError(error, span);
               throw error;
