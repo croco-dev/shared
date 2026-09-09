@@ -301,6 +301,7 @@ export { MeterRegistry } from "./libs/MeterRegistry";
  * @example
  * ```typescript
  * class PostgresMeterRepository implements MeterRepository {
+ *   readonly replayContract = "idempotent" as const;
  *   async findByMeterIdAndTenant(meterId: string, tenantId: string) {
  *     return db.query(
  *       'SELECT * FROM meters WHERE meter_id = $1 AND tenant_id = $2',
@@ -320,8 +321,16 @@ export { MeterRegistry } from "./libs/MeterRegistry";
  *     return db.query('SELECT * FROM meters WHERE tenant_id = $1', [tenantId]);
  *   }
  *
+ *   // Enforce durable uniqueness on (tenantId, meterId, idempotencyKey).
  *   async saveUsageRecords(records: UsageRecord[]) {
- *     await db.insert('usage_records', records);
+ *     for (const record of records) {
+ *       await db.query(
+ *         `INSERT INTO usage_records (id, tenant_id, meter_id, value, timestamp, idempotency_key)
+ *          VALUES ($1, $2, $3, $4, $5, $6)
+ *          ON CONFLICT (tenant_id, meter_id, idempotency_key) DO NOTHING`,
+ *         [record.id, record.tenantId, record.meterId, record.value, record.timestamp, record.idempotencyKey]
+ *       );
+ *     }
  *   }
  * }
  * ```
@@ -540,3 +549,5 @@ export type {
   MeterRef,
   NonEmptyMeterDimensionValues,
 } from "./libs/MeterRef";
+
+export { UsageFlushConfigurationProblem } from "./libs/problems/UsageFlushConfigurationProblem";

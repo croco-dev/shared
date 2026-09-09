@@ -45,6 +45,20 @@ DB, 트랜잭션 매니저, 스키마 설정을 받아 저장소를 초기화합
 
 [`MeterRepository`](/api/metering-core/src/classes/meterrepository/).[`constructor`](/api/metering-core/src/classes/meterrepository/#constructor)
 
+## Properties
+
+### replayContract
+
+> `readonly` **replayContract**: `"idempotent"`
+
+saveUsageRecords must persist each (tenantId, meterId, idempotencyKey) at most once,
+including concurrent calls, overlapping batches, partial failures and process restarts.
+Enforce uniqueness in persistent storage; an in-process cache is insufficient.
+
+#### Overrides
+
+[`MeterRepository`](/api/metering-core/src/classes/meterrepository/).[`replayContract`](/api/metering-core/src/classes/meterrepository/#replaycontract)
+
 ## Methods
 
 ### findAll()

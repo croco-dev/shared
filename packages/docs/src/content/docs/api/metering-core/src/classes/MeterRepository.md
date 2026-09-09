@@ -26,6 +26,16 @@ metering-core는 이 추상 클래스만 의존
 
 `MeterRepository`
 
+## Properties
+
+### replayContract
+
+> `abstract` `readonly` **replayContract**: `"idempotent"`
+
+saveUsageRecords must persist each (tenantId, meterId, idempotencyKey) at most once,
+including concurrent calls, overlapping batches, partial failures and process restarts.
+Enforce uniqueness in persistent storage; an in-process cache is insufficient.
+
 ## Methods
 
 ### findAll()

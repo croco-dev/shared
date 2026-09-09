@@ -59,6 +59,8 @@ export interface UsageStorage {
 
   /**
    * Usage 데이터 삭제 (배치 저장 후)
+   * UsageAggregator requires this method and rejects unsupported storage at construction.
+   * Delete only the supplied records; repeated deletion must be safe.
    * 저장이 성공한 경우에만 호출되어야 함
    */
   deleteUsageRecords?(options: UsageQueryOptions, records: UsageRecord[]): Promise<void>;

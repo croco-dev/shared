@@ -23,6 +23,7 @@ describe("MeterRegistry", () => {
 
   beforeEach(() => {
     mockRepository = {
+      replayContract: "idempotent",
       findByMeterIdAndTenant: vi.fn(),
       save: vi.fn(),
       findAll: vi.fn(),
