@@ -161,7 +161,7 @@ describe("GraphQLRolesGuard", () => {
     MetadataStorage.clear();
   });
 
-  it.each([undefined, null, "root", 0, false, 1n, Symbol("root")])(
+  it.each([undefined, null, "root", 0, false, BigInt(1), Symbol("root")])(
     "should deny access without throwing when root is %s",
     (root) => {
       const guard = new GraphQLRolesGuard();
