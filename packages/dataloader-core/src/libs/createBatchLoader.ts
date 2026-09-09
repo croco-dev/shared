@@ -10,11 +10,14 @@ import type { BatchLoader, BatchLoaderOptions } from "./types";
  * @returns An object with the same interface as BatchLoader, but delegating to a context-scoped instance
  */
 export function createBatchLoader<K, V>(options: BatchLoaderOptions<K, V>): BatchLoader<K, V> {
+  let standaloneLoader: BatchLoader<K, V> | undefined;
+
   const getLoader = (): BatchLoader<K, V> => {
     const contextCache = Context.getCache();
 
     if (!contextCache) {
-      return new BatchLoaderImpl(options);
+      standaloneLoader ??= new BatchLoaderImpl(options);
+      return standaloneLoader;
     }
 
     const staticScope = options.scope ? `:${options.scope}` : "";
