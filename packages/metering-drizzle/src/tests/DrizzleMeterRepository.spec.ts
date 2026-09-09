@@ -1,5 +1,6 @@
 import type { ILogger } from "@croco/framework-context";
-import { InvalidUsageValueProblem, MeterRegistry } from "@croco/metering-core";
+import { InvalidUsageValueProblem, MeterRegistry, UsageAggregator } from "@croco/metering-core";
+import type { UsageRecord, UsageStorage } from "@croco/metering-core";
 import { ProblemFactory } from "@croco/problems-core";
 import {
   assertDrizzleProblem,
@@ -664,6 +665,98 @@ describe("DrizzleMeterRepository", () => {
       const meters = await repository.findByTenant("tenant-nonexistent");
 
       expect(meters).toHaveLength(0);
+    });
+  });
+
+  describe("UsageAggregator replay", () => {
+    const createRecord = (key: string, value: number): UsageRecord => ({
+      id: `record-${key}`,
+      tenantId: "tenant-1",
+      meterId: "api_calls",
+      value,
+      timestamp: new Date("2026-01-01T00:00:00.000Z"),
+      idempotencyKey: key,
+    });
+
+    const createStorage = (
+      records: UsageRecord[],
+    ): UsageStorage & Required<Pick<UsageStorage, "deleteUsageRecords">> => ({
+      replayContract: "idempotent",
+      record: vi.fn(),
+      getUsage: vi.fn(),
+      isIdempotent: vi.fn(),
+      fetchUsageRecords: vi.fn(async () => [...records]),
+      deleteUsageRecords: vi.fn(async (_options, persisted: UsageRecord[]) => {
+        const ids = new Set(persisted.map((record) => record.id));
+        for (let index = records.length - 1; index >= 0; index--) {
+          if (ids.has(records[index].id)) records.splice(index, 1);
+        }
+      }),
+      checkAndRecordWithinQuota: vi.fn(),
+    });
+
+    it("retries a committed batch after deletion fails with a recreated aggregator", async () => {
+      const records = [createRecord("first", 2), createRecord("second", 3)];
+      const usageStorage = createStorage(records);
+      const deletionFailure = ProblemFactory.internalServerError(
+        "testing/usage-delete-failed",
+        "usage deletion failed",
+      );
+      vi.mocked(usageStorage.deleteUsageRecords).mockRejectedValueOnce(deletionFailure);
+      const aggregator = new UsageAggregator({ usageStorage, meterRepository: repository });
+
+      await expect(aggregator.flushUsageToDB("tenant-1", "api_calls")).rejects.toBe(
+        deletionFailure,
+      );
+      expect(records).toHaveLength(2);
+      expect(
+        sqlite.prepare("SELECT COUNT(*) AS count, SUM(value) AS total FROM usage_records").get(),
+      ).toEqual({ count: 2, total: 5 });
+
+      const recreated = new UsageAggregator({
+        usageStorage,
+        meterRepository: new DrizzleMeterRepository(db, txManager, createRepositoryConfig()),
+      });
+      await expect(recreated.flushUsageToDB("tenant-1", "api_calls")).resolves.toEqual({
+        recordsFlushed: 2,
+      });
+      expect(records).toEqual([]);
+      expect(
+        sqlite.prepare("SELECT COUNT(*) AS count, SUM(value) AS total FROM usage_records").get(),
+      ).toEqual({ count: 2, total: 5 });
+    });
+
+    it("deduplicates overlapping concurrent flush batches by logical usage identity", async () => {
+      const shared = createRecord("shared", 3);
+      const firstStorage = createStorage([createRecord("first", 2), shared]);
+      const secondStorage = createStorage([
+        { ...shared, id: "replayed-shared-record" },
+        createRecord("second", 5),
+      ]);
+      const first = new UsageAggregator({
+        usageStorage: firstStorage,
+        meterRepository: repository,
+      });
+      const second = new UsageAggregator({
+        usageStorage: secondStorage,
+        meterRepository: new DrizzleMeterRepository(db, txManager, createRepositoryConfig()),
+      });
+
+      await expect(
+        Promise.all([
+          first.flushUsageToDB("tenant-1", "api_calls"),
+          second.flushUsageToDB("tenant-1", "api_calls"),
+        ]),
+      ).resolves.toEqual([{ recordsFlushed: 2 }, { recordsFlushed: 2 }]);
+      expect(
+        sqlite.prepare("SELECT COUNT(*) AS count, SUM(value) AS total FROM usage_records").get(),
+      ).toEqual({ count: 3, total: 10 });
+      await expect(first.flushUsageToDB("tenant-1", "api_calls")).resolves.toEqual({
+        recordsFlushed: 0,
+      });
+      await expect(second.flushUsageToDB("tenant-1", "api_calls")).resolves.toEqual({
+        recordsFlushed: 0,
+      });
     });
   });
 

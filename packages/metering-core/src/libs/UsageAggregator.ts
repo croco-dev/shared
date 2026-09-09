@@ -1,3 +1,4 @@
+import { UsageFlushConfigurationProblem } from "./problems/UsageFlushConfigurationProblem";
 import type { MeterRepository } from "./MeterRepository";
 import type { AggregationPeriod, FlushResult, UsageQueryOptions } from "./types";
 import type { UsageStorage } from "./UsageStorage";
@@ -20,6 +21,14 @@ export class UsageAggregator {
   private readonly meterRepository: MeterRepository;
 
   constructor(options: UsageAggregatorOptions) {
+    if (typeof options.usageStorage.deleteUsageRecords !== "function") {
+      throw new UsageFlushConfigurationProblem("UsageStorage must implement deleteUsageRecords");
+    }
+    if (options.meterRepository.replayContract !== "idempotent") {
+      throw new UsageFlushConfigurationProblem(
+        "MeterRepository must declare an idempotent replayContract",
+      );
+    }
     this.usageStorage = options.usageStorage;
     this.meterRepository = options.meterRepository;
   }
@@ -37,6 +46,10 @@ export class UsageAggregator {
     meterId: string,
     period: AggregationPeriod = "billing_cycle",
   ): Promise<FlushResult> {
+    const deleteUsageRecords = this.usageStorage.deleteUsageRecords;
+    if (typeof deleteUsageRecords !== "function") {
+      throw new UsageFlushConfigurationProblem("UsageStorage must implement deleteUsageRecords");
+    }
     const options: UsageQueryOptions = {
       tenantId,
       meterId,
@@ -53,7 +66,7 @@ export class UsageAggregator {
     // DB에 배치 저장
     await this.meterRepository.saveUsageRecords(records);
 
-    await this.usageStorage.deleteUsageRecords?.(options, records);
+    await deleteUsageRecords.call(this.usageStorage, options, records);
 
     return { recordsFlushed: records.length };
   }

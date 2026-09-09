@@ -9,6 +9,13 @@ import type { MeterDefinition, MeterRegistrationOptions, UsageRecord } from "./t
  */
 export abstract class MeterRepository {
   /**
+   * saveUsageRecords must persist each (tenantId, meterId, idempotencyKey) at most once,
+   * including concurrent calls, overlapping batches, partial failures and process restarts.
+   * Enforce uniqueness in persistent storage; an in-process cache is insufficient.
+   */
+  abstract readonly replayContract: "idempotent";
+
+  /**
    * Meter 정의 조회 (tenantId + meterId로 검색)
    */
   abstract findByMeterIdAndTenant(

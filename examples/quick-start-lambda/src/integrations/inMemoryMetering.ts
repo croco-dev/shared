@@ -329,6 +329,9 @@ export class InMemoryRedisClient implements RedisClient {
 }
 
 class InMemoryMeterRepository extends MeterRepository {
+  readonly replayContract = "idempotent" as const;
+  private readonly usageRecords: UsageRecord[] = [];
+
   private meters: MeterDefinition[] = [
     {
       id: "meter-api-user-create",
@@ -366,7 +369,17 @@ class InMemoryMeterRepository extends MeterRepository {
   }
 
   async saveUsageRecords(records: UsageRecord[]): Promise<void> {
-    console.log("usage records saved", records);
+    for (const record of records) {
+      const persisted = this.usageRecords.some(
+        (existing) =>
+          existing.tenantId === record.tenantId &&
+          existing.meterId === record.meterId &&
+          existing.idempotencyKey === record.idempotencyKey,
+      );
+      if (!persisted) {
+        this.usageRecords.push(record);
+      }
+    }
   }
 }
 

@@ -167,6 +167,8 @@ export class InMemoryAccessProvider implements AccessProvider {
 }
 
 export class InMemoryMeterRepository extends MeterRepository {
+  readonly replayContract = "idempotent" as const;
+
   private readonly meters = new Map<string, MeterDefinition>();
   private readonly usageRecords: UsageRecord[] = [];
 
@@ -196,7 +198,17 @@ export class InMemoryMeterRepository extends MeterRepository {
   }
 
   async saveUsageRecords(records: UsageRecord[]): Promise<void> {
-    this.usageRecords.push(...records);
+    for (const record of records) {
+      const persisted = this.usageRecords.some(
+        (existing) =>
+          existing.tenantId === record.tenantId &&
+          existing.meterId === record.meterId &&
+          existing.idempotencyKey === record.idempotencyKey,
+      );
+      if (!persisted) {
+        this.usageRecords.push(record);
+      }
+    }
   }
 }
 

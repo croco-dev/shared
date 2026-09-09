@@ -20018,6 +20018,12 @@
               "declarationKind": "class"
             },
             {
+              "name": "UsageFlushConfigurationProblem",
+              "exportKind": "named",
+              "source": "./libs/problems/UsageFlushConfigurationProblem",
+              "declarationKind": "class"
+            },
+            {
               "name": "UsageRecordedEvent",
               "exportKind": "named",
               "source": "./libs/events/UsageRecordedEvent",

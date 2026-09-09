@@ -234,3 +234,17 @@ dedupe 보장이 깨집니다. 모든 구버전 writer를 중지하고 migration
 - 기존 Redis usage member에 소수, 0, 음수, 지원 범위를 벗어난 값이 있으면 조회와 quota 검사는 값을
   축소하지 않고 실패합니다. 운영자는 해당 record의 원본 과금 근거를 확인해 정수 minor unit으로
   재작성하거나 격리해야 합니다.
+
+### Safe usage flush adapters
+
+`UsageAggregator` rejects storage without `deleteUsageRecords` and repositories without
+`readonly replayContract = "idempotent" as const` when constructed, before reading or saving usage.
+Custom `MeterRepository` adapters must enforce persistent uniqueness on
+`(tenantId, meterId, idempotencyKey)` in `saveUsageRecords`, including concurrent calls,
+overlapping batches, partial writes and process restarts. Declare the contract only after
+implementing this guarantee. `DrizzleMeterRepository` uses its unique index and conflict handling.
+
+After a save or deletion failure, retry the flush normally. Already persisted records are ignored
+by the repository, and deletion removes only the supplied records. `recordsFlushed` counts records
+successfully processed by the flush, including records persisted by a previous attempt.
+`UsageStorage.deleteUsageRecords` remains optional for storage used without an aggregator.

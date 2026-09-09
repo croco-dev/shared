@@ -112,6 +112,12 @@ typed usage에 `eventId` 또는 `dimensions`가 있지만 해당 mapping이 없�
 
 PostgreSQL JSONB를 그대로 쓰고 싶다면 `serializeJson`, `deserializeJson`에 패스스루 함수를 넘기면 됩니다.
 
+`DrizzleMeterRepository`는 `replayContract: "idempotent"`를 선언합니다. 배치가 겹치거나
+`UsageAggregator`의 저장 후 원본 삭제가 실패해 재시도하더라도
+`(tenantId, meterId, idempotencyKey)`별 최초 기록만 저장합니다. 커스텀 테이블에도 제공 스키마와 같은
+unique index가 필요합니다. 삭제가 실패하면 flush는 실패하며, 새 aggregator 인스턴스에서 재시도해도
+이미 저장된 사용량은 중복 반영되지 않습니다.
+
 ## API 레퍼런스
 
 ### DrizzleMeterRepository

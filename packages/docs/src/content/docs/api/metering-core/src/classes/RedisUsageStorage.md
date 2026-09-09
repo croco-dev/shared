@@ -74,6 +74,8 @@ MeteringService가 lease 만료 후 persistence를 안전하게 재개할 수 �
 > **deleteUsageRecords**(`options`, `records`): `Promise`\<`void`\>
 
 Usage 데이터 삭제 (배치 저장 후)
+UsageAggregator requires this method and rejects unsupported storage at construction.
+Delete only the supplied records; repeated deletion must be safe.
 저장이 성공한 경우에만 호출되어야 함
 
 #### Parameters

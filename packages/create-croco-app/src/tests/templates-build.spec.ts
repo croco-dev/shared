@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
-import { ModuleKind, transpileModule } from "typescript";
+import { ModuleKind, ScriptTarget, transpileModule } from "typescript";
 import { describe, expect, it, vi } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { renderHandlebars } from "../helpers/fs.js";
@@ -15,6 +15,75 @@ const FIXTURE_TEMPLATES_DIR = join(
   "templates",
 );
 const FIXTURE_TEMPLATE_NAMES = new Set(["container-fullstack", "ssr-lambda"]);
+
+describe.each([
+  {
+    name: "SaaS",
+    path: join(TEMPLATES_DIR, "saas/apps/api-server/src/inMemoryAdapters.ts"),
+    exposeRepository: false,
+  },
+  {
+    name: "quick-start-lambda",
+    path: join(
+      TEMPLATES_DIR,
+      "../../../examples/quick-start-lambda/src/integrations/inMemoryMetering.ts",
+    ),
+    exposeRepository: true,
+  },
+])("$name in-memory meter repository replay", ({ path, exposeRepository }) => {
+  it("keeps the first record per tenant, meter and idempotency key across overlapping batches", async () => {
+    const exports: Record<string, unknown> = {};
+    const source = readFileSync(path, "utf8");
+    const compiled = transpileModule(
+      exposeRepository ? `${source}\nexport { InMemoryMeterRepository };` : source,
+      {
+        compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 },
+      },
+    );
+    runInNewContext(compiled.outputText, {
+      exports,
+      require: (specifier: string) => {
+        if (specifier === "@croco/metering-core") return { MeterRepository: class {} };
+        if (specifier === "@croco/execution-core" || specifier === "./problems") return {};
+        throw new Error(`Unexpected adapter import: ${specifier}`);
+      },
+    });
+    type RecordFixture = {
+      id: string;
+      tenantId: string;
+      meterId: string;
+      idempotencyKey: string;
+      value: number;
+      timestamp: Date;
+    };
+    const Repository = exports.InMemoryMeterRepository as new () => {
+      readonly replayContract: string;
+      readonly usageRecords: RecordFixture[];
+      saveUsageRecords(records: RecordFixture[]): Promise<void>;
+    };
+    const repository = new Repository();
+    const first: RecordFixture = {
+      id: "first",
+      tenantId: "tenant-1",
+      meterId: "api_calls",
+      idempotencyKey: "request-1",
+      value: 2,
+      timestamp: new Date("2026-01-01T00:00:00.000Z"),
+    };
+    const next = { ...first, id: "next", idempotencyKey: "request-2", value: 3 };
+    const otherTenant = { ...first, id: "other-tenant", tenantId: "tenant-2" };
+    const otherMeter = { ...first, id: "other-meter", meterId: "storage" };
+
+    await repository.saveUsageRecords([first, first]);
+    await Promise.all([
+      repository.saveUsageRecords([{ ...first, id: "replay", value: 99 }, next]),
+      repository.saveUsageRecords([next, otherTenant, otherMeter]),
+    ]);
+
+    expect(repository.replayContract).toBe("idempotent");
+    expect(repository.usageRecords).toEqual([first, next, otherTenant, otherMeter]);
+  });
+});
 
 describe.each(["lambda", "worker"] as const)("SaaS %s async host bootstrap", (entry) => {
   function loadEntry(createCrocoApp: ReturnType<typeof vi.fn>) {

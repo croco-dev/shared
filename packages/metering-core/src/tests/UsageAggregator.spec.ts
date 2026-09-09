@@ -32,6 +32,7 @@ describe("UsageAggregator", () => {
   beforeEach(() => {
     mockStorage = {
       replayContract: "idempotent",
+      deleteUsageRecords: vi.fn().mockResolvedValue(undefined),
       record: vi.fn().mockResolvedValue(undefined),
       getUsage: vi.fn().mockResolvedValue(0),
       isIdempotent: vi.fn().mockResolvedValue(true),
@@ -40,6 +41,7 @@ describe("UsageAggregator", () => {
     };
 
     mockRepository = {
+      replayContract: "idempotent",
       findByMeterIdAndTenant: vi.fn(),
       save: vi.fn(),
       findAll: vi.fn(),
@@ -51,6 +53,28 @@ describe("UsageAggregator", () => {
       usageStorage: mockStorage,
       meterRepository: mockRepository,
     });
+  });
+
+  it("should reject storage without deletion before any persistence", () => {
+    delete mockStorage.deleteUsageRecords;
+    expect(
+      () => new UsageAggregator({ usageStorage: mockStorage, meterRepository: mockRepository }),
+    ).toThrow("deleteUsageRecords");
+    expect(mockStorage.fetchUsageRecords).not.toHaveBeenCalled();
+    expect(mockRepository.saveUsageRecords).not.toHaveBeenCalled();
+  });
+
+  it("should reject repositories without an idempotent replay contract", () => {
+    const { replayContract: _contract, ...legacyRepository } = mockRepository;
+    expect(
+      () =>
+        new UsageAggregator({
+          usageStorage: mockStorage,
+          meterRepository: legacyRepository as MeterRepository,
+        }),
+    ).toThrow("idempotent");
+    expect(mockStorage.fetchUsageRecords).not.toHaveBeenCalled();
+    expect(mockRepository.saveUsageRecords).not.toHaveBeenCalled();
   });
 
   describe("flushUsageToDB", () => {

@@ -71,6 +71,8 @@ export type DrizzleMeterRepositoryConfig = {
  * 미터 정의와 사용량 기록을 Drizzle로 저장하는 저장소입니다.
  */
 export class DrizzleMeterRepository extends MeterRepository {
+  readonly replayContract = "idempotent" as const;
+
   private readonly meterTable: unknown;
   private readonly meterSchema: MeterTable;
   private readonly usageRecordTable: unknown;
