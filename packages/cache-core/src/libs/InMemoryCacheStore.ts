@@ -236,8 +236,8 @@ export class InMemoryCacheStore<V = unknown> extends CacheStore<string, V> {
 
           // 현재 캐시 값을 먼저 확인하여 늦은 loader 결과가 새 값으로 덮어쓰는지 확인
           const currentEntry = this.store.get(key);
-          if (currentEntry !== undefined) {
-            // 현재 캐시에 값이 있다면 저장하지 않음 (다른 set() 이 중간에 호출됨)
+          if (currentEntry !== undefined && !this.isExpired(currentEntry)) {
+            // 다른 set()이 저장한 값이 아직 유효하면 유지
             resolveLoad(currentEntry.value);
             return;
           }

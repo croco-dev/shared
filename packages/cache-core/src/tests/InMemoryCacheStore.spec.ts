@@ -689,6 +689,48 @@ describe("InMemoryCacheStore", () => {
       expect(await cache.get("key1")).toBe("newValue");
     });
 
+    it.each([
+      [99, "intermediate", 0],
+      [100, "loaded-value", 1],
+      [101, "loaded-value", 1],
+    ])(
+      "checks a concurrent entry's TTL after loading at %i ms",
+      async (elapsedMs, expected, evictions) => {
+        vi.useFakeTimers();
+
+        try {
+          vi.setSystemTime(0);
+          let resolveLoader!: (value: string) => void;
+          const loader = vi.fn(
+            () =>
+              new Promise<string>((resolve) => {
+                resolveLoader = resolve;
+              }),
+          );
+          const first = cache.getOrSet("key1", loader, { ttlMs: 1000 });
+          const second = cache.getOrSet("key1", loader, { ttlMs: 1000 });
+          await waitForInFlightLoader();
+          await cache.set("key1", "intermediate", 100);
+
+          vi.setSystemTime(elapsedMs);
+          resolveLoader("loaded-value");
+
+          await expect(Promise.all([first, second])).resolves.toEqual([expected, expected]);
+          expect(loader).toHaveBeenCalledTimes(1);
+          expect(cache.getStats()).toEqual({ hits: 0, misses: 2, evictions, size: 1 });
+          expect(await cache.get("key1")).toBe(expected);
+
+          const expiresAt = elapsedMs < 100 ? 100 : elapsedMs + 1000;
+          vi.setSystemTime(expiresAt - 1);
+          expect(await cache.get("key1")).toBe(expected);
+          vi.setSystemTime(expiresAt);
+          expect(await cache.get("key1")).toBeUndefined();
+        } finally {
+          vi.useRealTimers();
+        }
+      },
+    );
+
     it("getOrSet stale overwrite: set after clear", async () => {
       const loader = vi.fn(async () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
