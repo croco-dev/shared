@@ -16,6 +16,10 @@ export class GraphQLRolesGuard implements Guard<GraphQLGuardContext> {
 
   canActivate(context: GraphQLGuardContext): boolean {
     const resolver = this.resolverTarget ?? context.root;
+    if (resolver === null || (typeof resolver !== "object" && typeof resolver !== "function")) {
+      return false;
+    }
+
     const methodName = this.resolverMethodName ?? context.info.fieldName;
 
     const requiredRoles = getGraphQLMethodMetadata<string[]>(
