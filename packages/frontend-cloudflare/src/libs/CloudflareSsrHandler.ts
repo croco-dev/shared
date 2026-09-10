@@ -52,7 +52,7 @@ async function handleSsrRequest(
   const url = new URL(request.url);
   const { env } = context;
 
-  if (env?.ASSETS) {
+  if (env?.ASSETS && (request.method === "GET" || request.method === "HEAD")) {
     try {
       const assetResponse = await env.ASSETS.fetch(request);
       if (assetResponse.status !== 404) {
