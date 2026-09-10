@@ -233,14 +233,16 @@ ISR 재검증 시간은 `revalidateSeconds`로 받아 meta-vite의 초 단위 `r
 
 **옵션:**
 
-- `mode?: "ssr" | "ssg" | "isr" | "rsc"` - render mode (기본값: `"ssr"`)
+- `mode?: "ssr" | "ssg" | "isr" | "rsc"` - render mode (재검증 주기가 있으면 `"isr"`, 없으면 `"ssr"`; 명시한 mode가 우선)
 - `path?: string` - route path
 - `head?: () => HeadMetadata` - title, description, OpenGraph title, canonical URL metadata
 - `revalidateSeconds?: number` - ISR 재검증 주기(초)
 
-기존 `ssr` boolean과 밀리초 단위 `revalidate` 입력은 deprecated입니다. `ssr: false`는 `mode: "ssg"`로,
+기존 `ssr` boolean과 밀리초 단위 `revalidate` 입력은 deprecated입니다. 재검증 주기 없이 사용하는
+`ssr: false`는 `mode: "ssg"`로,
 `revalidate: 60_000`은 `revalidateSeconds: 60`으로 이전하세요. Deprecated 입력은 canonical 입력과 함께
-사용할 수 없으며, helper는 밀리초 값을 초로 한 번 변환한 뒤 반환합니다.
+사용할 수 없으며, helper는 밀리초 값을 초로 한 번 변환한 뒤 반환합니다. `revalidate`가 있으면
+`ssr` 값과 관계없이 `"isr"` 모드를 사용합니다.
 
 **반환값:**
 

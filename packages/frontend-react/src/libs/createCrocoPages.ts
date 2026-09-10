@@ -36,7 +36,8 @@ export function createCrocoPageConfig(options?: CrocoPageOptions): CrocoPageConf
     (options?.revalidate !== undefined ? options.revalidate / 1000 : undefined);
 
   return {
-    mode: options?.mode ?? (options?.ssr === false ? "ssg" : "ssr"),
+    mode:
+      options?.mode ?? (revalidate !== undefined ? "isr" : options?.ssr === false ? "ssg" : "ssr"),
     ...(options?.path !== undefined ? { path: options.path } : {}),
     ...(options?.head !== undefined ? { head: options.head } : {}),
     ...(revalidate !== undefined ? { revalidate } : {}),
