@@ -202,10 +202,54 @@ describe("DrizzleSearchEngine", () => {
     expect(executeMock).toHaveBeenCalledTimes(2);
   });
 
-  it("should reject malformed total count rows", async () => {
-    executeMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ total: "3" }] });
+  it.each([
+    0,
+    123,
+    Number.MAX_SAFE_INTEGER,
+    "0",
+    "123",
+    "9007199254740991",
+    BigInt("0"),
+    BigInt("123"),
+    BigInt("9007199254740991"),
+  ])("should normalize safe total count %s", async (total) => {
+    executeMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ total }] });
+
+    engine = new DrizzleSearchEngine(mockDb, strategy);
+
+    await expect(engine.search("users", { query: "test" })).resolves.toMatchObject({
+      hits: [],
+      total: Number(total),
+    });
+  });
+
+  it.each([
+    undefined,
+    null,
+    true,
+    false,
+    {},
+    [],
+    "",
+    "   ",
+    "abc",
+    "0x10",
+    "1e2",
+    "1.0",
+    "1.0000000000000001",
+    -1,
+    "-1",
+    BigInt("-1"),
+    1.5,
+    "1.5",
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    "Infinity",
+    Number.MAX_SAFE_INTEGER + 1,
+    "9007199254740992",
+    BigInt("9007199254740992"),
+  ])("should reject malformed total count %s", async (total) => {
+    executeMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ total }] });
 
     engine = new DrizzleSearchEngine(mockDb, strategy);
 
