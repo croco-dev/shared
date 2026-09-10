@@ -67,5 +67,7 @@ export abstract class InvitationStore {
     desired: InvitationStatus,
     meta?: { acceptedAt?: Date; rejectedAt?: Date },
   ): Promise<Invitation | null>;
+  /** Count all invitations created at or after since for this tenant, regardless of status. */
+  abstract countIssuedByTenant(tenantId: string, since: Date): Promise<number>;
   abstract countPendingByTenant(tenantId: string, since: Date): Promise<number>;
 }

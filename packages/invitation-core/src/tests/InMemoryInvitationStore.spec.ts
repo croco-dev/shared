@@ -32,6 +32,22 @@ describe("InMemoryInvitationStore compareAndSetStatus", () => {
     vi.useRealTimers();
   });
 
+  it("should count issued invitations across statuses with inclusive time and tenant boundaries", async () => {
+    const since = new Date("2026-01-01T00:00:00.000Z");
+    const statuses = ["creating", "pending", "accepted", "revoked", "declined", "expired"] as const;
+    for (const status of statuses) {
+      await store.save(createInvitation({ id: status, status, createdAt: since }));
+    }
+    await store.save(createInvitation({ id: "old", createdAt: new Date(since.getTime() - 1) }));
+    await store.save(createInvitation({ id: "other", tenantId: "tenant-2", createdAt: since }));
+    await store.save(createInvitation({ id: "new", createdAt: new Date(since.getTime() + 1) }));
+
+    expect(await store.countIssuedByTenant("tenant-1", since)).toBe(7);
+    expect(await store.countIssuedByTenant("tenant-2", since)).toBe(1);
+    expect(await store.countIssuedByTenant("missing", since)).toBe(0);
+    expect(await store.countPendingByTenant("tenant-1", since)).toBe(2);
+  });
+
   it("should allow only one concurrent status transition from the expected status", async () => {
     const acceptedAt = new Date("2026-01-02T00:00:00.000Z");
     await store.save(createInvitation({ id: "inv-1", status: "pending" }));

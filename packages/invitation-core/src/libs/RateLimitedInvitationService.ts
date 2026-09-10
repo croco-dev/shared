@@ -48,8 +48,8 @@ export class RateLimitedInvitationService {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const hourlyCount = await this.store.countPendingByTenant(tenantId, oneHourAgo);
-    const dailyCount = await this.store.countPendingByTenant(tenantId, oneDayAgo);
+    const hourlyCount = await this.store.countIssuedByTenant(tenantId, oneHourAgo);
+    const dailyCount = await this.store.countIssuedByTenant(tenantId, oneDayAgo);
 
     if (hourlyCount >= config.maxInvitesPerHour) {
       throw new InvitationRateLimitExceededProblem(`${config.maxInvitesPerHour} per hour`);

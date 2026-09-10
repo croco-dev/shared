@@ -570,6 +570,22 @@ export class DrizzleInvitationStore extends InvitationStore {
   }
 
   /**
+   * 일정 시점 이후 생성된 모든 상태의 초대 수를 반환합니다.
+   */
+  async countIssuedByTenant(tenantId: string, since: Date): Promise<number> {
+    const client = this.txManager.getClient() ?? this.db;
+
+    const result = (await client
+      .select({ total: count() })
+      .from(invitations)
+      .where(and(eq(invitations.tenantId, tenantId), gte(invitations.createdAt, since)))) as {
+      total: number;
+    }[];
+
+    return Number(result[0].total);
+  }
+
+  /**
    * 일정 시점 이후 생성된 대기 중 초대 수를 반환합니다.
    */
   async countPendingByTenant(tenantId: string, since: Date): Promise<number> {
