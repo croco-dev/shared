@@ -213,6 +213,32 @@ title: "InMemoryInvitationStore"
 
 ---
 
+### countIssuedByTenant()
+
+> **countIssuedByTenant**(`tenantId`, `since`): `Promise`\<`number`\>
+
+Count all invitations created at or after since for this tenant, regardless of status.
+
+#### Parameters
+
+##### tenantId
+
+`string`
+
+##### since
+
+`Date`
+
+#### Returns
+
+`Promise`\<`number`\>
+
+#### Overrides
+
+[`InvitationStore`](/api/invitation-core/src/classes/invitationstore/).[`countIssuedByTenant`](/api/invitation-core/src/classes/invitationstore/#countissuedbytenant)
+
+---
+
 ### countPendingByTenant()
 
 > **countPendingByTenant**(`tenantId`, `since`): `Promise`\<`number`\>

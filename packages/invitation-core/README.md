@@ -61,13 +61,13 @@ await domainPolicyManager.tryAutoJoin("tenant-123", "user-3", "user@acme.com");
 ### 핵심 클래스
 
 - `InvitationManager`, 초대 생성, 수락, 거절, 취소, 재전송을 담당합니다.
-- `RateLimitedInvitationService`, 초대 rate limit과 batch invite를 제공합니다.
+- `RateLimitedInvitationService`, 초대 rate limit과 batch invite를 제공합니다. 시간당·일간 한도는 현재 상태와 무관한 발급 건수를 기준으로 하므로 수락·취소·거절·만료로 복구되지 않습니다.
 - `DomainPolicyManager`, 이메일 도메인 기반 자동 가입 정책을 관리합니다.
 - `InMemoryInvitationStore`, `InMemoryDomainPolicyStore`, 테스트용 저장소 구현체입니다.
 
 ### 저장소와 유틸리티
 
-- `InvitationStore`, `DomainPolicyStore`, 영속 저장소 계약입니다.
+- `InvitationStore`, `DomainPolicyStore`, 영속 저장소 계약입니다. 사용자 정의 `InvitationStore`는 `countIssuedByTenant(tenantId, since)`에서 해당 테넌트의 `createdAt >= since`인 모든 상태의 초대를 집계해야 합니다. 기존 `countPendingByTenant`는 대기 초대만 집계합니다.
 - `generateToken`, `hashToken`, 안전한 초대 토큰 유틸리티입니다.
 - `PUBLIC_EMAIL_DOMAINS`, 자동 가입에서 제외할 공개 이메일 도메인 목록입니다.
 

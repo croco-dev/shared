@@ -120,32 +120,54 @@ describe("RateLimitedInvitationService", () => {
       );
     });
 
-    it("should count only pending invitations", async () => {
-      const now = new Date();
-      await store.save({
-        ...createInvitation({
-          id: "inv-pending-1",
-          email: "pending1@example.com",
-          status: "pending",
-        }),
-        createdAt: new Date(now.getTime() - 1000),
-      });
+    it.each(["accepted", "revoked", "declined", "expired"] as const)(
+      "should retain hourly quota after invitations become %s",
+      async (status) => {
+        for (let i = 0; i < 2; i += 1) {
+          await store.save(createInvitation({ id: `inv-${i}` }));
+          await store.compareAndSetStatus("tenant-1", `inv-${i}`, "pending", status);
+        }
+        expect(await store.countPendingByTenant("tenant-1", new Date(0))).toBe(0);
+        await expect(
+          service.createEmailInvitationWithRateLimit({
+            idempotencyKey: "blocked-email",
+            tenantId: "tenant-1",
+            inviterId: "inviter-1",
+            email: "new@example.com",
+            role: "member",
+          }),
+        ).rejects.toBeInstanceOf(InvitationRateLimitExceededProblem);
+        await expect(
+          service.createLinkInvitationWithRateLimit({
+            idempotencyKey: "blocked-link",
+            tenantId: "tenant-1",
+            inviterId: "inviter-1",
+            role: "member",
+          }),
+        ).rejects.toBeInstanceOf(InvitationRateLimitExceededProblem);
+        expect(send).not.toHaveBeenCalled();
+        expect(publishNow).not.toHaveBeenCalled();
+      },
+    );
 
-      await store.save({
-        ...createInvitation({
-          id: "inv-pending-2",
-          email: "pending2@example.com",
-          status: "pending",
-        }),
-        createdAt: new Date(now.getTime() - 2000),
-      });
+    it.each(["accepted", "revoked"] as const)(
+      "should retain daily quota after invitations become %s outside the hourly window",
+      async (status) => {
+        for (let i = 0; i < 5; i += 1) {
+          await store.save(
+            createInvitation({
+              id: `inv-${i}`,
+              createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+            }),
+          );
+          await store.compareAndSetStatus("tenant-1", `inv-${i}`, "pending", status);
+        }
+        await expect(service.checkRateLimit("tenant-1")).rejects.toThrow("5 per day");
+        await expect(service.checkRateLimit("tenant-2")).resolves.toBeUndefined();
+      },
+    );
 
-      await expect(service.checkRateLimit("tenant-1")).rejects.toBeInstanceOf(
-        InvitationRateLimitExceededProblem,
-      );
-    });
-
-    it("should not count expired invitations", async () => {
+    it("should not count invitations issued before the daily window", async () => {
       const now = new Date();
       await store.save({
         ...createInvitation({

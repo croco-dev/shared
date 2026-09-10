@@ -229,6 +229,32 @@ Drizzle 클라이언트와 트랜잭션 매니저를 받아 저장소를 초기�
 
 ---
 
+### countIssuedByTenant()
+
+> **countIssuedByTenant**(`tenantId`, `since`): `Promise`\<`number`\>
+
+일정 시점 이후 생성된 모든 상태의 초대 수를 반환합니다.
+
+#### Parameters
+
+##### tenantId
+
+`string`
+
+##### since
+
+`Date`
+
+#### Returns
+
+`Promise`\<`number`\>
+
+#### Overrides
+
+[`InvitationStore`](/api/invitation-core/src/classes/invitationstore/).[`countIssuedByTenant`](/api/invitation-core/src/classes/invitationstore/#countissuedbytenant)
+
+---
+
 ### countPendingByTenant()
 
 > **countPendingByTenant**(`tenantId`, `since`): `Promise`\<`number`\>

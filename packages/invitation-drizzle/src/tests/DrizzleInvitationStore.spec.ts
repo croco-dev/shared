@@ -83,6 +83,38 @@ describe("DrizzleInvitationStore", () => {
     );
   });
 
+  it.each([0, 6, "6"])("should return issued count %s across all statuses", async (total) => {
+    const since = new Date("2026-01-01T00:00:00.000Z");
+    const where = vi.fn().mockResolvedValue([{ total }]);
+    mockDb.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({ where }),
+    });
+
+    expect(await store.countIssuedByTenant("tenant-1", since)).toBe(Number(total));
+
+    const query = new PgDialect().sqlToQuery(where.mock.calls[0][0] as SQL);
+    expect(query.sql).toBe('("invitations"."tenant_id" = $1 and "invitations"."created_at" >= $2)');
+    expect(query.params).toEqual(["tenant-1", since.toISOString()]);
+    const selection = mockDb.select.mock.calls[0][0] as { total: SQL };
+    expect(new PgDialect().sqlToQuery(selection.total).sql).toBe("count(*)");
+  });
+
+  it("should retain the pending-only count predicate", async () => {
+    const since = new Date("2026-01-01T00:00:00.000Z");
+    const where = vi.fn().mockResolvedValue([{ total: 2 }]);
+    mockDb.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({ where }),
+    });
+
+    expect(await store.countPendingByTenant("tenant-1", since)).toBe(2);
+
+    const query = new PgDialect().sqlToQuery(where.mock.calls[0][0] as SQL);
+    expect(query.sql).toBe(
+      '("invitations"."tenant_id" = $1 and "invitations"."status" = $2 and "invitations"."created_at" >= $3)',
+    );
+    expect(query.params).toEqual(["tenant-1", "pending", since.toISOString()]);
+  });
+
   it("should save and find invitation by id", async () => {
     const invitation = createInvitation();
 
