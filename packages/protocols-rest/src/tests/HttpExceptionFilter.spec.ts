@@ -64,6 +64,55 @@ describe("HttpExceptionFilter", () => {
     expect(result.body).not.toHaveProperty("resourceId");
   });
 
+  it.each([
+    ["Problem", new ResourceNotFoundProblem(), 404, "RESOURCE_NOT_FOUND"],
+    [
+      "serialized Problem",
+      {
+        type: "forbidden",
+        title: "Forbidden",
+        status: 403,
+        code: "FORBIDDEN",
+        detail: "Access denied",
+      },
+      403,
+      "FORBIDDEN",
+    ],
+    ["unknown error", new Error("private failure"), 500, "INTERNAL_SERVER_ERROR"],
+  ])(
+    "should preserve %s responses when the request is unavailable",
+    (_name, exception, status, code) => {
+      const expected = filter.catch(exception, mockContext);
+      vi.mocked(mockContext.getRequest).mockImplementation(() => {
+        throw new Error("HTTP request unavailable");
+      });
+      vi.mocked(mockContext.getPath).mockReturnValue(
+        `${REQUEST_PATH}?${SECRET_QUERY}#private-fragment`,
+      );
+
+      const result = filter.catch(exception, mockContext);
+
+      expect(result).toEqual({
+        ...expected,
+        body: expected.body.instance ? { ...expected.body, instance: REQUEST_PATH } : expected.body,
+      });
+      expect(result.status).toBe(status);
+      expect(result.body.code).toBe(code);
+      expect(mockContext.getPath).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("should retain the HTTP URL without reading the fallback path", () => {
+    vi.mocked(mockContext.getPath).mockImplementation(() => {
+      throw new Error("Path unavailable");
+    });
+
+    expect(filter.catch(new ResourceNotFoundProblem(), mockContext).body.instance).toBe(
+      PUBLIC_INSTANCE,
+    );
+    expect(mockContext.getPath).not.toHaveBeenCalled();
+  });
+
   it("should remove query and fragment secrets from source-provided instances", () => {
     const sourceProblem = new ResourceNotFoundProblem();
     const problemBody = createHttpProblemDetails(
