@@ -8,7 +8,7 @@ import {
 } from "../../../../test-support/authGuardConformance";
 import { GRAPHQL_GUARDS_KEY, GRAPHQL_ROLES_KEY, RESOLVERS_KEY } from "../libs/constants";
 import { GraphQLResolver } from "../libs/decorators";
-import { GraphQLAuthGuard } from "../libs/guards/AuthGuard";
+import { GRAPHQL_AUTH_GUARD_OPTIONS, GraphQLAuthGuard } from "../libs/guards/AuthGuard";
 import { GuardChain } from "../libs/guards/GuardChain";
 import { GuardInterceptor } from "../libs/interceptors/GuardInterceptor";
 import { GuardDeniedProblem } from "../libs/problems/GuardProblems";
@@ -37,6 +37,34 @@ const createMockContext = (overrides: Partial<GraphQLGuardContext> = {}): GraphQ
 describe("GraphQLAuthGuard", () => {
   beforeEach(() => {
     MetadataStorage.clear();
+  });
+
+  it("should resolve configured auth options through the DI token", async () => {
+    Container.reset();
+    Container.register(GraphQLAuthGuard, "singleton");
+    const user = { id: "configured-user" };
+    const verifier = vi.fn().mockResolvedValue(user);
+    Container.set(GRAPHQL_AUTH_GUARD_OPTIONS, {
+      verifier,
+      headerName: "x-auth",
+      scheme: "Token",
+    });
+
+    try {
+      const guard = Container.get(GraphQLAuthGuard);
+      const context = createMockContext({ context: { headers: { "x-auth": "Token configured" } } });
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(verifier).toHaveBeenCalledWith("configured");
+      expect(context.context.user).toBe(user);
+    } finally {
+      Container.reset();
+    }
+  });
+
+  it("should fail DI resolution explicitly when auth options are not registered", () => {
+    Container.reset();
+    Container.register(GraphQLAuthGuard, "singleton");
+    expect(() => Container.get(GraphQLAuthGuard)).toThrow(/GRAPHQL_AUTH_GUARD_OPTIONS/);
   });
 
   it("should throw error when authorization header is missing", async () => {

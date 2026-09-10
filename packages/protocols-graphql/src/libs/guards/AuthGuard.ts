@@ -1,3 +1,4 @@
+import { Inject, Token } from "@croco/framework-context";
 import type { Guard } from "@croco/framework-context";
 import { Problem, ProblemFactory } from "@croco/problems-core";
 import type { GraphQLGuardContext } from "../types/GuardTypes";
@@ -9,6 +10,8 @@ export type AuthGuardOptions = {
   headerName?: string;
   scheme?: string;
 };
+
+export const GRAPHQL_AUTH_GUARD_OPTIONS = new Token<AuthGuardOptions>("GRAPHQL_AUTH_GUARD_OPTIONS");
 
 function invalidTokenProblem(): Problem {
   return ProblemFactory.unauthorized(
@@ -41,7 +44,7 @@ export class GraphQLAuthGuard implements Guard<GraphQLGuardContext> {
   private readonly headerName: string;
   private readonly scheme: string;
 
-  constructor(options: AuthGuardOptions) {
+  constructor(@Inject(GRAPHQL_AUTH_GUARD_OPTIONS) options: AuthGuardOptions) {
     this.verifier = options.verifier;
     this.headerName = options.headerName ?? "authorization";
     this.scheme = options.scheme ?? "Bearer";

@@ -9,6 +9,9 @@ import { Problem, ProblemCategory } from "@croco/problems-core";
 import {
   Field,
   FieldResolver,
+  GRAPHQL_AUTH_GUARD_OPTIONS,
+  GraphQLAuthGuard,
+  Mutation,
   Ctx,
   ObjectType,
   Query,
@@ -1394,6 +1397,104 @@ describe("GraphQLServer integration", () => {
         await pluginServer.stop();
       }
     });
+  });
+
+  describe("Container-resolved GraphQLAuthGuard", () => {
+    const verifiedUser = { id: "authenticated-user" };
+    const verifier = vi.fn();
+    const resolverExecuted = vi.fn();
+    let authServer: GraphQLServer;
+
+    @Resolver()
+    class AuthenticatedResolver {
+      @Query(() => String)
+      @UseGuards(GraphQLAuthGuard)
+      authenticatedQuery(@Ctx() context: { user: typeof verifiedUser }): string {
+        resolverExecuted(context.user);
+        return context.user.id;
+      }
+
+      @Mutation(() => String)
+      @UseGuards(GraphQLAuthGuard)
+      authenticatedMutation(@Ctx() context: { user: typeof verifiedUser }): string {
+        resolverExecuted(context.user);
+        return context.user.id;
+      }
+    }
+
+    beforeEach(async () => {
+      Container.reset();
+      verifier.mockReset();
+      resolverExecuted.mockReset();
+      Container.register(GraphQLAuthGuard, "singleton");
+      Container.set(GRAPHQL_AUTH_GUARD_OPTIONS, { verifier });
+      authServer = new GraphQLServer({
+        schemaOptions: { resolvers: [AuthenticatedResolver], autoDiscover: false },
+      });
+      await authServer.initialize();
+    });
+
+    afterEach(async () => {
+      await authServer.stop();
+      Container.reset();
+    });
+
+    it.each([
+      ["query", "authenticatedQuery"],
+      ["mutation", "authenticatedMutation"],
+    ])("should inject configured auth options for a protected %s", async (operation, field) => {
+      verifier.mockResolvedValue(verifiedUser);
+
+      const { data } = await executeQuery(authServer, `${operation} { ${field} }`, {
+        authorization: "Bearer valid-token",
+      });
+
+      expect(data.errors).toBeUndefined();
+      expect(data.data).toEqual({ [field]: verifiedUser.id });
+      expect(verifier).toHaveBeenCalledExactlyOnceWith("valid-token");
+      expect(resolverExecuted).toHaveBeenCalledExactlyOnceWith(verifiedUser);
+      expect(resolverExecuted.mock.calls[0][0]).toBe(verifiedUser);
+    });
+
+    it.each([
+      ["query", "authenticatedQuery"],
+      ["mutation", "authenticatedMutation"],
+    ])(
+      "should reject a protected %s without a token before executing its resolver",
+      async (operation, field) => {
+        const { data } = await executeQuery(authServer, `${operation} { ${field} }`);
+
+        expect(data.data).toBeNull();
+        expect(data.errors[0].extensions).toMatchObject({
+          code: "protocols-graphql/auth-missing-header",
+          status: 401,
+        });
+        expect(verifier).not.toHaveBeenCalled();
+        expect(resolverExecuted).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ["query", "authenticatedQuery"],
+      ["mutation", "authenticatedMutation"],
+    ])(
+      "should reject a protected %s with an invalid token before executing its resolver",
+      async (operation, field) => {
+        verifier.mockResolvedValue(null);
+
+        const { data } = await executeQuery(authServer, `${operation} { ${field} }`, {
+          authorization: "Bearer invalid-token",
+        });
+
+        expect(data.data).toBeNull();
+        expect(data.errors[0].extensions).toMatchObject({
+          code: "protocols-graphql/auth-invalid-token",
+          status: 401,
+        });
+        expect(verifier).toHaveBeenCalledExactlyOnceWith("invalid-token");
+        expect(resolverExecuted).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("Declared policy execution", () => {
