@@ -3531,6 +3531,12 @@
       "owner": "@croco/search-drizzle"
     },
     {
+      "path": "packages/search-drizzle/src/tests/PostgresDocumentIndex.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "@croco/search-drizzle"
+    },
+    {
       "path": "packages/search-meilisearch/src/tests/MeilisearchDiagnosticsProvider.spec.ts",
       "lane": "fast",
       "qualifiers": [],
