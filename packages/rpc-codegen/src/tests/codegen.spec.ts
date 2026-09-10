@@ -2659,6 +2659,86 @@ void handleMissingProblemBranch;
     );
   });
 
+  it.each([
+    { label: "omitted query", query: undefined, headers: {}, omit: "query" },
+    { label: "undefined query", query: undefined, headers: {} },
+    { label: "null query", query: null, headers: {} },
+    { label: "omitted headers", query: {}, headers: undefined, omit: "headers" },
+    { label: "undefined headers", query: {}, headers: undefined },
+    { label: "null headers", query: {}, headers: null },
+    {
+      label: "populated containers",
+      query: {
+        page: 0,
+        active: false,
+        search: "",
+        missing: undefined,
+        tags: ["new", undefined, "vip"],
+        deletedAt: null,
+      },
+      headers: {
+        "x-tags": ["new", undefined, "vip"],
+        "x-missing": undefined,
+        "x-null": null,
+        "x-active": false,
+      },
+    },
+  ])(
+    "should serialize $label without losing request defaults",
+    async ({ label, query, headers, omit }) => {
+      const route: RouteIR = {
+        ...createBasicRoute(),
+        methodName: "get",
+        httpMethod: "POST",
+        inputSchemas: {
+          ...BODY_HEADER_INPUT_SCHEMAS,
+          query: z.object({
+            page: z.number().optional(),
+          }) as unknown as RouteIR["inputSchemas"]["query"],
+        },
+      };
+      const fetchCalls: { readonly url: string; readonly init: RequestInit }[] = [];
+      generateClientFiles([route], TEMP_DIR);
+      const { userClient } = loadGeneratedUserClientSupport(async (url, init) => {
+        fetchCalls.push({ url, init });
+        return new Response(null, { status: 204 });
+      });
+      // Exercise JavaScript callers; generated TypeScript still requires the input containers.
+      const client = userClient as unknown as Record<
+        "get" | "getResult",
+        (
+          input: Record<string, unknown>,
+          options: { headers: Record<string, string> },
+        ) => Promise<unknown>
+      >;
+      const input = {
+        body: { name: "Ada" },
+        ...(omit === "query" ? {} : { query }),
+        ...(omit === "headers" ? {} : { headers }),
+      };
+      for (const method of ["get", "getResult"] as const) {
+        await client[method](input, { headers: { "x-default": "retained" } });
+      }
+      expect(fetchCalls).toHaveLength(2);
+      for (const { url, init } of fetchCalls) {
+        expect(url).toBe(
+          label === "populated containers"
+            ? "/users?page=0&active=false&search=&tags=new&tags=vip&deletedAt=null"
+            : "/users",
+        );
+        expect(init.method).toBe("POST");
+        expect(init.body).toBe(JSON.stringify({ name: "Ada" }));
+        expect(Object.fromEntries(new Headers(init.headers))).toEqual({
+          "content-type": "application/json",
+          "x-default": "retained",
+          ...(label === "populated containers"
+            ? { "x-tags": "new, vip", "x-null": "null", "x-active": "false" }
+            : {}),
+        });
+      }
+    },
+  );
+
   it("should serialize query input when generating query parameter fetch calls", () => {
     const routes: RouteIR[] = [
       {
@@ -2679,7 +2759,7 @@ void handleMissingProblemBranch;
 
     const content = fs.readFileSync(files[0], "utf-8");
     expect(content).toContain(
-      "function serializeQueryParams(query: Record<string, unknown>): string",
+      "function serializeQueryParams(query: Record<string, unknown> | null | undefined): string",
     );
     expect(content).toContain("const query = serializeQueryParams(input.query);");
     expect(content).toContain("const url = query ? `${path}?${query}` : path;");
@@ -2712,7 +2792,7 @@ void handleMissingProblemBranch;
 
     const content = fs.readFileSync(files[0], "utf-8");
     expect(content).toContain(
-      "function serializeHeaders(headers: Record<string, unknown>): Record<string, string>",
+      "function serializeHeaders(headers: Record<string, unknown> | null | undefined): Record<string, string>",
     );
     expect(content).toContain("serialized[key] = serializedValues.join(', ');");
     expect(content).toContain("const path = '/users';");
@@ -3574,6 +3654,7 @@ function loadGeneratedUserClientSupport(
   const context = {
     exports: {} as Record<string, unknown>,
     fetch: fetchImpl,
+    URLSearchParams,
     require(specifier: string): Record<string, unknown> {
       expect(specifier).toBe("./rpc");
 

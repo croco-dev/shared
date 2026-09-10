@@ -574,7 +574,11 @@ function generateDomainClient(domainRoutes: DomainRoutes, options: GenerateClien
     hasQueryKeyInputs: domainRoutes.routes.some(needsInput),
   });
   const queryHelpers = domainRoutes.routes.some((route) => route.inputSchemas.query)
-    ? `function serializeQueryParams(query: Record<string, unknown>): string {
+    ? `function serializeQueryParams(query: Record<string, unknown> | null | undefined): string {
+  if (query === undefined || query === null) {
+    return '';
+  }
+
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(query)) {
@@ -598,7 +602,11 @@ function generateDomainClient(domainRoutes: DomainRoutes, options: GenerateClien
 `
     : "";
   const headerHelpers = domainRoutes.routes.some((route) => route.inputSchemas.headers)
-    ? `function serializeHeaders(headers: Record<string, unknown>): Record<string, string> {
+    ? `function serializeHeaders(headers: Record<string, unknown> | null | undefined): Record<string, string> {
+  if (headers === undefined || headers === null) {
+    return {};
+  }
+
   const serialized: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(headers)) {
