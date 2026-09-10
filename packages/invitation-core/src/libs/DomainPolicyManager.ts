@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 // oxlint-disable-next-line typescript/consistent-type-imports
 import { EventPublisher } from "@croco/events-core";
 import { Component } from "@croco/framework-context";
-import { AlreadyMemberProblem } from "@croco/membership-core";
+import { AlreadyMemberProblem, MembershipNotFoundProblem } from "@croco/membership-core";
 // oxlint-disable-next-line typescript/consistent-type-imports
 import { MembershipManager } from "@croco/membership-core";
 import type { Membership, MembershipRole } from "@croco/membership-core";
@@ -28,7 +28,7 @@ import type { DomainAutoJoinIntent, DomainPolicy } from "./types";
 const AUTO_JOIN_ROLES: MembershipRole[] = ["member", "viewer"];
 const AUTO_JOIN_EVENT_CLAIM_LEASE_MS = 5 * 60 * 1000;
 
-type AutoJoinCleanupOperation = "deleteUncommittedAutoJoinIntent" | "releaseAutoJoinEvent";
+type AutoJoinCleanupOperation = "releaseAutoJoinEvent";
 
 function attachAutoJoinCleanupError(originalError: unknown, cleanupError: unknown): void {
   if (typeof originalError !== "object" || originalError === null) {
@@ -128,71 +128,82 @@ export class DomainPolicyManager {
 
     const normalizedEmail = email.trim().toLowerCase();
     const idempotencyKey = this.createAutoJoinIdempotencyKey(tenantId, userId, normalizedEmail);
-    const existingIntent = await this.store.findAutoJoinIntent(tenantId, idempotencyKey);
-    let intentInput = existingIntent;
-
-    if (!intentInput) {
-      const policy = await this.store.findByTenantAndDomain(tenantId, domain);
-      if (!policy || !policy.enabled) {
-        return null;
+    const outcome = await this.txManager.runWithOutcome(async () => {
+      let intent = await this.store.findAutoJoinIntent(tenantId, idempotencyKey);
+      let previousEventId: string | undefined;
+      if (intent?.membership && intent.eventStatus === "completed") {
+        try {
+          return await this.membershipManager.getMember(tenantId, userId);
+        } catch (error) {
+          if (!(error instanceof MembershipNotFoundProblem)) throw error;
+        }
+        previousEventId = intent.eventId;
       }
 
-      const event = new DomainAutoJoinedEvent({
-        tenantId,
-        userId,
-        email: normalizedEmail,
-        domain,
-        role: policy.role,
-      });
-      intentInput = {
-        idempotencyKey,
-        tenantId,
-        userId,
-        email: normalizedEmail,
-        domain,
-        role: policy.role,
-        membership: null,
-        eventStatus: "pending",
-        eventClaimId: null,
-        eventClaimExpiresAt: null,
-        eventId: event.eventId,
-        eventOccurredAt: event.timestamp,
-        createdAt: new Date(),
-      };
-    }
+      if (!intent || previousEventId !== undefined) {
+        const policy = await this.store.findByTenantAndDomain(tenantId, domain);
+        if (!policy || !policy.enabled) return null;
 
-    const outcome = await this.txManager.runWithOutcome(async () => {
-      const creation = await this.store.createAutoJoinIntent(intentInput);
-      let intent = creation.intent;
+        const event = new DomainAutoJoinedEvent({
+          tenantId,
+          userId,
+          email: normalizedEmail,
+          domain,
+          role: policy.role,
+        });
+        const input: DomainAutoJoinIntent = {
+          idempotencyKey,
+          tenantId,
+          userId,
+          email: normalizedEmail,
+          domain,
+          role: policy.role,
+          membership: null,
+          eventStatus: "pending",
+          eventClaimId: null,
+          eventClaimExpiresAt: null,
+          eventId: event.eventId,
+          eventOccurredAt: event.timestamp,
+          createdAt: new Date(),
+        };
+        const creation =
+          previousEventId === undefined
+            ? await this.store.createAutoJoinIntent(input)
+            : await this.store.renewAutoJoinIntent(input, previousEventId);
+        intent = creation.intent;
+        if (!creation.created && intent.eventStatus === "completed") {
+          return this.membershipManager.getMember(tenantId, userId);
+        }
+      }
 
       if (!intent.membership) {
-        if (!creation.created) {
-          throw new DomainAutoJoinRecoveryProblem("membership");
+        try {
+          await this.membershipManager.getMember(tenantId, userId);
+        } catch (error) {
+          if (!(error instanceof MembershipNotFoundProblem)) throw error;
+          const policy = await this.store.findByTenantAndDomain(tenantId, domain);
+          if (!policy || !policy.enabled) return null;
+          if (policy.role !== intent.role) throw new DomainAutoJoinRecoveryProblem("membership");
         }
-
         try {
           const membershipResult = await this.membershipManager.addMemberCommand(
             intent.tenantId,
             intent.userId,
             intent.role,
-            `domain-auto-join:${intent.tenantId}:${intent.userId}:${intent.domain}`,
+            `domain-auto-join:${intent.eventId}`,
           );
           const completed = await this.store.completeAutoJoinMembership(
             intent.tenantId,
             intent.idempotencyKey,
             membershipResult.membership,
+            intent.eventId,
           );
-          if (!completed?.membership) {
+          if (!completed?.membership || completed.eventId !== intent.eventId) {
             throw new DomainAutoJoinRecoveryProblem("membership");
           }
           intent = completed;
         } catch (error) {
-          await runAutoJoinCleanup("deleteUncommittedAutoJoinIntent", error, () =>
-            this.store.deleteUncommittedAutoJoinIntent(intent.tenantId, intent.idempotencyKey),
-          );
-          if (error instanceof AlreadyMemberProblem) {
-            return null;
-          }
+          if (error instanceof AlreadyMemberProblem) return null;
           throw error;
         }
       }
@@ -204,6 +215,7 @@ export class DomainPolicyManager {
           intent.idempotencyKey,
           claimId,
           new Date(Date.now() + AUTO_JOIN_EVENT_CLAIM_LEASE_MS),
+          intent.eventId,
         );
         if (claimed) {
           this.txManager.onAfterCommit(() => this.publishClaimedAutoJoinEvent(claimed, claimId));
@@ -212,7 +224,7 @@ export class DomainPolicyManager {
             intent.tenantId,
             intent.idempotencyKey,
           );
-          if (latest?.eventStatus !== "completed") {
+          if (latest?.eventStatus !== "completed" || latest.eventId !== intent.eventId) {
             throw new DomainAutoJoinRecoveryProblem("event");
           }
         }

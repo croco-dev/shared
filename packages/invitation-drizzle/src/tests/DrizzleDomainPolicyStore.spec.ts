@@ -1,4 +1,7 @@
 import "reflect-metadata";
+import { DomainAutoJoinRecoveryProblem } from "@croco/invitation-core";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 import type { DomainAutoJoinIntentInput, DomainPolicy } from "@croco/invitation-core";
 import type { TxManager } from "@croco/tx-core";
 import type { DrizzleDb } from "@croco/tx-drizzle";
@@ -182,6 +185,98 @@ describe("DrizzleDomainPolicyStore", () => {
     });
   });
 
+  it("should renew with an atomic tenant, key, completed-event and committed-membership fence", async () => {
+    const intent = createAutoJoinIntent({ eventId: "event-2", role: "viewer" });
+    const where = vi
+      .fn()
+      .mockReturnValue({ returning: vi.fn().mockResolvedValue([toAutoJoinRow(intent)]) });
+    const set = vi.fn().mockReturnValue({ where });
+    mockDb.update.mockReturnValue({ set });
+
+    await expect(store.renewAutoJoinIntent(intent, "event-1")).resolves.toEqual({
+      intent,
+      created: true,
+    });
+
+    expect(set).toHaveBeenCalledWith(toAutoJoinRow(intent));
+    const query = new PgDialect().sqlToQuery(where.mock.calls[0][0] as SQL);
+    expect(query.sql).toBe(
+      '("domain_auto_join_intents"."tenant_id" = $1 and "domain_auto_join_intents"."idempotency_key" = $2 and "domain_auto_join_intents"."event_id" = $3 and "domain_auto_join_intents"."event_status" = $4 and "domain_auto_join_intents"."membership_id" is not null)',
+    );
+    expect(query.params).toEqual([intent.tenantId, intent.idempotencyKey, "event-1", "completed"]);
+    expect(mockDb.select).not.toHaveBeenCalled();
+  });
+
+  it("should return the current generation when a renewal loses its compare-and-swap", async () => {
+    const winner = createAutoJoinIntent({ eventId: "event-winner" });
+    mockDb.update.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+      }),
+    });
+    mockDb.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi
+          .fn()
+          .mockReturnValue({ limit: vi.fn().mockResolvedValue([toAutoJoinRow(winner)]) }),
+      }),
+    });
+    await expect(
+      store.renewAutoJoinIntent(createAutoJoinIntent({ eventId: "event-loser" }), "event-1"),
+    ).resolves.toEqual({ intent: winner, created: false });
+  });
+
+  it("should reject renewal when no existing intent remains", async () => {
+    mockDb.update.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+      }),
+    });
+    mockDb.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
+      }),
+    });
+    await expect(
+      store.renewAutoJoinIntent(createAutoJoinIntent(), "event-1"),
+    ).rejects.toBeInstanceOf(DomainAutoJoinRecoveryProblem);
+  });
+
+  it("should include generation fences in membership completion, event claims and cleanup SQL", async () => {
+    const where = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) });
+    mockDb.update.mockReturnValue({ set: vi.fn().mockReturnValue({ where }) });
+    mockDb.delete.mockReturnValue({ where });
+    const current = createAutoJoinIntent({ eventId: "event-current" });
+    mockDb.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi
+          .fn()
+          .mockReturnValue({ limit: vi.fn().mockResolvedValue([toAutoJoinRow(current)]) }),
+      }),
+    });
+    const membership = {
+      id: "membership-old",
+      tenantId: "tenant-1",
+      userId: "user-1",
+      role: "member" as const,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    };
+    await expect(
+      store.completeAutoJoinMembership("tenant-1", "auto-join-key", membership, "event-old"),
+    ).resolves.toEqual(current);
+    await expect(
+      store.claimAutoJoinEvent("tenant-1", "auto-join-key", "claim-old", new Date(), "event-old"),
+    ).resolves.toBeNull();
+    await store.deleteUncommittedAutoJoinIntent("tenant-1", "auto-join-key", "event-old");
+    expect(where).toHaveBeenCalledTimes(3);
+    for (const [condition] of where.mock.calls) {
+      const query = new PgDialect().sqlToQuery(condition as SQL);
+      expect(query.sql).toContain('"domain_auto_join_intents"."event_id" = $3');
+      expect(query.params.slice(0, 3)).toEqual(["tenant-1", "auto-join-key", "event-old"]);
+    }
+  });
+
   it("should persist membership and fence event publication with a claim", async () => {
     const membership = {
       id: "membership-1",
@@ -215,7 +310,7 @@ describe("DrizzleDomainPolicyStore", () => {
       });
 
     await expect(
-      store.completeAutoJoinMembership("tenant-1", "auto-join-key", membership),
+      store.completeAutoJoinMembership("tenant-1", "auto-join-key", membership, committed.eventId),
     ).resolves.toMatchObject({ membership });
     await expect(
       store.claimAutoJoinEvent(
@@ -223,6 +318,7 @@ describe("DrizzleDomainPolicyStore", () => {
         "auto-join-key",
         "claim-1",
         claimed.eventClaimExpiresAt ?? new Date(),
+        claimed.eventId,
       ),
     ).resolves.toMatchObject({ eventStatus: "processing", eventClaimId: "claim-1" });
   });

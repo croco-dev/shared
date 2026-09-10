@@ -1,3 +1,4 @@
+import { DomainAutoJoinRecoveryProblem } from "./problems/DomainPolicyProblems";
 import { DomainPolicyStore } from "./DomainPolicyStore";
 import type { Membership } from "@croco/membership-core";
 import type {
@@ -44,6 +45,28 @@ export class InMemoryDomainPolicyStore extends DomainPolicyStore {
     return { intent: structuredClone(intent), created: true };
   }
 
+  async renewAutoJoinIntent(
+    input: DomainAutoJoinIntentInput,
+    expectedEventId: string,
+  ): Promise<DomainAutoJoinIntentCreation> {
+    const scope = this.getAutoJoinScope(input.tenantId, input.idempotencyKey);
+    const existing = this.autoJoinIntents.get(scope);
+    if (!existing) {
+      throw new DomainAutoJoinRecoveryProblem("membership");
+    }
+    if (
+      existing.eventId !== expectedEventId ||
+      existing.eventStatus !== "completed" ||
+      existing.membership === null
+    ) {
+      return { intent: structuredClone(existing), created: false };
+    }
+
+    const intent = structuredClone(input);
+    this.autoJoinIntents.set(scope, intent);
+    return { intent: structuredClone(intent), created: true };
+  }
+
   async findAutoJoinIntent(
     tenantId: string,
     idempotencyKey: string,
@@ -56,11 +79,16 @@ export class InMemoryDomainPolicyStore extends DomainPolicyStore {
     tenantId: string,
     idempotencyKey: string,
     membership: Membership,
+    expectedEventId: string,
   ): Promise<DomainAutoJoinIntent | null> {
     const scope = this.getAutoJoinScope(tenantId, idempotencyKey);
     const intent = this.autoJoinIntents.get(scope);
     if (!intent) {
       return null;
+    }
+
+    if (intent.eventId !== expectedEventId || intent.membership !== null) {
+      return structuredClone(intent);
     }
 
     const updated = { ...intent, membership: structuredClone(membership) };
@@ -73,11 +101,13 @@ export class InMemoryDomainPolicyStore extends DomainPolicyStore {
     idempotencyKey: string,
     claimId: string,
     claimExpiresAt: Date,
+    expectedEventId: string,
   ): Promise<DomainAutoJoinIntent | null> {
     const scope = this.getAutoJoinScope(tenantId, idempotencyKey);
     const intent = this.autoJoinIntents.get(scope);
     if (
       !intent?.membership ||
+      intent.eventId !== expectedEventId ||
       intent.eventStatus === "completed" ||
       (intent.eventStatus === "processing" &&
         intent.eventClaimExpiresAt !== null &&
@@ -136,10 +166,14 @@ export class InMemoryDomainPolicyStore extends DomainPolicyStore {
     });
   }
 
-  async deleteUncommittedAutoJoinIntent(tenantId: string, idempotencyKey: string): Promise<void> {
+  async deleteUncommittedAutoJoinIntent(
+    tenantId: string,
+    idempotencyKey: string,
+    expectedEventId: string,
+  ): Promise<void> {
     const scope = this.getAutoJoinScope(tenantId, idempotencyKey);
     const intent = this.autoJoinIntents.get(scope);
-    if (intent && intent.membership === null) {
+    if (intent && intent.eventId === expectedEventId && intent.membership === null) {
       this.autoJoinIntents.delete(scope);
     }
   }
