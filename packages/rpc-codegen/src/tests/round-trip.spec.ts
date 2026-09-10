@@ -481,18 +481,22 @@ describe("rpc-codegen round trip", () => {
         {
           createResponse: unreadableJsonResponse,
           invoke: (options: unknown) => healthModule.healthClient.requiredAbort(options),
+          returnsResult: false,
         },
         {
           createResponse: unreadableJsonResponse,
           invoke: (options: unknown) => healthModule.healthClient.requiredAbortResult(options),
+          returnsResult: true,
         },
         {
           createResponse: unreadableTextResponse,
           invoke: (options: unknown) => healthModule.healthClient.optionalAbort(options),
+          returnsResult: false,
         },
         {
           createResponse: unreadableTextResponse,
           invoke: (options: unknown) => healthModule.healthClient.optionalAbortResult(options),
+          returnsResult: true,
         },
       ];
 
@@ -504,7 +508,15 @@ describe("rpc-codegen round trip", () => {
           vi.fn(async () => testCase.createResponse(abort)),
         );
 
-        await expect(testCase.invoke({ telemetry })).rejects.toBe(abort);
+        if (testCase.returnsResult) {
+          await expect(testCase.invoke({ telemetry })).resolves.toEqual({
+            ok: false,
+            kind: "external",
+            error: abort,
+          });
+        } else {
+          await expect(testCase.invoke({ telemetry })).rejects.toBe(abort);
+        }
         expect(events.map((event) => event.kind)).toEqual([
           "rpc.request.started",
           "rpc.request.cancelled",
