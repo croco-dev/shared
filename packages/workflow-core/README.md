@@ -94,9 +94,17 @@ await runner.execute("billing-webhook", { subscriptionId: "sub_123" });
 Retryable workflow failures use the parent execution's `maxAttempts`. If a retryable failure leaves an
 idempotent workflow in `retrying`, calling `execute()` again with the same idempotency key resumes the
 same parent execution for the next attempt instead of returning it as a reused execution. Typed workflows
-persist a fingerprint of their workflow, resolver, and registered task-handler contracts. A retry resumes
-only when that fingerprint still matches, so persisted step results cannot cross a deployment that changed
-the typed contract. Legacy string workflows retain their existing retry behavior.
+persist a versioned fingerprint of the workflow name, ordered step names and task names, input-resolver
+presence, and declared workflow/task execution options. Function bodies and JavaScript class or method
+names are excluded, so formatting, transpilation, and minification do not invalidate retries when explicit
+workflow and task names remain stable. A retry resumes only when this structural fingerprint matches.
+For incompatible payload, result, or resolver changes that keep the same structure, use a new explicit
+workflow or task name (for example, a version suffix). Runtime fingerprints cannot verify TypeScript types.
+Legacy string workflows retain their existing retry behavior.
+
+The structural fingerprint uses `workflow-contract:v2`. Existing typed executions persisted with a v1
+fingerprint cannot be safely compared with v2 and are rejected on retry. Drain those retries with the
+previous deployment before upgrading; do not rewrite stored fingerprints to bypass the contract check.
 
 ## Operations
 

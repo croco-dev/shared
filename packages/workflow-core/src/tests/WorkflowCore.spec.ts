@@ -21,6 +21,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Workflow } from "../libs/decorators/Workflow";
 import { defineWorkflow } from "../libs/defineWorkflow";
 import { WorkflowDiagnosticsProvider } from "../libs/diagnostics/WorkflowDiagnosticsProvider";
+import type { WorkflowStepResult } from "../libs/types";
 import { WorkflowRegistry } from "../libs/WorkflowRegistry";
 import { WorkflowRunner } from "../libs/WorkflowRunner";
 
@@ -436,7 +437,7 @@ describe("workflow-core", () => {
     ).rejects.toThrow("typed workflow reference does not match the registered definition");
   });
 
-  it("validates the typed task contract before resuming persisted step results", async () => {
+  it("resumes persisted typed step results after equivalent deployment source changes", async () => {
     type BillingPayload = { readonly subscriptionId: string };
     let syncAttempts = 0;
 
@@ -496,30 +497,61 @@ describe("workflow-core", () => {
       "typed sync retryable outage",
     );
 
-    const originalFetch = TypedRetryTasks.prototype.fetch;
-    Object.defineProperty(TypedRetryTasks.prototype, "fetch", {
-      configurable: true,
-      value: (payload: BillingPayload) => ({
-        subscriptionId: payload.subscriptionId,
-        tier: "enterprise",
-      }),
-      writable: true,
-    });
+    Container.reset();
+    MetadataStorage.clear();
+    TaskRegistry.getInstance().reset();
+    const redeployedFetch = vi.fn();
 
-    try {
-      await expect(runner.execute(definition, { subscriptionId: "sub_123" })).rejects.toThrow(
-        "has a different typed workflow contract",
-      );
-      expect(syncAttempts).toBe(1);
-    } finally {
-      Object.defineProperty(TypedRetryTasks.prototype, "fetch", {
-        configurable: true,
-        value: originalFetch,
-        writable: true,
-      });
+    @Component()
+    class MinifiedTasks {
+      @Task({ name: "billing.typed-retry-fetch" })
+      a(input: BillingPayload): { readonly subscriptionId: string; readonly plan: string } {
+        redeployedFetch();
+        const { subscriptionId } = input;
+        return { plan: "pro", subscriptionId };
+      }
+
+      @Task({ name: "billing.typed-retry-sync", maxAttempts: 2 })
+      b(input: { readonly subscriptionId: string; readonly plan: string }): {
+        readonly synchronized: string;
+      } {
+        syncAttempts++;
+        const synchronized = input.subscriptionId;
+        return { synchronized };
+      }
     }
 
-    const retried = await runner.execute(definition, { subscriptionId: "sub_123" });
+    const redeployedDefinition = defineWorkflow<BillingPayload>({
+      name: "billing-typed-retry",
+      maxAttempts: 2,
+      idempotencyKey: function resolveKey(context) {
+        return "billing-typed-retry:" + context.payload.subscriptionId;
+      },
+    })
+      .step(taskRef(MinifiedTasks, "a", "billing.typed-retry-fetch"))
+      .step(
+        taskRef(MinifiedTasks, "b", "billing.typed-retry-sync"),
+        function resolveInput(context) {
+          const [completed] = context.previousResults;
+          return completed.result;
+        },
+      )
+      .build();
+
+    @Component()
+    class MinifiedWorkflows {
+      @Workflow(redeployedDefinition)
+      c(): void {}
+    }
+
+    Container.set(MinifiedTasks, new MinifiedTasks());
+    Container.set(MinifiedWorkflows, new MinifiedWorkflows());
+    const redeployedRunner = new WorkflowRunner(manager, WorkflowRegistry.fromMetadata());
+    const retried = await redeployedRunner.execute(redeployedDefinition, {
+      subscriptionId: "sub_123",
+    });
+    expect(redeployedFetch).not.toHaveBeenCalled();
+    expect(syncAttempts).toBe(2);
     const [workflowExecution] = await manager.list({ type: "workflow" });
 
     expect(retried).toEqual(
@@ -537,10 +569,161 @@ describe("workflow-core", () => {
         status: "completed",
         attempts: 2,
         metadata: expect.objectContaining({
-          workflowContractFingerprint: expect.stringMatching(/^workflow-contract:v1:[a-f0-9]{64}$/),
+          workflowContractFingerprint: expect.stringMatching(/^workflow-contract:v2:[a-f0-9]{64}$/),
         }),
       }),
     );
+  });
+
+  it.each([
+    "step addition",
+    "step removal",
+    "step rename",
+    "step reorder",
+    "task replacement",
+    "input resolver presence",
+    "task options",
+    "workflow options",
+    "idempotency resolver kind",
+    "legacy v1 fingerprint",
+  ])("rejects persisted typed contract drift for %s before starting attempts", async (change) => {
+    const fetch = vi.fn((payload: number) => payload + 1);
+    const synchronize = vi.fn(() => {
+      throw new RetryableStructuralProblem();
+    });
+
+    class RetryableStructuralProblem extends Problem {
+      readonly retryable = true;
+
+      constructor() {
+        super(
+          "workflow-core/test-retryable-structural",
+          ProblemCategory.InternalServerError,
+          "structural retry outage",
+        );
+      }
+    }
+
+    @Component()
+    class StructuralTasks {
+      @Task({ name: "structural.fetch" })
+      fetch(payload: number): number {
+        return fetch(payload);
+      }
+
+      @Task({ name: "structural.sync", maxAttempts: 2 })
+      sync(): number {
+        return synchronize();
+      }
+
+      @Task({ name: "structural.replacement" })
+      replacement(payload: number): number {
+        return payload;
+      }
+    }
+
+    const fetchTask = taskRef(StructuralTasks, "fetch", "structural.fetch");
+    const syncTask = taskRef(StructuralTasks, "sync", "structural.sync");
+    const replacementTask = taskRef(StructuralTasks, "replacement", "structural.replacement");
+    const options = {
+      name: "structural-retry",
+      maxAttempts: 2,
+      idempotencyKey: "structural-retry-key",
+    };
+    const original = defineWorkflow<number>(options)
+      .step("fetch", fetchTask)
+      .step("sync", syncTask)
+      .build();
+
+    @Component()
+    class StructuralWorkflows {
+      @Workflow(original)
+      run(): void {}
+    }
+
+    Container.set(StructuralTasks, new StructuralTasks());
+    Container.set(StructuralWorkflows, new StructuralWorkflows());
+    const originalRegistry = WorkflowRegistry.fromMetadata();
+    const originalRunner = new WorkflowRunner(manager, originalRegistry);
+    await expect(originalRunner.execute(original, 1)).rejects.toThrow("structural retry outage");
+    const [execution] = await manager.list({ type: "workflow" });
+    const priorChildren = await manager.list({ parentId: execution.id });
+
+    const nextOptions = {
+      ...options,
+      ...(change === "workflow options" ? { maxAttempts: 3 } : {}),
+      ...(change === "idempotency resolver kind"
+        ? { idempotencyKey: () => "structural-retry-key" }
+        : {}),
+    };
+    const builder = defineWorkflow<number>(nextOptions);
+    const changed = (() => {
+      switch (change) {
+        case "step addition":
+          return builder
+            .step("fetch", fetchTask)
+            .step("sync", syncTask)
+            .step("added", fetchTask)
+            .build();
+        case "step removal":
+          return builder.step("fetch", fetchTask).build();
+        case "step rename":
+          return builder.step("renamed", fetchTask).step("sync", syncTask).build();
+        case "step reorder":
+          return builder.step("sync", syncTask).step("fetch", fetchTask).build();
+        case "task replacement":
+          return builder.step("fetch", replacementTask).step("sync", syncTask).build();
+        case "input resolver presence":
+          return builder
+            .step("fetch", fetchTask, ({ payload }) => payload)
+            .step("sync", syncTask)
+            .build();
+        default:
+          return builder.step("fetch", fetchTask).step("sync", syncTask).build();
+      }
+    })();
+
+    MetadataStorage.clear();
+    @Component()
+    class RedeployedStructuralWorkflows {
+      @Workflow(changed)
+      run(): void {}
+    }
+    Container.set(RedeployedStructuralWorkflows, new RedeployedStructuralWorkflows());
+    const freshTasks = new TaskRegistry(
+      originalRegistry.taskRegistry.getAll().map((task) =>
+        change === "task options" && task.name === "structural.sync"
+          ? {
+              ...task,
+              metadata: {
+                ...task.metadata,
+                options: { ...task.metadata.options, maxAttempts: 3 },
+              },
+            }
+          : task,
+      ),
+    );
+    const freshRegistry = WorkflowRegistry.fromMetadata({ taskRegistry: freshTasks });
+    const freshRunner = new WorkflowRunner(manager, freshRegistry);
+    if (change === "legacy v1 fingerprint") {
+      await store.update(execution.id, {
+        metadata: {
+          ...execution.metadata,
+          workflowContractFingerprint: `workflow-contract:v1:${"0".repeat(64)}`,
+        },
+      });
+    }
+    const start = vi.spyOn(manager, "start");
+    await expect(
+      freshRunner.execute<number, readonly WorkflowStepResult[]>(changed, 1),
+    ).rejects.toThrow("has a different typed workflow contract");
+    expect(start).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(synchronize).toHaveBeenCalledTimes(1);
+    expect(await manager.get(execution.id)).toEqual(
+      expect.objectContaining({ status: "retrying", attempts: 1 }),
+    );
+    expect(await manager.list({ parentId: execution.id })).toEqual(priorChildren);
   });
 
   it("rejects typed task references that do not match the registered handler", () => {
