@@ -283,12 +283,7 @@ export class R2StorageProvider extends BaseStorageProvider {
 
     try {
       const chunks: Uint8Array[] = [];
-      const stream = this.bindOperationSignal(
-        await this.getStream(key, options),
-        options,
-        "get",
-        key,
-      );
+      const stream = await this.getStream(key, options);
       let totalBytes = 0;
 
       for await (const chunk of stream) {

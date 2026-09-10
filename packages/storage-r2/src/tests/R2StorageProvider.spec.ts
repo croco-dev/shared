@@ -462,6 +462,54 @@ describe("R2StorageProvider", () => {
       expect(bytes).toEqual(new TextEncoder().encode("hello world"));
     });
 
+    it("binds the download signal once and removes it after buffering", async () => {
+      const controller = new AbortController();
+      const addListener = vi.spyOn(controller.signal, "addEventListener");
+      const removeListener = vi.spyOn(controller.signal, "removeEventListener");
+      mockSend.mockResolvedValue({
+        Body: createMockR2Body([new TextEncoder().encode("hello world")]),
+      });
+
+      await expect(provider.get("test/file.txt", { signal: controller.signal })).resolves.toEqual(
+        new TextEncoder().encode("hello world"),
+      );
+      expect(addListener).toHaveBeenCalledTimes(1);
+      expect(removeListener).toHaveBeenCalledWith("abort", addListener.mock.calls[0]?.[1]);
+    });
+
+    it("cancels a pending download once and preserves the get abort error", async () => {
+      const controller = new AbortController();
+      const reason = new Error("download cancelled");
+      const cancel = vi.fn();
+      const addListener = vi.spyOn(controller.signal, "addEventListener");
+      const removeListener = vi.spyOn(controller.signal, "removeEventListener");
+      mockSend.mockResolvedValue({
+        Body: {
+          transformToWebStream: () => new ReadableStream<Uint8Array>({ cancel }),
+        },
+      });
+
+      const download = provider.get("test/file.txt", { signal: controller.signal });
+      const rejection = expect(download).rejects.toMatchObject({
+        cause: reason,
+        code: "STORAGE_OPERATION_ABORTED",
+        extensions: { operation: "get", key: "test/file.txt" },
+      });
+      await vi.waitFor(() => expect(addListener).toHaveBeenCalled());
+      controller.abort(reason);
+
+      await rejection;
+      expect(addListener).toHaveBeenCalledTimes(1);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(cancel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: reason,
+          code: "STORAGE_OPERATION_ABORTED",
+        }),
+      );
+      expect(removeListener).toHaveBeenCalledWith("abort", addListener.mock.calls[0]?.[1]);
+    });
+
     it("should throw R2ObjectTooLargeProblem when buffered bytes exceed the limit", async () => {
       const oversizedChunk = new Uint8Array(6 * 1024 * 1024);
       mockSend.mockResolvedValue({
