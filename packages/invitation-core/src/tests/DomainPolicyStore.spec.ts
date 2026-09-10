@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { DomainAutoJoinRecoveryProblem } from "../libs/problems/DomainPolicyProblems";
 import { InMemoryDomainPolicyStore } from "../libs/InMemoryDomainPolicyStore";
 import type { DomainAutoJoinIntentInput, DomainPolicy } from "../libs/types";
 
@@ -130,11 +131,193 @@ describe("InMemoryDomainPolicyStore", () => {
     await expect(store.createAutoJoinIntent(input)).resolves.toMatchObject({ created: true });
     await expect(store.createAutoJoinIntent(input)).resolves.toMatchObject({ created: false });
     await expect(
-      store.completeAutoJoinMembership(input.tenantId, input.idempotencyKey, membership),
+      store.completeAutoJoinMembership(
+        input.tenantId,
+        input.idempotencyKey,
+        membership,
+        input.eventId,
+      ),
     ).resolves.toMatchObject({ membership });
     await expect(
       store.findAutoJoinIntent(input.tenantId, input.idempotencyKey),
     ).resolves.toMatchObject({ membership });
+  });
+
+  it("should preserve the first committed membership when completion callers race", async () => {
+    const input = createAutoJoinIntent();
+    await store.createAutoJoinIntent(input);
+    const memberships = ["membership-1", "membership-2"].map((id) => ({
+      id,
+      tenantId: input.tenantId,
+      userId: input.userId,
+      role: input.role,
+      createdAt: new Date("2026-01-01T00:01:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:01:00.000Z"),
+    }));
+    const results = await Promise.all(
+      memberships.map((membership) =>
+        store.completeAutoJoinMembership(
+          input.tenantId,
+          input.idempotencyKey,
+          membership,
+          input.eventId,
+        ),
+      ),
+    );
+    expect(results.map((intent) => intent?.membership)).toEqual([memberships[0], memberships[0]]);
+    await expect(
+      store.findAutoJoinIntent(input.tenantId, input.idempotencyKey),
+    ).resolves.toMatchObject({ membership: memberships[0] });
+  });
+
+  it.each([false, true])(
+    "should atomically renew one completed generation with committed input %s",
+    async (committed) => {
+      const completed = createAutoJoinIntent({
+        eventStatus: "completed",
+        membership: {
+          id: "membership-1",
+          tenantId: "tenant-1",
+          userId: "user-1",
+          role: "member",
+          createdAt: new Date("2026-01-01T00:01:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:01:00.000Z"),
+        },
+      });
+      await store.createAutoJoinIntent(completed);
+      const inputs = ["event-2", "event-3"].map((eventId) =>
+        createAutoJoinIntent({
+          eventId,
+          role: "viewer",
+          email: "changed@croco.dev",
+          membership: committed
+            ? {
+                tenantId: "tenant-1",
+                userId: "user-1",
+                createdAt: new Date("2026-01-02T00:00:00.000Z"),
+                updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+                id: "membership-2",
+                role: "viewer",
+              }
+            : null,
+        }),
+      );
+
+      const results = await Promise.all(
+        inputs.map((input) => store.renewAutoJoinIntent(input, completed.eventId)),
+      );
+
+      expect(results.map((result) => result.created)).toEqual([true, false]);
+      expect(results[0].intent).toEqual(inputs[0]);
+      expect(results[1].intent).toEqual(inputs[0]);
+      results[0].intent.email = "mutated@croco.dev";
+      inputs[0].role = "admin";
+      await expect(
+        store.findAutoJoinIntent(completed.tenantId, completed.idempotencyKey),
+      ).resolves.toMatchObject({
+        eventId: "event-2",
+        email: "changed@croco.dev",
+        role: "viewer",
+        membership: committed ? { id: "membership-2", role: "viewer" } : null,
+      });
+    },
+  );
+
+  it.each([
+    { eventStatus: "pending" as const, expectedEventId: "event-1", committed: true },
+    { eventStatus: "processing" as const, expectedEventId: "event-1", committed: true },
+    { eventStatus: "processing" as const, expectedEventId: "event-1", committed: false },
+    { eventStatus: "pending" as const, expectedEventId: "stale-event", committed: false },
+    { eventStatus: "pending" as const, expectedEventId: "event-1", committed: false },
+    { eventStatus: "completed" as const, expectedEventId: "stale-event", committed: true },
+    { eventStatus: "completed" as const, expectedEventId: "event-1", committed: false },
+  ])(
+    "should preserve an intent when its renewal fence does not match: %j",
+    async ({ eventStatus, expectedEventId, committed }) => {
+      const existing = createAutoJoinIntent({
+        eventStatus,
+        membership: committed
+          ? {
+              id: "membership-1",
+              tenantId: "tenant-1",
+              userId: "user-1",
+              role: "member",
+              createdAt: new Date("2026-01-01T00:01:00.000Z"),
+              updatedAt: new Date("2026-01-01T00:01:00.000Z"),
+            }
+          : null,
+      });
+      await store.createAutoJoinIntent(existing);
+      await expect(
+        store.renewAutoJoinIntent(createAutoJoinIntent({ eventId: "event-2" }), expectedEventId),
+      ).resolves.toEqual({ intent: existing, created: false });
+      await expect(
+        store.findAutoJoinIntent(existing.tenantId, existing.idempotencyKey),
+      ).resolves.toEqual(existing);
+    },
+  );
+
+  it("should reject renewal when the tenant-scoped intent does not exist", async () => {
+    await store.createAutoJoinIntent(createAutoJoinIntent());
+    await expect(
+      store.renewAutoJoinIntent(createAutoJoinIntent({ tenantId: "tenant-2" }), "event-1"),
+    ).rejects.toBeInstanceOf(DomainAutoJoinRecoveryProblem);
+  });
+
+  it("should fence delayed membership, claim and cleanup operations after renewal", async () => {
+    const membership = {
+      id: "membership-old",
+      tenantId: "tenant-1",
+      userId: "user-1",
+      role: "member" as const,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    };
+    const previous = createAutoJoinIntent({ membership, eventStatus: "completed" });
+    await store.createAutoJoinIntent(previous);
+    const renewed = createAutoJoinIntent({ eventId: "event-2" });
+    await store.renewAutoJoinIntent(renewed, previous.eventId);
+    await expect(
+      store.completeAutoJoinMembership(
+        renewed.tenantId,
+        renewed.idempotencyKey,
+        membership,
+        previous.eventId,
+      ),
+    ).resolves.toEqual(renewed);
+    await store.deleteUncommittedAutoJoinIntent(
+      renewed.tenantId,
+      renewed.idempotencyKey,
+      previous.eventId,
+    );
+    await expect(
+      store.findAutoJoinIntent(renewed.tenantId, renewed.idempotencyKey),
+    ).resolves.toEqual(renewed);
+    const currentMembership = { ...membership, id: "membership-new" };
+    await store.completeAutoJoinMembership(
+      renewed.tenantId,
+      renewed.idempotencyKey,
+      currentMembership,
+      renewed.eventId,
+    );
+    await expect(
+      store.claimAutoJoinEvent(
+        renewed.tenantId,
+        renewed.idempotencyKey,
+        "stale-claim",
+        new Date(Date.now() + 60_000),
+        previous.eventId,
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      store.claimAutoJoinEvent(
+        renewed.tenantId,
+        renewed.idempotencyKey,
+        "current-claim",
+        new Date(Date.now() + 60_000),
+        renewed.eventId,
+      ),
+    ).resolves.toMatchObject({ eventClaimId: "current-claim", membership: currentMembership });
   });
 
   it("should lease, release, reclaim, and complete auto-join event delivery", async () => {
@@ -156,6 +339,7 @@ describe("InMemoryDomainPolicyStore", () => {
         input.idempotencyKey,
         "claim-1",
         new Date(Date.now() + 60_000),
+        input.eventId,
       ),
     ).resolves.toMatchObject({ eventStatus: "processing", eventClaimId: "claim-1" });
     await expect(
@@ -164,6 +348,7 @@ describe("InMemoryDomainPolicyStore", () => {
         input.idempotencyKey,
         "claim-2",
         new Date(Date.now() + 60_000),
+        input.eventId,
       ),
     ).resolves.toBeNull();
 
@@ -174,6 +359,7 @@ describe("InMemoryDomainPolicyStore", () => {
         input.idempotencyKey,
         "claim-2",
         new Date(Date.now() + 60_000),
+        input.eventId,
       ),
     ).resolves.toMatchObject({ eventClaimId: "claim-2" });
     await expect(
@@ -197,8 +383,16 @@ describe("InMemoryDomainPolicyStore", () => {
     await store.createAutoJoinIntent(pending);
     await store.createAutoJoinIntent(committed);
 
-    await store.deleteUncommittedAutoJoinIntent(pending.tenantId, pending.idempotencyKey);
-    await store.deleteUncommittedAutoJoinIntent(committed.tenantId, committed.idempotencyKey);
+    await store.deleteUncommittedAutoJoinIntent(
+      pending.tenantId,
+      pending.idempotencyKey,
+      pending.eventId,
+    );
+    await store.deleteUncommittedAutoJoinIntent(
+      committed.tenantId,
+      committed.idempotencyKey,
+      committed.eventId,
+    );
 
     await expect(
       store.findAutoJoinIntent(pending.tenantId, pending.idempotencyKey),

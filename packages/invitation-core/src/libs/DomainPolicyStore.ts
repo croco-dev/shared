@@ -14,6 +14,16 @@ export abstract class DomainPolicyStore {
   abstract createAutoJoinIntent(
     input: DomainAutoJoinIntentInput,
   ): Promise<DomainAutoJoinIntentCreation>;
+  /**
+   * Atomically replaces the tenant/key intent only when its event ID matches,
+   * its event is completed, and its membership is non-null.
+   * Returns created=true only for the winner; otherwise returns the current intent.
+   * Throws DomainAutoJoinRecoveryProblem when the intent no longer exists.
+   */
+  abstract renewAutoJoinIntent(
+    input: DomainAutoJoinIntentInput,
+    expectedEventId: string,
+  ): Promise<DomainAutoJoinIntentCreation>;
   abstract findAutoJoinIntent(
     tenantId: string,
     idempotencyKey: string,
@@ -22,12 +32,14 @@ export abstract class DomainPolicyStore {
     tenantId: string,
     idempotencyKey: string,
     membership: Membership,
+    expectedEventId: string,
   ): Promise<DomainAutoJoinIntent | null>;
   abstract claimAutoJoinEvent(
     tenantId: string,
     idempotencyKey: string,
     claimId: string,
     claimExpiresAt: Date,
+    expectedEventId: string,
   ): Promise<DomainAutoJoinIntent | null>;
   abstract completeAutoJoinEvent(
     tenantId: string,
@@ -39,5 +51,9 @@ export abstract class DomainPolicyStore {
     idempotencyKey: string,
     claimId: string,
   ): Promise<void>;
-  abstract deleteUncommittedAutoJoinIntent(tenantId: string, idempotencyKey: string): Promise<void>;
+  abstract deleteUncommittedAutoJoinIntent(
+    tenantId: string,
+    idempotencyKey: string,
+    expectedEventId: string,
+  ): Promise<void>;
 }

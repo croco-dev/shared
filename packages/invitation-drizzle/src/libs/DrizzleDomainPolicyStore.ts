@@ -173,6 +173,40 @@ export class DrizzleDomainPolicyStore extends DomainPolicyStore {
     return { intent: existing, created: false };
   }
 
+  async renewAutoJoinIntent(
+    input: DomainAutoJoinIntentInput,
+    expectedEventId: string,
+  ): Promise<DomainAutoJoinIntentCreation> {
+    const client = this.txManager.getClient() ?? this.db;
+    const updated = (await client
+      .update(domainAutoJoinIntents)
+      .set(this.mapAutoJoinIntentToValues(input))
+      .where(
+        and(
+          eq(domainAutoJoinIntents.tenantId, input.tenantId),
+          eq(domainAutoJoinIntents.idempotencyKey, input.idempotencyKey),
+          eq(domainAutoJoinIntents.eventId, expectedEventId),
+          eq(domainAutoJoinIntents.eventStatus, "completed"),
+          isNotNull(domainAutoJoinIntents.membershipId),
+        ),
+      )
+      .returning()) as DomainAutoJoinIntentRow[];
+    const [renewed] = updated;
+    if (renewed) {
+      return { intent: this.mapToAutoJoinIntent(renewed), created: true };
+    }
+
+    const existing = await this.findAutoJoinIntentWithClient(
+      client,
+      input.tenantId,
+      input.idempotencyKey,
+    );
+    if (!existing) {
+      throw new DomainAutoJoinRecoveryProblem("membership");
+    }
+    return { intent: existing, created: false };
+  }
+
   async findAutoJoinIntent(
     tenantId: string,
     idempotencyKey: string,
@@ -185,6 +219,7 @@ export class DrizzleDomainPolicyStore extends DomainPolicyStore {
     tenantId: string,
     idempotencyKey: string,
     membership: NonNullable<DomainAutoJoinIntent["membership"]>,
+    expectedEventId: string,
   ): Promise<DomainAutoJoinIntent | null> {
     const client = this.txManager.getClient() ?? this.db;
     const updated = (await client
@@ -199,6 +234,7 @@ export class DrizzleDomainPolicyStore extends DomainPolicyStore {
         and(
           eq(domainAutoJoinIntents.tenantId, tenantId),
           eq(domainAutoJoinIntents.idempotencyKey, idempotencyKey),
+          eq(domainAutoJoinIntents.eventId, expectedEventId),
           isNull(domainAutoJoinIntents.membershipId),
         ),
       )
@@ -216,6 +252,7 @@ export class DrizzleDomainPolicyStore extends DomainPolicyStore {
     idempotencyKey: string,
     claimId: string,
     claimExpiresAt: Date,
+    expectedEventId: string,
   ): Promise<DomainAutoJoinIntent | null> {
     const client = this.txManager.getClient() ?? this.db;
     const updated = (await client
@@ -229,6 +266,7 @@ export class DrizzleDomainPolicyStore extends DomainPolicyStore {
         and(
           eq(domainAutoJoinIntents.tenantId, tenantId),
           eq(domainAutoJoinIntents.idempotencyKey, idempotencyKey),
+          eq(domainAutoJoinIntents.eventId, expectedEventId),
           isNotNull(domainAutoJoinIntents.membershipId),
           or(
             eq(domainAutoJoinIntents.eventStatus, "pending"),
@@ -296,7 +334,11 @@ export class DrizzleDomainPolicyStore extends DomainPolicyStore {
       );
   }
 
-  async deleteUncommittedAutoJoinIntent(tenantId: string, idempotencyKey: string): Promise<void> {
+  async deleteUncommittedAutoJoinIntent(
+    tenantId: string,
+    idempotencyKey: string,
+    expectedEventId: string,
+  ): Promise<void> {
     const client = this.txManager.getClient() ?? this.db;
     await client
       .delete(domainAutoJoinIntents)
@@ -304,6 +346,7 @@ export class DrizzleDomainPolicyStore extends DomainPolicyStore {
         and(
           eq(domainAutoJoinIntents.tenantId, tenantId),
           eq(domainAutoJoinIntents.idempotencyKey, idempotencyKey),
+          eq(domainAutoJoinIntents.eventId, expectedEventId),
           isNull(domainAutoJoinIntents.membershipId),
         ),
       );

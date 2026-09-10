@@ -26,7 +26,7 @@ title: "DomainPolicyStore"
 
 ### claimAutoJoinEvent()
 
-> `abstract` **claimAutoJoinEvent**(`tenantId`, `idempotencyKey`, `claimId`, `claimExpiresAt`): `Promise`\<[`DomainAutoJoinIntent`](/api/invitation-core/src/type-aliases/domainautojoinintent/) \| `null`\>
+> `abstract` **claimAutoJoinEvent**(`tenantId`, `idempotencyKey`, `claimId`, `claimExpiresAt`, `expectedEventId`): `Promise`\<[`DomainAutoJoinIntent`](/api/invitation-core/src/type-aliases/domainautojoinintent/) \| `null`\>
 
 #### Parameters
 
@@ -45,6 +45,10 @@ title: "DomainPolicyStore"
 ##### claimExpiresAt
 
 `Date`
+
+##### expectedEventId
+
+`string`
 
 #### Returns
 
@@ -78,7 +82,7 @@ title: "DomainPolicyStore"
 
 ### completeAutoJoinMembership()
 
-> `abstract` **completeAutoJoinMembership**(`tenantId`, `idempotencyKey`, `membership`): `Promise`\<[`DomainAutoJoinIntent`](/api/invitation-core/src/type-aliases/domainautojoinintent/) \| `null`\>
+> `abstract` **completeAutoJoinMembership**(`tenantId`, `idempotencyKey`, `membership`, `expectedEventId`): `Promise`\<[`DomainAutoJoinIntent`](/api/invitation-core/src/type-aliases/domainautojoinintent/) \| `null`\>
 
 #### Parameters
 
@@ -93,6 +97,10 @@ title: "DomainPolicyStore"
 ##### membership
 
 [`Membership`](/api/membership-core/src/type-aliases/membership/)
+
+##### expectedEventId
+
+`string`
 
 #### Returns
 
@@ -138,7 +146,7 @@ title: "DomainPolicyStore"
 
 ### deleteUncommittedAutoJoinIntent()
 
-> `abstract` **deleteUncommittedAutoJoinIntent**(`tenantId`, `idempotencyKey`): `Promise`\<`void`\>
+> `abstract` **deleteUncommittedAutoJoinIntent**(`tenantId`, `idempotencyKey`, `expectedEventId`): `Promise`\<`void`\>
 
 #### Parameters
 
@@ -147,6 +155,10 @@ title: "DomainPolicyStore"
 `string`
 
 ##### idempotencyKey
+
+`string`
+
+##### expectedEventId
 
 `string`
 
@@ -233,6 +245,31 @@ title: "DomainPolicyStore"
 #### Returns
 
 `Promise`\<`void`\>
+
+---
+
+### renewAutoJoinIntent()
+
+> `abstract` **renewAutoJoinIntent**(`input`, `expectedEventId`): `Promise`\<[`DomainAutoJoinIntentCreation`](/api/invitation-core/src/type-aliases/domainautojoinintentcreation/)\>
+
+Atomically replaces the tenant/key intent only when its event ID matches,
+its event is completed, and its membership is non-null.
+Returns created=true only for the winner; otherwise returns the current intent.
+Throws DomainAutoJoinRecoveryProblem when the intent no longer exists.
+
+#### Parameters
+
+##### input
+
+[`DomainAutoJoinIntent`](/api/invitation-core/src/type-aliases/domainautojoinintent/)
+
+##### expectedEventId
+
+`string`
+
+#### Returns
+
+`Promise`\<[`DomainAutoJoinIntentCreation`](/api/invitation-core/src/type-aliases/domainautojoinintentcreation/)\>
 
 ---
 
