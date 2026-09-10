@@ -21,10 +21,10 @@
  * const manager = new MembershipManager({ store, eventPublisher, eventDelivery: 'development' });
  *
  * // 멤버 추가
- * const membership = await manager.addMember('tenant-123', 'user-456', 'admin', 'member:add:user-456');
+ * const membership = await manager.addMember('tenant-123', 'user-456', 'member', 'member:add:user-456');
  *
  * // 역할 변경
- * await manager.updateRole('tenant-123', 'user-456', 'owner', 'member:promote:user-456');
+ * await manager.updateRole('tenant-123', 'user-456', 'admin', 'member:promote:user-456');
  *
  * // 소유권 이전
  * await manager.transferOwnership('tenant-123', 'current-owner', 'new-owner', 'owner:transfer:new-owner');
@@ -146,10 +146,10 @@ export type { AddMembershipCommandResult } from "./libs/interfaces/AbstractMembe
  * });
  *
  * // 멤버 추가
- * await manager.addMember('tenant-123', 'user-456', 'admin', 'member:add:user-456');
+ * await manager.addMember('tenant-123', 'user-456', 'member', 'member:add:user-456');
  *
  * // 역할 변경
- * await manager.updateRole('tenant-123', 'user-456', 'owner', 'member:promote:user-456');
+ * await manager.updateRole('tenant-123', 'user-456', 'admin', 'member:promote:user-456');
  *
  * // 소유권 이전
  * await manager.transferOwnership('tenant-123', 'current-owner', 'new-owner', 'owner:transfer:new-owner');
@@ -199,10 +199,10 @@ export { MembershipOwnerGuard } from "./libs/MembershipOwnerGuard";
  * });
  *
  * // 멤버 추가
- * await service.addMember('tenant-123', 'user-456', 'admin', 'member:add:user-456');
+ * await service.addMember('tenant-123', 'user-456', 'member', 'member:add:user-456');
  *
  * // 역할 변경
- * await service.updateRole('tenant-123', 'user-456', 'owner', 'member:promote:user-456');
+ * await service.updateRole('tenant-123', 'user-456', 'admin', 'member:promote:user-456');
  *
  * // 소유권 이전
  * await service.transferOwnership('tenant-123', 'current-owner', 'new-owner', 'owner:transfer:new-owner');

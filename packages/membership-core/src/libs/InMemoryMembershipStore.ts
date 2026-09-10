@@ -11,6 +11,7 @@ import {
   LastOwnerProblem,
   MembershipNotFoundProblem,
   OwnershipTransferRequiredProblem,
+  RoleHierarchyViolationProblem,
   SeatLimitExceededProblem,
 } from "./problems/MembershipProblems";
 import { LastOwnerCannotBeRemovedProblem } from "./problems/LastOwnerCannotBeRemovedProblem";
@@ -260,15 +261,10 @@ export class InMemoryMembershipStore extends MembershipStore {
           replayed: false,
         };
       }
-      const result =
-        command.role === "owner"
-          ? await this.save({
-              id: previous.id,
-              tenantId: command.tenantId,
-              userId: command.userId,
-              role: command.role,
-            })
-          : await this.applyRoleMutation(command.tenantId, command.userId, command.role);
+      if (command.role === "owner") {
+        throw new RoleHierarchyViolationProblem(previous.role, command.role, "promote");
+      }
+      const result = await this.applyRoleMutation(command.tenantId, command.userId, command.role);
       return {
         operation: "update_role",
         membership: result,

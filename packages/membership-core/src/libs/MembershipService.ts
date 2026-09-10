@@ -14,13 +14,9 @@ import {
   InvalidRoleProblem,
   MembershipEventPublicationProblem,
   MembershipNotFoundProblem,
-  RoleHierarchyViolationProblem,
 } from "./problems/MembershipProblems";
 import type { SeatLimitChecker } from "./SeatLimitChecker";
 import {
-  canDemote,
-  canPromote,
-  isHigherRole,
   isMembershipRole,
   type Membership,
   type MembershipCommand,
@@ -109,15 +105,6 @@ export class MembershipService implements MembershipManager {
     idempotencyKey: string,
   ): Promise<Membership> {
     this.ensureValidRole(newRole);
-    if (!(await this.store.hasExecutedCommand(idempotencyKey))) {
-      const membership = await this.getMembershipOrThrow(tenantId, userId);
-      if (isHigherRole(newRole, membership.role) && !canPromote(membership.role, newRole)) {
-        throw new RoleHierarchyViolationProblem(membership.role, newRole, "promote");
-      }
-      if (isHigherRole(membership.role, newRole) && !canDemote(membership.role, newRole)) {
-        throw new RoleHierarchyViolationProblem(membership.role, newRole, "demote");
-      }
-    }
     const result = await this.execute({
       operation: "update_role",
       idempotencyKey,

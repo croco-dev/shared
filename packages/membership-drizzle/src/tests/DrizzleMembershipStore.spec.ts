@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { RoleHierarchyViolationProblem } from "@croco/membership-core";
 import type {
   Membership,
   MembershipCreateInput,
@@ -13,6 +14,8 @@ import {
   type DrizzleMembershipClient,
   DrizzleMembershipStore,
 } from "../libs/DrizzleMembershipStore";
+
+import { membershipIdempotencyRecords } from "../libs/schema";
 
 const createInput = (overrides: Partial<MembershipCreateInput> = {}): MembershipCreateInput => {
   return {
@@ -62,6 +65,7 @@ describe("DrizzleMembershipStore", () => {
   let store!: TestDrizzleMembershipStore;
 
   let mockDb!: {
+    execute: ReturnType<typeof vi.fn>;
     select: ReturnType<typeof vi.fn>;
     insert: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
@@ -75,6 +79,7 @@ describe("DrizzleMembershipStore", () => {
 
   beforeEach(() => {
     mockDb = {
+      execute: vi.fn().mockResolvedValue(undefined),
       select: vi.fn(),
       insert: vi.fn(),
       delete: vi.fn(),
@@ -95,6 +100,77 @@ describe("DrizzleMembershipStore", () => {
 
   it("exposes only command-based membership writes", () => {
     expectTypeOf<RawMembershipWrite>().toEqualTypeOf<never>();
+  });
+
+  it.each(["admin", "member", "viewer"] as const)(
+    "rejects an update_role command promoting %s to owner without writes",
+    async (role) => {
+      const previous = createMembership(createInput({ role }));
+      const limit = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([previous]);
+      mockDb.select.mockReturnValue({
+        from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit }) }),
+      });
+
+      mockDb.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoUpdate: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([{ ...previous, role: "owner" }]),
+          }),
+        }),
+      });
+
+      await expect(
+        store.execute({
+          operation: "update_role",
+          idempotencyKey: `promote:${role}`,
+          tenantId: previous.tenantId,
+          userId: previous.userId,
+          role: "owner",
+        }),
+      ).rejects.toThrow(RoleHierarchyViolationProblem);
+
+      expect(mockTxManager.run).toHaveBeenCalledTimes(1);
+      expect(mockDb.insert).not.toHaveBeenCalled();
+      expect(mockDb.update).not.toHaveBeenCalled();
+      expect(mockDb.delete).not.toHaveBeenCalled();
+    },
+  );
+
+  it("permits and replays an owner update_role no-op without membership or event writes", async () => {
+    const owner = createMembership(createInput({ role: "owner" }));
+    const limit = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([owner]);
+    mockDb.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit }) }),
+    });
+    const values = vi.fn().mockResolvedValue(undefined);
+    mockDb.insert.mockReturnValue({ values });
+    const command = {
+      operation: "update_role" as const,
+      idempotencyKey: "owner:no-op",
+      tenantId: owner.tenantId,
+      userId: owner.userId,
+      role: "owner" as const,
+    };
+
+    await expect(store.execute(command)).resolves.toEqual({
+      operation: "update_role",
+      membership: owner,
+      previousRole: "owner",
+      replayed: false,
+    });
+    expect(mockDb.insert).toHaveBeenCalledTimes(1);
+    expect(mockDb.insert).toHaveBeenCalledWith(membershipIdempotencyRecords);
+    limit.mockResolvedValueOnce([values.mock.calls[0]?.[0]]);
+
+    await expect(store.execute(command)).resolves.toMatchObject({
+      membership: owner,
+      previousRole: "owner",
+      replayed: true,
+    });
+    expect(limit).toHaveBeenCalledTimes(3);
+    expect(mockDb.insert).toHaveBeenCalledTimes(1);
+    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(mockDb.delete).not.toHaveBeenCalled();
   });
 
   it("should save and find membership by tenant and user", async () => {
