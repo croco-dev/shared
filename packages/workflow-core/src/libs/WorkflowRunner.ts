@@ -417,7 +417,7 @@ export class WorkflowRunner {
         );
       }
 
-      const target = task.target as { readonly name?: string; readonly prototype?: object };
+      const target = task.target as { readonly prototype?: object };
       const prototype = target.prototype as Record<string, unknown> | undefined;
       const handler = prototype?.[task.methodName];
       if (typeof handler !== "function") {
@@ -430,10 +430,7 @@ export class WorkflowRunner {
       return {
         name: step.name,
         task: step.task,
-        input: step.input === undefined ? null : Function.prototype.toString.call(step.input),
-        handler: Function.prototype.toString.call(handler),
-        target: target.name ?? null,
-        methodName: task.methodName,
+        input: step.input !== undefined,
         options: {
           maxAttempts: task.metadata.options?.maxAttempts ?? null,
           timeout: task.metadata.options?.timeout ?? null,
@@ -443,18 +440,18 @@ export class WorkflowRunner {
       };
     });
     const contract = JSON.stringify({
-      version: 1,
+      version: 2,
       name: workflow.name,
       maxAttempts: workflow.options.maxAttempts ?? null,
       timeout: workflow.options.timeout ?? null,
       idempotencyResolver:
         typeof workflow.options.idempotencyKey === "function"
-          ? Function.prototype.toString.call(workflow.options.idempotencyKey)
-          : (workflow.options.idempotencyKey ?? null),
+          ? { kind: "resolver" }
+          : { kind: "static", key: workflow.options.idempotencyKey ?? null },
       steps,
     });
 
-    return `workflow-contract:v1:${await sha256(contract)}`;
+    return `workflow-contract:v2:${await sha256(contract)}`;
   }
 
   private resolveStepInput(
