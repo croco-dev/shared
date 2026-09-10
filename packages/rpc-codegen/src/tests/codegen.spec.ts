@@ -1731,6 +1731,28 @@ void result;
 `);
   });
 
+  it("reports JSON-unsafe transformed path schemas before missing path field diagnostics", () => {
+    const schema = z.object({ id: z.string() }).transform(({ id }) => ({ renamed: id }));
+    const routes: RouteIR[] = [
+      {
+        controllerName: "UserController",
+        methodName: "getUser",
+        httpMethod: "GET",
+        path: "/users/:id",
+        routeContract: null,
+        params: [{ kind: "path", name: "renamed", schema: null, contractSchema: schema }],
+        inputSchema: null,
+        inputSchemas: { ...PATH_INPUT_SCHEMAS, path: schema },
+        outputSchema: null,
+        domain: null,
+      },
+    ];
+    expect(() => generateClientFiles(routes, TEMP_DIR)).toThrow(
+      /contract-schema-json-unsafe.*Zod transform effects can change runtime values/,
+    );
+    expect(fs.readdirSync(TEMP_DIR)).toEqual([]);
+  });
+
   it("should reject transformed response schemas instead of emitting the handler-return input", () => {
     const routes: RouteIR[] = [
       {

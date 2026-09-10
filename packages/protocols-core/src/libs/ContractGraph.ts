@@ -995,16 +995,19 @@ function validatePathParams(route: ContractGraphRoute): ContractDiagnostic[] {
   const pathParamNames = new Set(getContractPathParamNames(route.path));
   const declaredParamNames = new Set(
     route.params
+      .filter((param) => param.kind === "path" && !param.contractSchema)
+      .map((param) => param.name),
+  );
+  const contractInputNames = new Set(
+    route.params
       .filter((param) => param.kind === "path")
       .flatMap((param) =>
-        param.contractSchema
-          ? Object.keys(getNamedSchemaShape(param.contractSchema))
-          : [param.name],
+        param.contractSchema ? Object.keys(getNamedSchemaShape(param.contractSchema)) : [],
       ),
   );
 
   for (const name of pathParamNames) {
-    if (!declaredParamNames.has(name)) {
+    if (!declaredParamNames.has(name) && !contractInputNames.has(name)) {
       diagnostics.push(
         createRouteDiagnostic(
           route,
@@ -1024,6 +1027,19 @@ function validatePathParams(route: ContractGraphRoute): ContractDiagnostic[] {
           "contract-route-unbound-path-param",
           "error",
           `@Param("${name}") is not present in route path '${route.path}'.`,
+        ),
+      );
+    }
+  }
+
+  for (const name of contractInputNames) {
+    if (!pathParamNames.has(name)) {
+      diagnostics.push(
+        createRouteDiagnostic(
+          route,
+          "contract-route-unbound-path-param",
+          "error",
+          `Contract params schema field '${name}' is not present in route path '${route.path}'.`,
         ),
       );
     }

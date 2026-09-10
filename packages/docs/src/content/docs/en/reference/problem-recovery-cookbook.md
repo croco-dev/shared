@@ -13406,7 +13406,7 @@ Sources:
 
 Sources:
 
-- `packages/transports-http/src/libs/ParamResolver.ts:114:13` (problem-factory)
+- `packages/transports-http/src/libs/ParamResolver.ts:146:13` (problem-factory)
 
 <a id="transports-http-invalid-contract-output"></a>
 
@@ -13424,7 +13424,7 @@ Sources:
 
 Sources:
 
-- `packages/transports-http/src/libs/ParamResolver.ts:147:13` (problem-factory)
+- `packages/transports-http/src/libs/ParamResolver.ts:183:13` (problem-factory)
 
 <a id="transports-http-middleware-next-called-multiple-times"></a>
 
@@ -13460,7 +13460,7 @@ Sources:
 
 Sources:
 
-- `packages/transports-http/src/libs/ParamResolver.ts:346:13` (problem-factory)
+- `packages/transports-http/src/libs/ParamResolver.ts:382:13` (problem-factory)
 
 <a id="transports-http-provider-resolution-failed"></a>
 

@@ -3629,6 +3629,15 @@ function schemaAllowsUndefined(
 
 function getObjectFieldNames(schema: unknown): string[] {
   const descriptor = describeZodSchema(schema as never);
+  const unsafeDiagnostic =
+    descriptor &&
+    getSchemaDescriptorDiagnostics(descriptor).find(
+      (diagnostic) => diagnostic.severity === "error",
+    );
+
+  if (unsafeDiagnostic) {
+    throw new RpcCodegenContractProblem(formatSchemaDiagnostic(unsafeDiagnostic));
+  }
 
   return descriptor?.kind === "object" ? (descriptor.fields ?? []).map((field) => field.name) : [];
 }

@@ -1,10 +1,11 @@
 import { ProblemFactory } from "@croco/problems-core";
 import {
+  type ContractSchemaDescriptor,
+  describeZodSchema,
   getHttpParamFallbackSchema,
   getZodArrayInputSchema,
   getZodInputObjectSchema,
   getZodQueryInputSchema,
-  isZodArraySchema,
   isZodType,
 } from "@croco/protocols-core";
 import {
@@ -38,6 +39,37 @@ const SCHEMALESS_NAMED_PARAM_PIPES: Partial<Record<ParamType, PipeTransform>> = 
 };
 
 type PipeInstanceFactory = (pipe: PipeTransformConstructor) => PipeTransform | null | undefined;
+
+function requiresQueryArrayInput(schema: ContractSchemaDescriptor | null): boolean {
+  if (!schema) {
+    return false;
+  }
+  switch (schema.kind) {
+    case "array":
+      return true;
+    case "union":
+      return (
+        schema.typeName === "ZodUnion" &&
+        !!schema.options?.length &&
+        schema.options.every(requiresQueryArrayInput)
+      );
+    case "optional":
+    case "nullable":
+    case "default":
+    case "catch":
+    case "branded":
+    case "readonly":
+      return !!schema.inner && requiresQueryArrayInput(schema.inner);
+    case "effects":
+      return (
+        schema.effectType === "refinement" &&
+        !!schema.inner &&
+        requiresQueryArrayInput(schema.inner)
+      );
+    default:
+      return false;
+  }
+}
 
 /**
  * 컨트롤러 파라미터 메타데이터를 읽어 실제 메서드 인자 배열로 변환합니다.
@@ -126,13 +158,17 @@ class ParamResolverEngine {
             { path: name, message: "Expected a single query value" },
           ]);
         }
-        if (typeof value === "string" && isZodArraySchema(field)) {
+        if (
+          typeof value === "string" &&
+          isZodType(field) &&
+          requiresQueryArrayInput(describeZodSchema(field))
+        ) {
           input[name] = [value];
         }
       }
     }
     const parseSchema =
-      param.type === ParamType.QUERY ? getZodQueryInputSchema(schema, ctx.req.query) : schema;
+      param.type === ParamType.QUERY ? getZodQueryInputSchema(schema, input) : schema;
     const result = await parseSchema.safeParseAsync(input);
     if (!result.success) {
       throw new RequestValidationProblem(

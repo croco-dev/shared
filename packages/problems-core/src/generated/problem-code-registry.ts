@@ -22026,7 +22026,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/transports-http/src/libs/ParamResolver.ts",
-          line: 114,
+          line: 146,
           column: 13,
           kind: "problem-factory",
         },
@@ -22058,7 +22058,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/transports-http/src/libs/ParamResolver.ts",
-          line: 147,
+          line: 183,
           column: 13,
           kind: "problem-factory",
         },
@@ -22124,7 +22124,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/transports-http/src/libs/ParamResolver.ts",
-          line: 346,
+          line: 382,
           column: 13,
           kind: "problem-factory",
         },
