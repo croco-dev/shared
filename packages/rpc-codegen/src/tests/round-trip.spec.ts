@@ -170,6 +170,58 @@ describe("rpc-codegen round trip", () => {
     });
   });
 
+  it.each([
+    ["https://api.example.com/api/v1", "/users", "https://api.example.com/api/v1/users"],
+    ["https://api.example.com/api/v1/", "users", "https://api.example.com/api/v1/users"],
+    ["https://api.example.com/api/v1/", "/users", "https://api.example.com/api/v1/users"],
+    ["https://api.example.com/api/v1", "users", "https://api.example.com/api/v1/users"],
+    ["https://api.example.com/api/v1///", "///users/", "https://api.example.com/api/v1/users/"],
+    ["https://api.example.com", "/users", "https://api.example.com/users"],
+    ["https://api.example.com/", "users", "https://api.example.com/users"],
+    ["https://api.example.com/api/v1", "/", "https://api.example.com/api/v1/"],
+    [
+      "https://api.example.com/api%20v1/?old=1#old",
+      "/users/a%2Fb?tag=a%26b#section",
+      "https://api.example.com/api%20v1/users/a%2Fb?tag=a%26b#section",
+    ],
+    [undefined, "/users?tag=a%26b", "/users?tag=a%26b"],
+  ])(
+    "preserves the configured base path for %s and %s",
+    async (baseUrl, routePath, expectedUrl) => {
+      const files = generateClientFiles(
+        [
+          {
+            controllerName: "UserController",
+            methodName: "createUser",
+            httpMethod: "POST",
+            path: routePath,
+            routeContract: null,
+            params: [{ kind: "body", name: "", schema: null }],
+            inputSchema: null,
+            inputSchemas: BODY_INPUT_SCHEMAS,
+            outputSchema: null,
+            domain: "user",
+          },
+        ],
+        outDir,
+      );
+      const source = fs.readFileSync(files[0], "utf-8");
+      const clientModule = await importGeneratedClient(
+        `user-base-path-${encodeURIComponent(String(baseUrl) + routePath)}.ts`,
+        source,
+      );
+      const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+      const client = clientModule.createUserClient({ baseUrl, fetch: fetchMock });
+
+      await client.createUser({ name: "Ada" });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expectedUrl,
+        expect.objectContaining({ method: "POST" }),
+      );
+    },
+  );
+
   it("creates isolated clients with configured transport defaults and request precedence", async () => {
     const routeIRs: RouteIR[] = [
       {
@@ -249,7 +301,7 @@ describe("rpc-codegen round trip", () => {
     await client.createUser({ name: "Ada" });
 
     expect(globalFetch).not.toHaveBeenCalled();
-    expect(configuredFetch).toHaveBeenNthCalledWith(1, "https://api.example.com/me", {
+    expect(configuredFetch).toHaveBeenNthCalledWith(1, "https://api.example.com/v1/me", {
       method: "GET",
       cache: "no-store",
       credentials: "omit",
@@ -261,7 +313,7 @@ describe("rpc-codegen round trip", () => {
       },
       signal,
     });
-    expect(configuredFetch).toHaveBeenNthCalledWith(2, "https://api.example.com/me", {
+    expect(configuredFetch).toHaveBeenNthCalledWith(2, "https://api.example.com/v1/me", {
       method: "GET",
       cache: "no-store",
       credentials: "include",
@@ -272,7 +324,7 @@ describe("rpc-codegen round trip", () => {
         "X-Tag": "default-a, default-b",
       },
     });
-    expect(configuredFetch).toHaveBeenNthCalledWith(3, "https://api.example.com/users", {
+    expect(configuredFetch).toHaveBeenNthCalledWith(3, "https://api.example.com/v1/users", {
       method: "POST",
       cache: "no-store",
       credentials: "include",

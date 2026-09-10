@@ -91,7 +91,9 @@ if (!drift.ok) {
 ```
 
 Every generated domain exports a client factory for instance-scoped transport policy. `baseUrl`
-uses standard URL resolution, `fetch` replaces the global implementation for every domain method,
+preserves its path prefix when joining procedure paths and normalizes slashes at the join. For example,
+`https://api.example.com/api/v1/` with `/users` requests `https://api.example.com/api/v1/users`.
+`fetch` replaces the global implementation for every domain method,
 `headers` supplies shared headers, and `request` supplies default `RequestInit` fields such as
 credentials or cache policy. The existing static client export remains available and behaves like
 `createUserClient()` with no configuration.

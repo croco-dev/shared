@@ -1994,6 +1994,12 @@ export type RpcClientRequest = {
   readonly telemetry?: RpcTelemetryRequestState;
 };
 
+function joinRpcUrl(baseUrl: string, path: string): string {
+  const base = new URL(baseUrl);
+  base.pathname = base.pathname.replace(/\\/+$/, '') + '/';
+  return new URL(path.replace(/^\\/+/, ''), base).toString();
+}
+
 export function createRpcClientRequest(
   route: RpcRouteTelemetryMetadata,
   routeKind: RpcRouteKind,
@@ -2015,7 +2021,7 @@ export function createRpcClientRequest(
   };
   const fetchImpl = config.fetch ?? fetch;
   const request = {
-    url: config.baseUrl === undefined ? url : new URL(url, config.baseUrl).toString(),
+    url: config.baseUrl === undefined ? url : joinRpcUrl(config.baseUrl, url),
     init: requestInit,
     fetch: (requestUrl: string, fetchInit: RequestInit) => fetchImpl(requestUrl, fetchInit),
   };
