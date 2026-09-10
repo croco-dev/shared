@@ -54,7 +54,11 @@ function readSearchTotal(rows: readonly unknown[]): number {
     throw new InvalidSearchRowProblem("expected total count result");
   }
 
-  const total = row.total;
+  const rawTotal = row.total;
+  const total =
+    typeof rawTotal === "bigint" || (typeof rawTotal === "string" && /^\d+$/.test(rawTotal))
+      ? Number(rawTotal)
+      : rawTotal;
   if (typeof total !== "number" || !Number.isSafeInteger(total) || total < 0) {
     throw new InvalidSearchRowProblem("expected a non-negative safe integer total");
   }
