@@ -61,6 +61,7 @@ const CROCO_YOGA_LOGGER = {
 export class GraphQLServer {
   private yogaHandler: YogaHandler | null = null;
   private server: Server | null = null;
+  private stopPromise: Promise<void> | null = null;
   private initialized = false;
   private maxBodySizeBytes = DEFAULT_MAX_BODY_SIZE_BYTES;
   private readonly requestTimeoutMs: number | undefined;
@@ -478,16 +479,26 @@ export class GraphQLServer {
   }
 
   stop(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      if (this.server) {
-        this.server.close(() => {
-          this.server = null;
+    if (this.stopPromise) return this.stopPromise;
+
+    const server = this.server;
+    if (!server) return Promise.resolve();
+
+    this.stopPromise = new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+        } else {
           resolve();
-        });
-      } else {
-        resolve();
-      }
+        }
+      });
+      server.closeAllConnections();
+    }).finally(() => {
+      if (this.server === server) this.server = null;
+      this.stopPromise = null;
     });
+
+    return this.stopPromise;
   }
 }
 
