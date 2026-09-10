@@ -37,7 +37,11 @@ export function CacheEvict<V = unknown>(options: CacheEvictOptions<V>): MethodDe
       const result = await originalMethod.apply(this, args);
 
       if (options.allEntries === true) {
-        await options.store.clear();
+        if (options.namespace === undefined) {
+          await options.store.clear();
+        } else {
+          await options.store.invalidatePattern(`${options.namespace}:*`);
+        }
         return result;
       }
 
