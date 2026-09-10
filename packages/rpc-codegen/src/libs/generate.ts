@@ -1127,7 +1127,7 @@ export async function handleJsonResult<
     result = await handleProblemJsonResult<T, Problem>(response, declaredProblems);
   } catch (error) {
     if (isRpcAbortError(error)) {
-      return handleRpcRequestError(error, telemetry);
+      return handleRpcRequestResultError(error, telemetry);
     }
 
     return handleRpcResponseResultError(error, response, telemetry);
@@ -1163,7 +1163,7 @@ export async function readOptionalJsonResult<Problem extends RpcDeclaredProblem 
     result = await readProblemOptionalJsonResult<Problem>(response, declaredProblems);
   } catch (error) {
     if (isRpcAbortError(error)) {
-      return handleRpcRequestError(error, telemetry);
+      return handleRpcRequestResultError(error, telemetry);
     }
 
     return handleRpcResponseResultError(error, response, telemetry);
@@ -1480,7 +1480,7 @@ export async function handleJsonResult<
     data = (await response.json()) as T;
   } catch (cause) {
     if (isRpcAbortError(cause)) {
-      return handleRpcRequestError(cause, telemetry);
+      return handleRpcRequestResultError(cause, telemetry);
     }
 
     return handleRpcResponseResultError(
@@ -1556,7 +1556,7 @@ export async function readOptionalJsonResult<Problem extends RpcDeclaredProblem 
     body = await response.text();
   } catch (cause) {
     if (isRpcAbortError(cause)) {
-      return handleRpcRequestError(cause, telemetry);
+      return handleRpcRequestResultError(cause, telemetry);
     }
 
     return handleRpcResponseResultError(cause, response, telemetry);
