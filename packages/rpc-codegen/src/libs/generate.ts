@@ -1997,7 +1997,7 @@ export type RpcClientRequest = {
 function joinRpcUrl(baseUrl: string, path: string): string {
   const base = new URL(baseUrl);
   base.pathname = base.pathname.replace(/\\/+$/, '') + '/';
-  return new URL(path.replace(/^\\/+/, ''), base).toString();
+  return new URL('./' + path.replace(/^\\/+/, ''), base).toString();
 }
 
 export function createRpcClientRequest(

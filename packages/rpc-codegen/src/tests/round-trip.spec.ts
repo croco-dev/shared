@@ -171,6 +171,16 @@ describe("rpc-codegen round trip", () => {
   });
 
   it.each([
+    [
+      "https://api.example.com/api/v1/",
+      "/https:/health",
+      "https://api.example.com/api/v1/https:/health",
+    ],
+    [
+      "https://api.example.com/api/v1/",
+      "/https://elsewhere.example/health",
+      "https://api.example.com/api/v1/https://elsewhere.example/health",
+    ],
     ["https://api.example.com/api/v1", "/users", "https://api.example.com/api/v1/users"],
     ["https://api.example.com/api/v1/", "users", "https://api.example.com/api/v1/users"],
     ["https://api.example.com/api/v1/", "/users", "https://api.example.com/api/v1/users"],
