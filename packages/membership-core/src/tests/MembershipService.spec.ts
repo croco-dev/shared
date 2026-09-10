@@ -10,10 +10,16 @@ import {
   MembershipIdempotencyConflictProblem,
   MembershipNotFoundProblem,
   OwnershipTransferRequiredProblem,
+  RoleHierarchyViolationProblem,
   SeatLimitExceededProblem,
 } from "../libs/problems/MembershipProblems";
 import { LastOwnerCannotBeRemovedProblem } from "../libs/problems/LastOwnerCannotBeRemovedProblem";
-import type { Membership, MembershipCreateInput } from "../libs/types";
+import type {
+  Membership,
+  MembershipCreateInput,
+  MembershipCommand,
+  MembershipCommandResult,
+} from "../libs/types";
 
 class InMemoryMembershipStore extends BaseInMemoryMembershipStore {
   public seed(input: MembershipCreateInput): Promise<Membership> {
@@ -34,6 +40,69 @@ function createService(
 }
 
 describe("MembershipService atomic commands", () => {
+  it.each(["admin", "member", "viewer"] as const)(
+    "rejects %s promotion to owner without recording a command or event",
+    async (role) => {
+      const store = new InMemoryMembershipStore();
+      await store.seed({ id: "member", tenantId: "tenant-1", userId: "member", role });
+      const service = createService(store, async () => undefined);
+
+      await expect(
+        service.updateRole("tenant-1", "member", "owner", "forbidden-promotion"),
+      ).rejects.toBeInstanceOf(RoleHierarchyViolationProblem);
+      await expect(store.findByTenantAndUser("tenant-1", "member")).resolves.toMatchObject({
+        role,
+      });
+      await expect(store.hasExecutedCommand("forbidden-promotion")).resolves.toBe(false);
+      await expect(store.listPendingEventIntents()).resolves.toHaveLength(0);
+      await expect(
+        store.execute({
+          operation: "update_role",
+          tenantId: "tenant-1",
+          userId: "member",
+          role: "owner",
+          idempotencyKey: "direct-promotion",
+        }),
+      ).rejects.toMatchObject({
+        code: "ROLE_HIERARCHY_VIOLATION",
+        extensions: { fromRole: role, toRole: "owner", operation: "promote" },
+      });
+    },
+  );
+
+  it.each(["admin", "member", "viewer"] as const)(
+    "allows ordinary transitions from %s",
+    async (role) => {
+      for (const newRole of ["admin", "member", "viewer"] as const) {
+        const store = new InMemoryMembershipStore();
+        await store.seed({ id: "member", tenantId: "tenant-1", userId: "member", role });
+        const service = createService(store, async () => undefined);
+        await expect(
+          service.updateRole("tenant-1", "member", newRole, "change-role"),
+        ).resolves.toMatchObject({ role: newRole });
+      }
+    },
+  );
+
+  it("replays an owner no-op after a later ownership transfer", async () => {
+    const store = new InMemoryMembershipStore();
+    await store.seed({ id: "owner", tenantId: "tenant-1", userId: "owner", role: "owner" });
+    await store.seed({ id: "member", tenantId: "tenant-1", userId: "member", role: "member" });
+    const service = createService(store, async () => undefined);
+    await expect(
+      service.updateRole("tenant-1", "owner", "owner", "owner-noop"),
+    ).resolves.toMatchObject({ role: "owner" });
+    await expect(store.listPendingEventIntents()).resolves.toHaveLength(0);
+    await service.transferOwnership("tenant-1", "owner", "member", "transfer");
+    await expect(
+      service.updateRole("tenant-1", "owner", "owner", "owner-noop"),
+    ).resolves.toMatchObject({ role: "owner" });
+    await expect(service.getMember("tenant-1", "owner")).resolves.toMatchObject({ role: "admin" });
+    await expect(
+      service.updateRole("tenant-1", "owner", "owner", "new-promotion"),
+    ).rejects.toBeInstanceOf(RoleHierarchyViolationProblem);
+  });
+
   it("allows exactly one concurrent addition for the final seat", async () => {
     const store = new InMemoryMembershipStore();
     const service = new MembershipService({
@@ -155,10 +224,10 @@ describe("MembershipService atomic commands", () => {
   });
 
   it("rejects a stale non-owner update after ownership transfers", async () => {
-    class PausedReadStore extends InMemoryMembershipStore {
+    class PausedCommandStore extends InMemoryMembershipStore {
       private release!: () => void;
       private reached!: () => void;
-      readonly readReached = new Promise<void>((resolve) => {
+      readonly commandReached = new Promise<void>((resolve) => {
         this.reached = resolve;
       });
       private readonly barrier = new Promise<void>((resolve) => {
@@ -166,30 +235,26 @@ describe("MembershipService atomic commands", () => {
       });
       private pause = true;
 
-      override async findByTenantAndUser(
-        tenantId: string,
-        userId: string,
-      ): Promise<Membership | null> {
-        const membership = await super.findByTenantAndUser(tenantId, userId);
-        if (userId === "member" && this.pause) {
+      override async execute(command: MembershipCommand): Promise<MembershipCommandResult> {
+        if (command.operation === "update_role" && this.pause) {
           this.pause = false;
           this.reached();
           await this.barrier;
         }
-        return membership;
+        return super.execute(command);
       }
 
       resume(): void {
         this.release();
       }
     }
-    const store = new PausedReadStore();
+    const store = new PausedCommandStore();
     await store.seed({ id: "owner", tenantId: "tenant-1", userId: "owner", role: "owner" });
     await store.seed({ id: "member", tenantId: "tenant-1", userId: "member", role: "member" });
     const service = createService(store, async () => undefined);
 
     const stale = service.updateRole("tenant-1", "member", "admin", "stale-update");
-    await store.readReached;
+    await store.commandReached;
     await service.transferOwnership("tenant-1", "owner", "member", "transfer-before-update");
     store.resume();
     await expect(stale).rejects.toBeInstanceOf(LastOwnerProblem);

@@ -20,6 +20,7 @@ import {
   MembershipNotFoundProblem,
   MembershipStore,
   OwnershipTransferRequiredProblem,
+  RoleHierarchyViolationProblem,
   SeatLimitExceededProblem,
 } from "@croco/membership-core";
 // Runtime value required for constructor metadata.
@@ -514,32 +515,24 @@ export class DrizzleMembershipStore extends MembershipStore {
           replayed: false,
         };
       }
-      let membership: Membership;
       if (command.role === "owner") {
-        membership = await this.save({
-          id: previous.id,
-          tenantId: command.tenantId,
-          userId: command.userId,
-          role: command.role,
-        });
-      } else {
-        const result = await this.mutateOwner({
-          tenantId: command.tenantId,
-          userId: command.userId,
-          operation: "demote",
-          role: command.role,
-        });
-        if (result.status === "not_found") {
-          throw new MembershipNotFoundProblem(command.tenantId, command.userId);
-        }
-        if (result.status !== "applied") {
-          throw new LastOwnerProblem(command.tenantId, command.userId, "demote");
-        }
-        membership = result.membership;
+        throw new RoleHierarchyViolationProblem(previous.role, command.role, "promote");
+      }
+      const result = await this.mutateOwner({
+        tenantId: command.tenantId,
+        userId: command.userId,
+        operation: "demote",
+        role: command.role,
+      });
+      if (result.status === "not_found") {
+        throw new MembershipNotFoundProblem(command.tenantId, command.userId);
+      }
+      if (result.status !== "applied") {
+        throw new LastOwnerProblem(command.tenantId, command.userId, "demote");
       }
       return {
         operation: "update_role",
-        membership,
+        membership: result.membership,
         previousRole: previous.role,
         replayed: false,
       };
