@@ -10,12 +10,10 @@ import type { BatchLoader, BatchLoaderOptions } from "./types";
  * @returns An object with the same interface as BatchLoader, but delegating to a context-scoped instance
  */
 export function createBatchLoader<K, V>(options: BatchLoaderOptions<K, V>): BatchLoader<K, V> {
-  const getLoader = (): BatchLoader<K, V> => {
-    const contextCache = Context.getCache();
+  let standaloneCache: Map<string, BatchLoaderImpl<K, V>> | undefined;
 
-    if (!contextCache) {
-      return new BatchLoaderImpl(options);
-    }
+  const getLoader = (): BatchLoader<K, V> => {
+    const loaderCache = Context.getCache() ?? (standaloneCache ??= new Map());
 
     const staticScope = options.scope ? `:${options.scope}` : "";
     const dynamicScope = options.resolveScope?.();
@@ -23,11 +21,11 @@ export function createBatchLoader<K, V>(options: BatchLoaderOptions<K, V>): Batc
 
     const cacheKey = `dataloader:${options.name}:v1${staticScope}${dynamicScopeKey}`;
 
-    let loader = contextCache.get(cacheKey) as BatchLoaderImpl<K, V> | undefined;
+    let loader = loaderCache.get(cacheKey) as BatchLoaderImpl<K, V> | undefined;
 
     if (!loader) {
       loader = new BatchLoaderImpl(options);
-      contextCache.set(cacheKey, loader);
+      loaderCache.set(cacheKey, loader);
     }
 
     return loader;
