@@ -429,7 +429,7 @@
     {
       "package": "@croco/rpc-codegen",
       "file": "packages/rpc-codegen/src/libs/generate.ts",
-      "line": 1591,
+      "line": 1599,
       "excerpt": "throw new Error(\\`Unhandled RPC Problem variant\\${suffix}\\`);",
       "reason": "Internal exhaustive/programmer assertion retained as a reviewed exception while user-facing runtime validation paths use coded errors.",
       "owner": "framework-error-handling",
