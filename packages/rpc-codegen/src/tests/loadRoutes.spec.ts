@@ -1,8 +1,11 @@
 import "reflect-metadata";
 import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type * as Zod from "zod";
 import { loadContractGraph, loadRoutes } from "../libs/loadRoutes";
 
 let tempRoot: string;
@@ -39,6 +42,64 @@ describe("loadRoutes", () => {
         httpMethod: "GET",
         path: "/users",
       });
+    },
+    LOAD_ROUTES_TIMEOUT_MS,
+  );
+
+  it(
+    "evaluates OpenAPI schemas with each application's Zod runtime before extracting routes",
+    async () => {
+      const workspaceRequire = createRequire(import.meta.url);
+      const zodRoot = path.dirname(workspaceRequire.resolve("zod/package.json"));
+      const openapiRoot = path.dirname(
+        workspaceRequire.resolve("@asteasolutions/zod-to-openapi/package.json"),
+      );
+      const esmRuntimes: (typeof Zod)[] = [];
+      for (const name of ["first", "second"]) {
+        const applicationRoot = path.join(tempRoot, name);
+        const controllerPath = path.join(applicationRoot, "src", "UsersController.ts");
+        fs.mkdirSync(path.dirname(controllerPath), { recursive: true });
+        fs.cpSync(zodRoot, path.join(applicationRoot, "node_modules", "zod"), { recursive: true });
+        fs.symlinkSync(
+          openapiRoot,
+          path.join(applicationRoot, "node_modules", "openapi-types"),
+          "dir",
+        );
+        fs.writeFileSync(
+          controllerPath,
+          getMixedControllerSource()
+            .replace(
+              "import 'reflect-metadata';",
+              `import { z } from 'zod';
+import type {} from 'openapi-types';
+export const schema = z.object({ id: z.string().openapi({ example: 'user-1' }) }).openapi('User');
+schema.parse({ id: 'user-1' });`,
+            )
+            .replace("@Controller('/users')", `@Controller('/${name}')`),
+        );
+        const applicationZod = createRequire(controllerPath)("zod") as typeof Zod;
+        expect(applicationZod.z.string().openapi).toBeUndefined();
+        const packageJson = JSON.parse(
+          fs.readFileSync(path.join(zodRoot, "package.json"), "utf8"),
+        ) as {
+          exports: { ".": { import: string } };
+        };
+        const esmZod = (await import(
+          pathToFileURL(
+            path.join(applicationRoot, "node_modules", "zod", packageJson.exports["."].import),
+          ).href
+        )) as typeof Zod;
+        expect(esmZod.z.string().openapi).toBeUndefined();
+        esmRuntimes.push(esmZod);
+      }
+
+      const routes = await loadRoutes(path.join(tempRoot, "*", "src", "*.ts"));
+
+      expect(routes.map((route) => route.path).sort()).toEqual(["/first", "/second"]);
+      expect(routes.every((route) => route.methodName === "listUsers")).toBe(true);
+      for (const { z } of esmRuntimes) {
+        expect(z.string().openapi({ example: "user-1" }).parse("user-1")).toBe("user-1");
+      }
     },
     LOAD_ROUTES_TIMEOUT_MS,
   );

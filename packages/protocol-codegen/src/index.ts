@@ -1,3 +1,4 @@
+export { extendApplicationZodRuntimes } from "./libs/extendApplicationZodRuntimes";
 export {
   ControllerProjectConfigProblem,
   createControllerProject,
