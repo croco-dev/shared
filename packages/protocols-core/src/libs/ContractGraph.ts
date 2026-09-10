@@ -560,7 +560,6 @@ function validateRouteContract(route: ContractGraphRoute): ContractDiagnostic[] 
 
   return [
     ...validateContractMethod(route),
-    ...validateContractControllerPath(route),
     ...validateContractNamedParams(route, "path", contract.inputSchemas.path),
     ...validateContractNamedParams(route, "query", contract.inputSchemas.query),
     ...validateContractBody(route),
@@ -581,27 +580,6 @@ function validateContractMethod(route: ContractGraphRoute): ContractDiagnostic[]
       "contract-route-method-mismatch",
       "error",
       `Route contract declares ${contract.method.toUpperCase()} but the route decorator registered ${route.httpMethod.toUpperCase()}. Use the HTTP method decorator that matches the contract.`,
-    ),
-  ];
-}
-
-function validateContractControllerPath(route: ContractGraphRoute): ContractDiagnostic[] {
-  const contract = route.routeContract;
-
-  if (!contract || route.controllerPath === "" || contract.path === route.controllerPath) {
-    return [];
-  }
-
-  if (contract.path.startsWith(`${route.controllerPath}/`)) {
-    return [];
-  }
-
-  return [
-    createRouteDiagnostic(
-      route,
-      "contract-route-controller-path-mismatch",
-      "error",
-      `Route contract path '${contract.path}' is outside controller path '${route.controllerPath}'. Contract-first routes use the contract path as the generated/runtime path, so the contract path must include the controller prefix or the controller should use '/'.`,
     ),
   ];
 }
