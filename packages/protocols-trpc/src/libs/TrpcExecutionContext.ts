@@ -112,7 +112,10 @@ function normalizeNodeRequest(
     }
 
     const authority = isRecord(value.headers) ? value.headers[":authority"] : undefined;
-    const host = headers.get("host") ?? (typeof authority === "string" ? authority : "localhost");
+    if (!headers.has("host") && typeof authority === "string") {
+      headers.set("host", authority);
+    }
+    const host = headers.get("host") ?? "localhost";
     const encrypted = isRecord(value.socket) && value.socket.encrypted === true;
     const url = new URL(value.url, `${encrypted ? "https" : "http"}://${host}`);
 
