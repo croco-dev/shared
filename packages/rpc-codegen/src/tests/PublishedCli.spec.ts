@@ -113,23 +113,31 @@ describe("published RPC codegen CLI", () => {
         const help = run("pnpm", ["exec", "croco-rpc-codegen", "--help"], consumerRoot);
         expect(help.stdout).toContain("Usage: croco-rpc-codegen");
 
-        const controllerSource = readFileSync(
-          join(rootDir, "scripts/fixtures/protocol-codegen/LocatedController.ts.fixture"),
-          "utf8",
-        ).replace(
-          "import 'reflect-metadata';",
+        writeFileSync(
+          join(consumerRoot, "UsersController.ts"),
           `import { z } from 'zod';
 import type {} from '@asteasolutions/zod-to-openapi';
-export const schema = z.object({ id: z.string().openapi({ example: 'user-1' }) }).openapi('User');`,
+
+declare namespace Reflect {
+  function defineMetadata(key: unknown, value: unknown, target: object, propertyKey?: string): void;
+}
+
+const schema = z.object({ id: z.string().openapi({ example: 'user-1' }) }).openapi('User');
+export class UsersController {
+  listUsers() { return { id: 'user-1' }; }
+}
+Reflect.defineMetadata(Symbol.for('croco:rest:controller'), { path: '/users', target: UsersController }, UsersController);
+Reflect.defineMetadata(Symbol.for('croco:rest:routes'), [{ method: 'GET', path: '/', methodName: 'listUsers' }], UsersController);
+Reflect.defineMetadata(Symbol.for('croco:rest:responseSchema'), schema, UsersController, 'listUsers');
+`,
         );
-        writeFileSync(join(consumerRoot, "LocatedController.ts"), controllerSource);
         run(
           "pnpm",
-          ["exec", "croco-rpc-codegen", "--controllers", "LocatedController.ts", "--out", "client"],
+          ["exec", "croco-rpc-codegen", "--controllers", "UsersController.ts", "--out", "client"],
           consumerRoot,
         );
-        expect(readFileSync(join(consumerRoot, "client", "located.ts"), "utf8")).toContain(
-          "getById",
+        expect(readFileSync(join(consumerRoot, "client", "users.ts"), "utf8")).toContain(
+          "listUsers",
         );
       } finally {
         rmSync(packRoot, { force: true, recursive: true });
