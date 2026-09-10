@@ -7,6 +7,12 @@ title: "ParamIR"
 
 ## Properties
 
+### contractSchema?
+
+> `optional` **contractSchema?**: `ZodType`\<`any`, `ZodTypeDef`, `any`\>
+
+---
+
 ### index?
 
 > `optional` **index?**: `number`

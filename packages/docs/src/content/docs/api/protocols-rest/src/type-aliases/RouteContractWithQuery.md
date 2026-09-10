@@ -5,10 +5,10 @@ prev: false
 title: "RouteContractWithQuery"
 ---
 
-> **RouteContractWithQuery** = [`RouteContractSpec`](/api/protocols-rest/src/type-aliases/routecontractspec/) & `{ readonly query: AnyZodObject }`
+> **RouteContractWithQuery** = [`RouteContractSpec`](/api/protocols-rest/src/type-aliases/routecontractspec/) & `{ readonly query: RouteParameterSchema }`
 
 ## Type Declaration
 
 ### query
 
-> `readonly` **query**: `AnyZodObject`
+> `readonly` **query**: `RouteParameterSchema`

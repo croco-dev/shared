@@ -5,10 +5,10 @@ prev: false
 title: "RouteContractWithParams"
 ---
 
-> **RouteContractWithParams** = [`RouteContractSpec`](/api/protocols-rest/src/type-aliases/routecontractspec/) & `{ readonly params: AnyZodObject }`
+> **RouteContractWithParams** = [`RouteContractSpec`](/api/protocols-rest/src/type-aliases/routecontractspec/) & `{ readonly params: RouteParameterSchema }`
 
 ## Type Declaration
 
 ### params
 
-> `readonly` **params**: `AnyZodObject`
+> `readonly` **params**: `RouteParameterSchema`
