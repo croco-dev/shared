@@ -1,6 +1,12 @@
 import "reflect-metadata";
-import { getEventListeners } from "node:events";
-import { IncomingMessage, request as httpRequest, ServerResponse } from "node:http";
+import { getEventListeners, once } from "node:events";
+import {
+  Agent,
+  createServer,
+  IncomingMessage,
+  request as httpRequest,
+  ServerResponse,
+} from "node:http";
 import type { Server } from "node:http";
 import { connect } from "node:net";
 import { Container } from "@croco/framework-context";
@@ -295,6 +301,177 @@ function createLoggerMock(): LoggerMock {
   } as unknown as LoggerMock;
   logger.child.mockReturnValue(logger);
   return logger;
+}
+
+describe("GraphQLServer stop", () => {
+  beforeEach(() => {
+    Container.reset();
+  });
+
+  it("should resolve when stopped before starting", async () => {
+    await expect(new GraphQLServer().stop()).resolves.toBeUndefined();
+  });
+
+  it("should resolve when stopped again after shutdown", async () => {
+    const server = new GraphQLServer({
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+    });
+    await server.start(0);
+    try {
+      await withinShutdownDeadline(server.stop());
+      await expect(withinShutdownDeadline(server.stop())).resolves.toBeUndefined();
+    } finally {
+      await withinShutdownDeadline(server.stop());
+    }
+  });
+
+  it("should close a retained idle keep-alive connection promptly", async () => {
+    const server = new GraphQLServer({
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+    });
+    const agent = new Agent({ keepAlive: true });
+    await server.start(0);
+    const nodeServer = Reflect.get(server, "server") as Server;
+    const address = nodeServer.address();
+    if (!address || typeof address === "string") throw new Error("Expected a TCP address");
+
+    try {
+      const freeSocket = once(agent, "free");
+      const request = httpRequest({
+        host: "localhost",
+        port: address.port,
+        path: "/graphql",
+        agent,
+      });
+      request.on("response", (response) => response.resume());
+      const response = once(request, "response");
+      request.end();
+      await withinShutdownDeadline(response);
+      const [socket] = await withinShutdownDeadline(freeSocket);
+      expect(socket.destroyed).toBe(false);
+      expect(Object.values(agent.freeSockets).flat()).toContain(socket);
+      const socketClosed = once(socket, "close");
+
+      await withinShutdownDeadline(server.stop());
+      await withinShutdownDeadline(socketClosed);
+      expect(nodeServer.listening).toBe(false);
+    } finally {
+      agent.destroy();
+      nodeServer.closeAllConnections();
+      await withinShutdownDeadline(server.stop());
+    }
+  });
+
+  it("should close an active incomplete HTTP request promptly", async () => {
+    const server = new GraphQLServer({
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+    });
+    await server.start(0);
+    const nodeServer = Reflect.get(server, "server") as Server;
+    const address = nodeServer.address();
+    if (!address || typeof address === "string") throw new Error("Expected a TCP address");
+    const socket = connect({ host: "localhost", port: address.port });
+    socket.on("error", () => undefined);
+
+    try {
+      await withinShutdownDeadline(once(socket, "connect"));
+      const requestReceived = once(nodeServer, "request");
+      socket.write(
+        "POST /graphql HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 100\r\nConnection: keep-alive\r\n\r\n{",
+      );
+      const [request] = await withinShutdownDeadline(requestReceived);
+      expect(request.complete).toBe(false);
+      expect(socket.destroyed).toBe(false);
+      const socketClosed = once(socket, "close");
+
+      await withinShutdownDeadline(server.stop());
+      await withinShutdownDeadline(socketClosed);
+      expect(nodeServer.listening).toBe(false);
+    } finally {
+      socket.destroy();
+      nodeServer.closeAllConnections();
+      await withinShutdownDeadline(server.stop());
+    }
+  });
+
+  it("should share one pending close operation between concurrent stops", async () => {
+    const server = new GraphQLServer();
+    const nodeServer = createServer();
+    let finishClose: ((error?: Error) => void) | undefined;
+    const close = vi.spyOn(nodeServer, "close").mockImplementation((callback) => {
+      finishClose = callback;
+      return nodeServer;
+    });
+    Reflect.set(server, "server", nodeServer);
+
+    const first = server.stop();
+    const second = server.stop();
+    finishClose?.();
+    await withinShutdownDeadline(Promise.all([first, second]));
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("should reject every concurrent stop with the same close error", async () => {
+    const server = new GraphQLServer();
+    const nodeServer = createServer();
+    const closeError = new Error("close failed");
+    let finishClose: ((error?: Error) => void) | undefined;
+    vi.spyOn(nodeServer, "close").mockImplementation((callback) => {
+      finishClose = callback;
+      return nodeServer;
+    });
+    Reflect.set(server, "server", nodeServer);
+
+    const outcomes = Promise.allSettled([server.stop(), server.stop()]);
+    finishClose?.(closeError);
+
+    await expect(withinShutdownDeadline(outcomes)).resolves.toEqual([
+      { status: "rejected", reason: closeError },
+      { status: "rejected", reason: closeError },
+    ]);
+  });
+
+  it("should reject with the original close callback error", async () => {
+    const server = new GraphQLServer();
+    const nodeServer = createServer();
+    const closeError = new Error("close failed");
+    vi.spyOn(nodeServer, "close").mockImplementation((callback) => {
+      callback?.(closeError);
+      return nodeServer;
+    });
+    Reflect.set(server, "server", nodeServer);
+
+    await expect(server.stop()).rejects.toBe(closeError);
+  });
+
+  it("should clear the server reference after a close callback error", async () => {
+    const server = new GraphQLServer();
+    const nodeServer = createServer();
+    vi.spyOn(nodeServer, "close").mockImplementation((callback) => {
+      callback?.(new Error("close failed"));
+      return nodeServer;
+    });
+    Reflect.set(server, "server", nodeServer);
+
+    await server.stop().catch(() => undefined);
+
+    expect(Reflect.get(server, "server")).toBeNull();
+  });
+});
+
+async function withinShutdownDeadline<T>(operation: Promise<T>): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("Shutdown test exceeded 1000 ms")), 1_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 describe("GraphQLServer integration", () => {
