@@ -69,7 +69,7 @@ const policy = await policyStore.findByTenantAndDomain("tenant-1", "example.com"
 - 단계별 claim/complete/release 메서드는 동시에 하나의 전달 작업만 수행하도록 fencing합니다.
 - `activateEmailInvitation(tenantId, idempotencyKey)`, 이벤트와 알림 완료 뒤 초대를 `pending`으로 활성화합니다.
 - `updateStatus(id, status)`, 초대 상태를 갱신합니다.
-- `countIssuedByTenant(tenantId, since)`, `createdAt >= since`인 테넌트의 모든 초대를 상태와 무관하게 집계합니다. 상태가 바뀌어도 발급 한도에서 차감되지 않습니다.
+- `countIssuedByTenant(tenantId, since)`, `createdAt >= since`인 테넌트의 모든 초대를 상태와 무관하게 집계합니다. 상태가 바뀌어도 이 초대는 발급 할당량에 계속 포함됩니다.
 - `countPendingByTenant(tenantId, since)`, 기간 내 대기 초대 수를 반환합니다.
 
 ### `DrizzleDomainPolicyStore`
