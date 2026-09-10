@@ -61,7 +61,9 @@ export function extractRouteIR(controllerCtor: Constructor): RouteIR[] {
       controllerName: controllerCtor.name,
       methodName: String(routeMeta.methodName),
       httpMethod: routeMeta.method,
-      path: routeContract?.path ?? joinPaths(controllerMeta.path, routeMeta.path),
+      path: routeContract
+        ? resolveContractPath(controllerMeta.path, routeContract.path)
+        : joinPaths(controllerMeta.path, routeMeta.path),
       ...(routeMeta.sourceLocation ? { sourceLocation: routeMeta.sourceLocation } : {}),
       routeContract,
       params,
@@ -278,6 +280,14 @@ function extractSchema(paramMeta: ParamMetadata): z.ZodType | null {
   }
 
   return Reflect.get(pipe, "schema") as z.ZodType;
+}
+
+function resolveContractPath(controllerPath: string, contractPath: string): string {
+  const prefix = normalizeFullPath(controllerPath);
+
+  return contractPath === prefix || contractPath.startsWith(`${prefix}/`)
+    ? contractPath
+    : joinPaths(prefix, contractPath);
 }
 
 function joinPaths(base: string, path: string): string {

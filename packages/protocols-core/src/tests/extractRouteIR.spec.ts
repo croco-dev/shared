@@ -248,6 +248,29 @@ describe("extractRouteIR", () => {
     expect(routes[0]?.outputSchema).toBe(userSchema);
   });
 
+  it.each([
+    ["/api/v1", "/users", "/api/v1/users"],
+    ["", "/users", "/users"],
+    ["/", "/users", "/users"],
+    ["/api/v1/", "users/", "/api/v1/users"],
+    ["/api/v1", "/", "/api/v1"],
+    ["", "", "/"],
+    ["/api/v1", "/api/v1/users", "/api/v1/users"],
+    ["/api/v1/", "/api/v1/users/", "/api/v1/users"],
+    ["/api/v1", "/api/v1", "/api/v1"],
+    ["/api/v1", "/api/v10/users", "/api/v1/api/v10/users"],
+  ])("should resolve controller %s and contract %s to %s", (prefix, path, expected) => {
+    @Controller(prefix)
+    class UsersController {
+      @Get("/decorator-path")
+      listUsers(): void {}
+    }
+
+    attachRouteContract(UsersController, "listUsers", { method: "GET", path });
+
+    expect(extractRouteIR(UsersController)[0]?.path).toBe(expected);
+  });
+
   it("should extract path, input, and output schemas from route contract metadata", () => {
     const userIdSchema = z.string().uuid();
     const includePostsSchema = z.boolean().optional();

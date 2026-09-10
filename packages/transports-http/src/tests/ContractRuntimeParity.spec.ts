@@ -390,6 +390,39 @@ describe("REST contract-to-runtime parity", () => {
     fs.rmSync(GENERATED_RPC_TEMP_ROOT, { recursive: true, force: true });
   });
 
+  it.each(["/users", "/api/v1/users"] as const)(
+    "mounts contract %s under its controller in the graph and HTTP runtime",
+    async (path) => {
+      const contract = defineRouteContract({
+        method: HttpMethod.GET,
+        path,
+        response: z.string(),
+      });
+
+      @Controller("/api/v1")
+      class UsersController {
+        @Get(contract)
+        listUsers(): string {
+          return "users";
+        }
+      }
+
+      const graph = buildContractGraph([UsersController]);
+      assertContractGraphHasNoErrors(graph);
+      expect(graph.routes[0]?.path).toBe("/api/v1/users");
+      expect(graph.routes[0]?.routeContract?.path).toBe(path);
+
+      const app = createApp({ controllers: [UsersController], securityValidation: "off" });
+      const response = await app.fetch(new Request("http://localhost/api/v1/users"));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toBe("users");
+      expect((await app.fetch(new Request("http://localhost/users"))).status).toBe(404);
+      expect((await app.fetch(new Request("http://localhost/api/v1/api/v1/users"))).status).toBe(
+        404,
+      );
+    },
+  );
+
   it("keeps accepted contract metadata aligned with the fixture route", () => {
     expect(route).toMatchObject({
       routeId: "ContractParityController.updateWidget",
