@@ -9821,7 +9821,7 @@ Sources:
 
 Sources:
 
-- `packages/openapi-spec/src/libs/loadControllers.ts:34:5` (problem-constructor)
+- `packages/openapi-spec/src/libs/loadControllers.ts:31:5` (problem-constructor)
 
 <a id="openapi-spec-invalid-contract"></a>
 
@@ -9857,7 +9857,7 @@ Sources:
 
 Sources:
 
-- `packages/openapi-spec/src/libs/loadControllers.ts:22:5` (problem-constructor)
+- `packages/openapi-spec/src/libs/loadControllers.ts:19:5` (problem-constructor)
 
 <a id="otlp-endpoint-required"></a>
 
@@ -11045,7 +11045,7 @@ Sources:
 
 Sources:
 
-- `packages/rpc-codegen/src/libs/loadRoutes.ts:38:5` (problem-constructor)
+- `packages/rpc-codegen/src/libs/loadRoutes.ts:41:5` (problem-constructor)
 
 <a id="rpc-codegen-invalid-contract"></a>
 
@@ -11081,7 +11081,7 @@ Sources:
 
 Sources:
 
-- `packages/rpc-codegen/src/libs/loadRoutes.ts:26:5` (problem-constructor)
+- `packages/rpc-codegen/src/libs/loadRoutes.ts:29:5` (problem-constructor)
 
 <a id="rpc-codegen-unsupported-form-schema"></a>
 
