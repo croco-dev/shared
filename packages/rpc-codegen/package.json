@@ -50,14 +50,15 @@
     "docs:api:model": "node --experimental-strip-types ../docs/scripts/generate-package-api-model.mts"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@croco/presentation-preset": "workspace:*",
     "@croco/problems-core": "workspace:*",
     "@croco/protocol-codegen": "workspace:*",
     "@croco/protocols-core": "workspace:*",
-    "prettier": "^3.0.0"
+    "prettier": "^3.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@croco/diagnostics-core": "workspace:*",
     "@croco/events-core": "workspace:*",
     "@croco/framework-config": "workspace:*",
@@ -72,7 +73,6 @@
     "ts-morph": "^24.0.0",
     "tsup": "^8.5.1",
     "typescript": "^5.0.0",
-    "vitest": "4.1.8",
-    "zod": "^3.23.8"
+    "vitest": "4.1.8"
   }
 }

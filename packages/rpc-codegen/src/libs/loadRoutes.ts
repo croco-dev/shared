@@ -1,7 +1,9 @@
+import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 import { Problem, ProblemCategory } from "@croco/problems-core";
 import {
   CONTROLLER_TYPESCRIPT_DIAGNOSTIC_CODE,
   type ControllerTypeScriptDiagnostic,
+  extendApplicationZodRuntimes,
   formatControllerTypeScriptDiagnostics,
   getNoRestControllersFoundMessage,
   loadRestControllerSources,
@@ -16,6 +18,7 @@ import {
   isContractMonetizationDefinition,
   type RouteIR,
 } from "@croco/protocols-core";
+import type { z } from "zod";
 
 export type LoadContractGraphOptions = BuildContractGraphOptions & {
   readonly tsconfigPath?: string;
@@ -72,6 +75,10 @@ export async function loadContractGraph(
     controllers: glob,
     problems: REST_CONTROLLER_SOURCE_PROBLEMS,
     ...(tsconfigPath ? { tsconfigPath } : {}),
+    beforeEmit: async (sourcePaths) =>
+      extendApplicationZodRuntimes(sourcePaths, (namespace) =>
+        extendZodWithOpenApi(namespace as typeof z),
+      ),
   });
   const monetizationInputs: ContractMonetizationInput[] = [];
   const monetizationDiagnostics: ContractDiagnostic[] = [];

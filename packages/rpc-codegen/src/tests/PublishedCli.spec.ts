@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,7 @@ const spawnTimeoutMs = 180_000;
 
 describe("published RPC codegen CLI", () => {
   it(
-    "installs an executable binary that starts through the published package contract",
+    "generates clients for OpenAPI schemas through the published package contract",
     () => {
       const packRoot = mkdtempSync(join(tmpdir(), "croco-rpc-codegen-pack-"));
       const consumerRoot = mkdtempSync(join(tmpdir(), "croco-rpc-codegen-consumer-"));
@@ -92,9 +92,53 @@ describe("published RPC codegen CLI", () => {
         });
 
         run("pnpm", ["add", "--prod", rpcCodegenTarball, "--ignore-scripts"], consumerRoot);
+        run(
+          "node",
+          ["--input-type=module", "--eval", "await import('@croco/rpc-codegen');"],
+          consumerRoot,
+        );
+        run("node", ["--eval", "require('@croco/rpc-codegen');"], consumerRoot);
+        run(
+          "pnpm",
+          [
+            "add",
+            "--prod",
+            "zod@3.25.76",
+            "@asteasolutions/zod-to-openapi@7.3.4",
+            "--ignore-scripts",
+          ],
+          consumerRoot,
+        );
 
         const help = run("pnpm", ["exec", "croco-rpc-codegen", "--help"], consumerRoot);
         expect(help.stdout).toContain("Usage: croco-rpc-codegen");
+
+        writeFileSync(
+          join(consumerRoot, "UsersController.ts"),
+          `import { z } from 'zod';
+import type {} from '@asteasolutions/zod-to-openapi';
+
+declare namespace Reflect {
+  function defineMetadata(key: unknown, value: unknown, target: object, propertyKey?: string): void;
+}
+
+const schema = z.object({ id: z.string().openapi({ example: 'user-1' }) }).openapi('User');
+export class UsersController {
+  listUsers() { return { id: 'user-1' }; }
+}
+Reflect.defineMetadata(Symbol.for('croco:rest:controller'), { path: '/users', target: UsersController }, UsersController);
+Reflect.defineMetadata(Symbol.for('croco:rest:routes'), [{ method: 'GET', path: '/', methodName: 'listUsers' }], UsersController);
+Reflect.defineMetadata(Symbol.for('croco:rest:responseSchema'), schema, UsersController, 'listUsers');
+`,
+        );
+        run(
+          "pnpm",
+          ["exec", "croco-rpc-codegen", "--controllers", "UsersController.ts", "--out", "client"],
+          consumerRoot,
+        );
+        expect(readFileSync(join(consumerRoot, "client", "users.ts"), "utf8")).toContain(
+          "listUsers",
+        );
       } finally {
         rmSync(packRoot, { force: true, recursive: true });
         rmSync(consumerRoot, { force: true, recursive: true });

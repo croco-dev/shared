@@ -23753,6 +23753,12 @@
               "declarationKind": "function"
             },
             {
+              "name": "extendApplicationZodRuntimes",
+              "exportKind": "named",
+              "source": "./libs/extendApplicationZodRuntimes",
+              "declarationKind": "function"
+            },
+            {
               "name": "formatControllerTypeScriptDiagnostics",
               "exportKind": "named",
               "source": "./libs/RestControllerSources",
