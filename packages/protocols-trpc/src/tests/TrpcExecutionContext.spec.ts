@@ -29,6 +29,7 @@ describe("TrpcExecutionContext Node request normalization", () => {
     expect(request.method).toBe("GET");
     expect([...request.headers]).toEqual([
       ["authorization", "Bearer test-token"],
+      ["host", "api.example.test:8080"],
       ["x-tag", "first, second"],
     ]);
   });
@@ -39,12 +40,13 @@ describe("TrpcExecutionContext Node request normalization", () => {
       const request = normalizeRequest({ ":authority": authority, ":scheme": "http" }, true);
 
       expect(request.url).toBe(`https://${authority}/trpc/users?batch=1`);
+      expect(request.headers.get("host")).toBe(authority);
     },
   );
 
   it("prefers the existing Host header over HTTP/2 authority", () => {
     const request = normalizeRequest({
-      host: "host.example.test",
+      Host: "host.example.test",
       ":authority": "authority.example.test",
     });
 
@@ -55,9 +57,9 @@ describe("TrpcExecutionContext Node request normalization", () => {
   it.each([undefined, null, 42, ["api.example.test"]].map((authority) => ({ authority })))(
     "does not coerce a non-string authority (%j) into the URL",
     ({ authority }) => {
-      expect(normalizeRequest({ ":authority": authority }).url).toBe(
-        "http://localhost/trpc/users?batch=1",
-      );
+      const request = normalizeRequest({ ":authority": authority });
+      expect(request.url).toBe("http://localhost/trpc/users?batch=1");
+      expect(request.headers.has("host")).toBe(false);
     },
   );
 
