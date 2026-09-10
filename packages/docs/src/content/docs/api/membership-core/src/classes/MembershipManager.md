@@ -29,10 +29,10 @@ const manager = new MembershipManager({
 });
 
 // 멤버 추가
-await manager.addMember("tenant-123", "user-456", "admin", "member:add:user-456");
+await manager.addMember("tenant-123", "user-456", "member", "member:add:user-456");
 
 // 역할 변경
-await manager.updateRole("tenant-123", "user-456", "owner", "member:promote:user-456");
+await manager.updateRole("tenant-123", "user-456", "admin", "member:promote:user-456");
 
 // 소유권 이전
 await manager.transferOwnership(
