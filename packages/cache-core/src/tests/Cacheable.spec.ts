@@ -370,6 +370,8 @@ describe("@CacheEvict", () => {
   });
 
   it("clears all entries without encoding method arguments", async () => {
+    const clearSpy = vi.spyOn(cache, "clear");
+    const invalidateSpy = vi.spyOn(cache, "invalidatePattern");
     await cache.set("key1", "value1");
     await cache.set("key2", "value2");
 
@@ -383,6 +385,68 @@ describe("@CacheEvict", () => {
 
     expect(await cache.get("key1")).toBeUndefined();
     expect(await cache.get("key2")).toBeUndefined();
+    expect(clearSpy).toHaveBeenCalledOnce();
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["users", ""])("evicts all entries only within namespace %j", async (namespace) => {
+    await cache.set(`${namespace}:get:1`, "first");
+    await cache.set(`${namespace}:list`, "second");
+    await cache.set(`${namespace}-archive:1`, "archive");
+    await cache.set("sessions:1", "session");
+    const clearSpy = vi.spyOn(cache, "clear");
+
+    class TestService {
+      @CacheEvict({ store: cache, namespace, allEntries: true })
+      async clearNamespace(_unsupported: Date): Promise<string> {
+        expect(await cache.get(`${namespace}:get:1`)).toBe("first");
+        return "cleared";
+      }
+    }
+
+    await expect(new TestService().clearNamespace(new Date())).resolves.toBe("cleared");
+
+    expect(await cache.get(`${namespace}:get:1`)).toBeUndefined();
+    expect(await cache.get(`${namespace}:list`)).toBeUndefined();
+    expect(await cache.get(`${namespace}-archive:1`)).toBe("archive");
+    expect(await cache.get("sessions:1")).toBe("session");
+    expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it("propagates namespace invalidation failures without clearing the store", async () => {
+    await cache.set("sessions:1", "session");
+    const failure = new Error("pattern invalidation failed");
+    const invalidateSpy = vi.spyOn(cache, "invalidatePattern").mockRejectedValueOnce(failure);
+    const clearSpy = vi.spyOn(cache, "clear");
+
+    class TestService {
+      @CacheEvict({ store: cache, namespace: "users", allEntries: true })
+      async clearUsers(): Promise<void> {}
+    }
+
+    await expect(new TestService().clearUsers()).rejects.toBe(failure);
+    expect(invalidateSpy).toHaveBeenCalledWith("users:*");
+    expect(clearSpy).not.toHaveBeenCalled();
+    expect(await cache.get("sessions:1")).toBe("session");
+  });
+
+  it("preserves namespace entries when the decorated method fails", async () => {
+    await cache.set("users:1", "user");
+    const failure = new Error("update failed");
+    const invalidateSpy = vi.spyOn(cache, "invalidatePattern");
+    const clearSpy = vi.spyOn(cache, "clear");
+
+    class TestService {
+      @CacheEvict({ store: cache, namespace: "users", allEntries: true })
+      async clearUsers(): Promise<void> {
+        throw failure;
+      }
+    }
+
+    await expect(new TestService().clearUsers()).rejects.toBe(failure);
+    expect(await cache.get("users:1")).toBe("user");
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect(clearSpy).not.toHaveBeenCalled();
   });
 
   it("uses namespace for default argument-based eviction keys", async () => {
