@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import type { Guard } from "@croco/framework-context";
 import type { ProblemCategory } from "@croco/problems-core";
 import type { HttpMethod, ParamType } from "./constants";
@@ -50,6 +51,7 @@ export interface ParamMetadata {
   index: number;
   name?: string;
   pipes?: (PipeTransformConstructor | PipeTransform)[];
+  contractSchema?: z.ZodType;
   sourceLocation?: RouteContractSourceLocation;
 }
 

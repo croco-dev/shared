@@ -143,6 +143,8 @@ export {
   getZodDefaultValue,
   getZodInnerSchema,
   getZodObjectShape,
+  getZodInputObjectSchema,
+  getZodQueryInputSchema,
   getZodObjectUnsupportedDynamicKeyMode,
   getZodSchemaTypeName,
   isZodArraySchema,

@@ -1,6 +1,6 @@
 {
   "version": "croco.problem-code-registry.v1",
-  "problemCount": 771,
+  "problemCount": 774,
   "problems": [
     {
       "code": "ACCESS_DENIED",
@@ -15686,7 +15686,7 @@
       "sources": [
         {
           "file": "packages/protocols-core/src/libs/ContractGraph.ts",
-          "line": 160,
+          "line": 161,
           "column": 5,
           "kind": "problem-constructor"
         }
@@ -16048,6 +16048,36 @@
           "file": "packages/protocols-rest/src/libs/metadata/MetadataReader.ts",
           "line": 48,
           "column": 13,
+          "kind": "problem-factory"
+        }
+      ]
+    },
+    {
+      "code": "protocols-rest/invalid-route-parameter-schema",
+      "category": "InternalServerError",
+      "status": 500,
+      "title": "Internal Server Error",
+      "cookbookPath": "/reference/problem-recovery-cookbook/#protocols-rest-invalid-route-parameter-schema",
+      "recovery": {
+        "cause": "Croco or an upstream dependency failed after accepting the request.",
+        "userAction": "Retry later only when the operation is idempotent or the caller owns retry safety.",
+        "operatorAction": "Use traces, logs, and upstream diagnostics to isolate the failing boundary.",
+        "retryability": "conditional",
+        "redactionPolicy": "operator-only",
+        "telemetry": {
+          "eventName": "croco.problem.error",
+          "severity": "error",
+          "attributes": ["problem.code", "problem.category", "problem.status"]
+        }
+      },
+      "lifecycle": {
+        "status": "active"
+      },
+      "sources": [
+        {
+          "file": "packages/protocols-rest/src/libs/internal/routeParameterSchema.ts",
+          "line": 25,
+          "column": 11,
           "kind": "problem-factory"
         }
       ]
@@ -20973,6 +21003,66 @@
       ]
     },
     {
+      "code": "transports-http/invalid-contract-binding",
+      "category": "InternalServerError",
+      "status": 500,
+      "title": "Internal Server Error",
+      "cookbookPath": "/reference/problem-recovery-cookbook/#transports-http-invalid-contract-binding",
+      "recovery": {
+        "cause": "Croco or an upstream dependency failed after accepting the request.",
+        "userAction": "Retry later only when the operation is idempotent or the caller owns retry safety.",
+        "operatorAction": "Use traces, logs, and upstream diagnostics to isolate the failing boundary.",
+        "retryability": "conditional",
+        "redactionPolicy": "operator-only",
+        "telemetry": {
+          "eventName": "croco.problem.error",
+          "severity": "error",
+          "attributes": ["problem.code", "problem.category", "problem.status"]
+        }
+      },
+      "lifecycle": {
+        "status": "active"
+      },
+      "sources": [
+        {
+          "file": "packages/transports-http/src/libs/ParamResolver.ts",
+          "line": 114,
+          "column": 13,
+          "kind": "problem-factory"
+        }
+      ]
+    },
+    {
+      "code": "transports-http/invalid-contract-output",
+      "category": "InternalServerError",
+      "status": 500,
+      "title": "Internal Server Error",
+      "cookbookPath": "/reference/problem-recovery-cookbook/#transports-http-invalid-contract-output",
+      "recovery": {
+        "cause": "Croco or an upstream dependency failed after accepting the request.",
+        "userAction": "Retry later only when the operation is idempotent or the caller owns retry safety.",
+        "operatorAction": "Use traces, logs, and upstream diagnostics to isolate the failing boundary.",
+        "retryability": "conditional",
+        "redactionPolicy": "operator-only",
+        "telemetry": {
+          "eventName": "croco.problem.error",
+          "severity": "error",
+          "attributes": ["problem.code", "problem.category", "problem.status"]
+        }
+      },
+      "lifecycle": {
+        "status": "active"
+      },
+      "sources": [
+        {
+          "file": "packages/transports-http/src/libs/ParamResolver.ts",
+          "line": 147,
+          "column": 13,
+          "kind": "problem-factory"
+        }
+      ]
+    },
+    {
       "code": "transports-http/middleware-next-called-multiple-times",
       "category": "InternalServerError",
       "status": 500,
@@ -21026,7 +21116,7 @@
       "sources": [
         {
           "file": "packages/transports-http/src/libs/ParamResolver.ts",
-          "line": 274,
+          "line": 346,
           "column": 13,
           "kind": "problem-factory"
         }

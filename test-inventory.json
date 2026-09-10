@@ -3015,6 +3015,12 @@
       "owner": "@croco/protocols-core"
     },
     {
+      "path": "packages/protocols-core/src/tests/WrappedContractBindings.spec.ts",
+      "lane": "fast",
+      "qualifiers": ["coverage"],
+      "owner": "@croco/protocols-core"
+    },
+    {
       "path": "packages/protocols-core/src/tests/controllerDiscovery.spec.ts",
       "lane": "fast",
       "qualifiers": ["coverage"],
@@ -4252,6 +4258,12 @@
     },
     {
       "path": "packages/transports-http/src/tests/TelemetryMiddleware.spec.ts",
+      "lane": "fast",
+      "qualifiers": ["coverage"],
+      "owner": "@croco/transports-http"
+    },
+    {
+      "path": "packages/transports-http/src/tests/WrappedContractParams.spec.ts",
       "lane": "fast",
       "qualifiers": ["coverage"],
       "owner": "@croco/transports-http"

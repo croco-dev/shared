@@ -69,8 +69,8 @@ export type RouteContractMetadata = {
   readonly path: string;
   readonly operationId?: string;
   readonly sourceLocation?: RouteContractSourceLocation;
-  readonly params?: z.AnyZodObject;
-  readonly query?: z.AnyZodObject;
+  readonly params?: z.ZodType;
+  readonly query?: z.ZodType;
   readonly body?: z.ZodType;
   readonly response?: z.ZodType;
   readonly problems?: readonly RouteContractProblemMetadata[];
@@ -97,5 +97,6 @@ export interface ParamMetadata {
   index: number;
   name?: string;
   pipes?: unknown[];
+  contractSchema?: z.ZodType;
   sourceLocation?: RouteContractSourceLocation;
 }

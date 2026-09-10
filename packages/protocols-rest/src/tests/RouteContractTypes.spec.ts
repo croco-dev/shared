@@ -1141,3 +1141,99 @@ type RemovedRouteTypes = [
 
 const removedRouteTypes: RemovedRouteTypes | undefined = undefined;
 void removedRouteTypes;
+
+const wrappedParamsInput = z.object({ id: z.string() });
+const wrappedQueryInput = z.object({ count: z.string() });
+const wrappedParameterContract = defineRouteContract({
+  method: HttpMethod.GET,
+  path: "/wrapped/:id",
+  params: wrappedParamsInput
+    .refine(({ id }) => id.length > 0)
+    .transform(({ id }) => ({ id: id.length })),
+  query: wrappedQueryInput
+    .transform(({ count }) => ({ total: Number(count) }))
+    .pipe(z.object({ total: z.number() }).refine(({ total }) => total > 0)),
+});
+
+describe("wrapped parameter contract types", () => {
+  it("preserves input and output types independently", () => {
+    expectTypeOf<RouteClientPathParams<typeof wrappedParameterContract>>().toEqualTypeOf<{
+      id: string;
+    }>();
+    expectTypeOf<RouteHandlerPathParams<typeof wrappedParameterContract>>().toEqualTypeOf<{
+      id: number;
+    }>();
+    expectTypeOf<RouteClientQuery<typeof wrappedParameterContract>>().toEqualTypeOf<{
+      count: string;
+    }>();
+    expectTypeOf<RouteHandlerQuery<typeof wrappedParameterContract>>().toEqualTypeOf<{
+      total: number;
+    }>();
+    expectTypeOf(routeParamSchema(wrappedParameterContract, "id")).toEqualTypeOf<z.ZodString>();
+    expectTypeOf(
+      routeQueryParamSchema(wrappedParameterContract, "count"),
+    ).toEqualTypeOf<z.ZodString>();
+    expect(routeParamSchema(wrappedParameterContract, "id")).toBe(wrappedParamsInput.shape.id);
+    expect(routeQueryParamSchema(wrappedParameterContract, "count")).toBe(
+      wrappedQueryInput.shape.count,
+    );
+    expect(routeQueryParam(wrappedParameterContract, "total")).toBe("total");
+  });
+});
+
+// @ts-expect-error wrapped parameter input must declare every path name.
+defineRouteContract({
+  method: HttpMethod.GET,
+  path: "/wrapped/:missing",
+  params: wrappedParamsInput.refine(() => true),
+});
+// @ts-expect-error transforms cannot replace the path names required on the wire.
+defineRouteContract({
+  method: HttpMethod.GET,
+  path: "/wrapped/:renamed",
+  params: wrappedParamsInput.transform(({ id }) => ({ renamed: id })),
+});
+defineRouteContract({
+  method: HttpMethod.GET,
+  path: "/wrapped",
+  // @ts-expect-error scalar-input transforms are not route parameter objects.
+  query: z.string().transform((value) => ({ value })),
+});
+defineRouteContract({
+  method: HttpMethod.GET,
+  path: "/wrapped/:id",
+  // @ts-expect-error parameter schema outputs must remain objects.
+  params: wrappedParamsInput.transform(({ id }) => id),
+});
+defineRouteContract({
+  method: HttpMethod.GET,
+  path: "/wrapped/:id",
+  // @ts-expect-error pipeline outputs must remain objects.
+  params: wrappedParamsInput.pipe(z.string()),
+});
+
+function invalidWrappedSchemaHelpers(): void {
+  // @ts-expect-error output-only properties do not have an input field schema.
+  routeQueryParamSchema(wrappedParameterContract, "total");
+  // @ts-expect-error query binding names use output keys.
+  routeQueryParam(wrappedParameterContract, "count");
+}
+void invalidWrappedSchemaHelpers;
+
+const renamedPathContract = defineRouteContract({
+  method: HttpMethod.GET,
+  path: "/renamed/:id",
+  params: z.object({ id: z.string() }).transform(({ id }) => ({ renamed: Number(id) })),
+});
+class RenamedPathController {
+  read(@Param(renamedPathContract, "renamed") renamed: number) {
+    return renamed;
+  }
+}
+void RenamedPathController;
+expectTypeOf(routeParam(renamedPathContract, "renamed")).toEqualTypeOf<"renamed">();
+function invalidRenamedPathBindings(): void {
+  // @ts-expect-error the input-only path name is absent from the handler output.
+  routeParam(renamedPathContract, "id");
+}
+void invalidRenamedPathBindings;

@@ -24050,6 +24050,12 @@
               "declarationKind": "function"
             },
             {
+              "name": "getZodInputObjectSchema",
+              "exportKind": "named",
+              "source": "./libs/SchemaDescriptor",
+              "declarationKind": "function"
+            },
+            {
               "name": "getZodObjectShape",
               "exportKind": "named",
               "source": "./libs/SchemaDescriptor",
@@ -24057,6 +24063,12 @@
             },
             {
               "name": "getZodObjectUnsupportedDynamicKeyMode",
+              "exportKind": "named",
+              "source": "./libs/SchemaDescriptor",
+              "declarationKind": "function"
+            },
+            {
+              "name": "getZodQueryInputSchema",
               "exportKind": "named",
               "source": "./libs/SchemaDescriptor",
               "declarationKind": "function"

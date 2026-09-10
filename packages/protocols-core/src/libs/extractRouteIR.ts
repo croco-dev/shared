@@ -240,6 +240,7 @@ function extractParams(paramsMeta: ParamMetadata[]): ParamIR[] {
       kind: mapParamKind(paramMeta.type),
       name: paramMeta.name ?? "",
       schema: extractSchema(paramMeta),
+      ...(paramMeta.contractSchema ? { contractSchema: paramMeta.contractSchema } : {}),
       ...(paramMeta.sourceLocation ? { sourceLocation: paramMeta.sourceLocation } : {}),
     }));
 }
@@ -247,8 +248,12 @@ function extractParams(paramsMeta: ParamMetadata[]): ParamIR[] {
 function extractInputSchemas(params: ParamIR[]): RouteInputSchemas {
   return {
     body: params.find((param) => param.kind === "body")?.schema ?? null,
-    path: buildPathSchema(params),
-    query: buildQuerySchema(params),
+    path:
+      params.find((param) => param.kind === "path" && param.contractSchema)?.contractSchema ??
+      buildPathSchema(params),
+    query:
+      params.find((param) => param.kind === "query" && param.contractSchema)?.contractSchema ??
+      buildQuerySchema(params),
     headers: buildHeaderSchema(params),
   };
 }
