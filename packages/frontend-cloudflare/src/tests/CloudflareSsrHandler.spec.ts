@@ -90,27 +90,71 @@ describe("createSsrHandler", () => {
     expect(result.headers.get("content-type")).toBe("text/plain; charset=utf-8");
   });
 
-  it("returns a non-404 ASSETS response before API and SSR fallback", async () => {
-    const handler = createSsrHandler({ apiBindingName: "MY_API" });
-    const assetResponse = new Response("asset", { status: 200 });
-    const assets = {
-      fetch: vi.fn().mockResolvedValue(assetResponse),
-    } as unknown as Fetcher;
-    const api = {
-      fetch: vi.fn().mockResolvedValue(new Response("api")),
-    } as unknown as Fetcher;
-    const env = { ASSETS: assets, MY_API: api } as unknown as SsrWorkerEnv;
+  it.each(["GET", "HEAD"])(
+    "returns a non-404 ASSETS response before API and SSR fallback for %s",
+    async (method) => {
+      const handler = createSsrHandler({ apiBindingName: "MY_API" });
+      const assetResponse = new Response("asset", { status: 200 });
+      const assets = {
+        fetch: vi.fn().mockResolvedValue(assetResponse),
+      } as unknown as Fetcher;
+      const api = {
+        fetch: vi.fn().mockResolvedValue(new Response("api")),
+      } as unknown as Fetcher;
+      const env = { ASSETS: assets, MY_API: api } as unknown as SsrWorkerEnv;
 
-    const result = await handler(
-      new Request("https://example.com/api/logo.png"),
-      env,
-      createExecutionContext(),
-    );
+      const result = await handler(
+        new Request("https://example.com/api/logo.png", { method }),
+        env,
+        createExecutionContext(),
+      );
 
-    expect(result).toBe(assetResponse);
-    expect(assets.fetch).toHaveBeenCalledTimes(1);
-    expect(api.fetch).not.toHaveBeenCalled();
-  });
+      expect(result).toBe(assetResponse);
+      expect(assets.fetch).toHaveBeenCalledTimes(1);
+      expect(api.fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["POST", "PUT", "PATCH", "DELETE", "OPTIONS"])(
+    "preserves %s request bodies without consulting ASSETS",
+    async (method) => {
+      for (const pathname of ["/api/users", "/dashboard"]) {
+        const payload = JSON.stringify({ message: "preserved body" });
+        const request = new Request(`https://example.com${pathname}`, {
+          method,
+          body: payload,
+        });
+        const assets = {
+          fetch: vi.fn(async (incoming: Request) => {
+            await incoming.text();
+            return new Response(null, { status: 404 });
+          }),
+        } as unknown as Fetcher;
+        const consumeBody = async (incoming: Request) => {
+          expect(incoming).toBe(request);
+          expect(incoming.bodyUsed).toBe(false);
+          expect(incoming.body?.locked).toBe(false);
+          return new Response(await incoming.text());
+        };
+        const api = { fetch: vi.fn(consumeBody) } as unknown as Fetcher;
+        const renderServer = {
+          handle: vi.fn(consumeBody),
+        } as unknown as RenderServer;
+        const handler = createSsrHandler({ renderServer });
+        const response = await handler(
+          request,
+          { ASSETS: assets, API_WORKER: api },
+          createExecutionContext(),
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.text()).resolves.toBe(payload);
+        expect(assets.fetch).not.toHaveBeenCalled();
+        expect(api.fetch).toHaveBeenCalledTimes(pathname.startsWith("/api/") ? 1 : 0);
+        expect(renderServer.handle).toHaveBeenCalledTimes(pathname.startsWith("/api/") ? 0 : 1);
+      }
+    },
+  );
 
   it("falls through ASSETS 404 responses to API service binding dispatch", async () => {
     const handler = createSsrHandler({ apiBindingName: "MY_API" });
