@@ -155,7 +155,7 @@ function buildGroupUpsertQuery(table: string, group: DocumentGroup, tenantId: st
   const insertColumns = [...group.columns, TENANT_ID_COLUMN];
   const values = group.documents.map(({ document }) => {
     const documentEntries = new Map(getDocumentEntries(document));
-    const rowValues = group.columns.map((column) => sql.param(documentEntries.get(column)));
+    const rowValues = group.columns.map((column) => sql.param(documentEntries.get(column) ?? null));
     return sql`(${sql.join([...rowValues, sql.param(tenantId)], sql`, `)})`;
   });
   const updateColumns = group.columns.filter((column) => column !== DOCUMENT_ID_COLUMN);
