@@ -10217,7 +10217,7 @@ Sources:
 
 Sources:
 
-- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:71:13` (problem-factory)
+- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:74:13` (problem-factory)
 
 <a id="protocols-graphql-auth-invalid-request"></a>
 
@@ -10235,7 +10235,7 @@ Sources:
 
 Sources:
 
-- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:54:13` (problem-factory)
+- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:57:13` (problem-factory)
 
 <a id="protocols-graphql-auth-invalid-token"></a>
 
@@ -10253,7 +10253,7 @@ Sources:
 
 Sources:
 
-- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:14:10` (problem-factory)
+- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:17:10` (problem-factory)
 
 <a id="protocols-graphql-auth-missing-header"></a>
 
@@ -10271,7 +10271,7 @@ Sources:
 
 Sources:
 
-- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:63:13` (problem-factory)
+- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:66:13` (problem-factory)
 
 <a id="protocols-graphql-auth-verifier-unavailable"></a>
 
@@ -10289,7 +10289,7 @@ Sources:
 
 Sources:
 
-- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:97:13` (problem-factory)
+- `packages/protocols-graphql/src/libs/guards/AuthGuard.ts:100:13` (problem-factory)
 
 <a id="protocols-graphql-guard-denied"></a>
 

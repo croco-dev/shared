@@ -25429,6 +25429,12 @@
               "declarationKind": "function"
             },
             {
+              "name": "GRAPHQL_AUTH_GUARD_OPTIONS",
+              "exportKind": "named",
+              "source": "./libs/guards",
+              "declarationKind": "const"
+            },
+            {
               "name": "GRAPHQL_GUARDS_KEY",
               "exportKind": "named",
               "source": "./libs/constants",

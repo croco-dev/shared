@@ -16399,7 +16399,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/protocols-graphql/src/libs/guards/AuthGuard.ts",
-          line: 71,
+          line: 74,
           column: 13,
           kind: "problem-factory",
         },
@@ -16430,7 +16430,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/protocols-graphql/src/libs/guards/AuthGuard.ts",
-          line: 54,
+          line: 57,
           column: 13,
           kind: "problem-factory",
         },
@@ -16460,7 +16460,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/protocols-graphql/src/libs/guards/AuthGuard.ts",
-          line: 14,
+          line: 17,
           column: 10,
           kind: "problem-factory",
         },
@@ -16490,7 +16490,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/protocols-graphql/src/libs/guards/AuthGuard.ts",
-          line: 63,
+          line: 66,
           column: 13,
           kind: "problem-factory",
         },
@@ -16523,7 +16523,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/protocols-graphql/src/libs/guards/AuthGuard.ts",
-          line: 97,
+          line: 100,
           column: 13,
           kind: "problem-factory",
         },

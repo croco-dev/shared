@@ -71,6 +71,7 @@ export {
 } from "./libs/errors";
 export {
   type AuthGuardOptions,
+  GRAPHQL_AUTH_GUARD_OPTIONS,
   GraphQLAuthGuard,
   GraphQLRolesGuard,
   GuardChain,

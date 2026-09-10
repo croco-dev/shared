@@ -64,6 +64,23 @@ class AccountResolver {
 verifier result to `context.user` without reshaping it. Role, scope, tenant, and metadata
 fields are preserved when the verifier includes them in the returned user object.
 
+To use `@UseGuards(GraphQLAuthGuard)`, register the guard and its options during application
+setup, before schema initialization or container validation:
+
+```typescript
+import { Container } from "@croco/framework-context";
+import { GRAPHQL_AUTH_GUARD_OPTIONS, GraphQLAuthGuard } from "@croco/protocols-graphql";
+
+Container.set(GRAPHQL_AUTH_GUARD_OPTIONS, {
+  verifier: verifyAccessToken,
+});
+Container.register(GraphQLAuthGuard, "singleton");
+```
+
+`verifyAccessToken` is the application's token verifier. The options also accept `headerName`
+and `scheme`. Missing options fail DI resolution; direct construction with
+`new GraphQLAuthGuard({ verifier: verifyAccessToken })` remains supported.
+
 GraphQL auth failures use protocol-scoped Problem codes: missing headers are
 `protocols-graphql/auth-missing-header`, malformed Bearer headers are
 `protocols-graphql/auth-invalid-header-format`, invalid or expired tokens are
