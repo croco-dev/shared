@@ -19,11 +19,11 @@ title: "RouteContractSpec"
 
 ### Params
 
-`Params` _extends_ `AnyZodObject` \| `undefined` = `AnyZodObject` \| `undefined`
+`Params` _extends_ `RouteParameterSchema` \| `undefined` = `RouteParameterSchema` \| `undefined`
 
 ### Query
 
-`Query` _extends_ `AnyZodObject` \| `undefined` = `AnyZodObject` \| `undefined`
+`Query` _extends_ `RouteParameterSchema` \| `undefined` = `RouteParameterSchema` \| `undefined`
 
 ### Body
 

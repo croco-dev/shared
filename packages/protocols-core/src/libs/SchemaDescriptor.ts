@@ -240,6 +240,7 @@ export const JSON_SAFE_ZOD_SCHEMA_SUPPORT_MATRIX = [
 
 type ZodDefinition = {
   readonly shape?: unknown;
+  readonly in?: unknown;
   readonly innerType?: unknown;
   readonly schema?: unknown;
   readonly type?: unknown;
@@ -578,6 +579,76 @@ export function getZodDefaultValue(schema: unknown): unknown {
   const defaultValue = getZodDefinition(schema)?.defaultValue;
 
   return typeof defaultValue === "function" ? defaultValue() : defaultValue;
+}
+
+export function getZodInputObjectSchema(schema: z.ZodType): z.AnyZodObject | undefined {
+  const visited = new Set<z.ZodType>();
+  let current: z.ZodType = schema;
+
+  while (!visited.has(current)) {
+    visited.add(current);
+    const definition = getZodDefinition(current);
+    const typeName = getSchemaTypeName(current);
+    if (typeName === "ZodObject") {
+      return current as z.AnyZodObject;
+    }
+    const inner =
+      typeName === "ZodEffects"
+        ? definition?.schema
+        : typeName === "ZodPipeline"
+          ? definition?.in
+          : undefined;
+    if (!isZodType(inner)) {
+      return undefined;
+    }
+    current = inner;
+  }
+  return undefined;
+}
+
+export function getZodQueryInputSchema(
+  schema: z.ZodType,
+  input: Readonly<Record<string, unknown>>,
+): z.ZodType {
+  const definition = getZodDefinition(schema);
+  const typeName = getSchemaTypeName(schema);
+  if (!definition) {
+    return schema;
+  }
+
+  const childKey =
+    typeName === "ZodEffects" ? "schema" : typeName === "ZodPipeline" ? "in" : undefined;
+  if (childKey) {
+    const child = definition[childKey];
+    if (!isZodType(child)) {
+      return schema;
+    }
+    const projected = getZodQueryInputSchema(child, input);
+    return projected === child
+      ? schema
+      : (reconstructZodSchema(schema, { ...definition, [childKey]: projected }) as z.ZodType);
+  }
+
+  if (typeName !== "ZodObject") {
+    return schema;
+  }
+  const shape = getObjectShape(schema);
+  const projectedFields: Record<string, z.ZodType> = {};
+  for (const [name, field] of Object.entries(shape)) {
+    if (!Array.isArray(input[name])) {
+      continue;
+    }
+    const projected = getZodArrayInputSchema(field);
+    if (projected && projected !== field) {
+      projectedFields[name] = projected;
+    }
+  }
+  return Object.keys(projectedFields).length === 0
+    ? schema
+    : (reconstructZodSchema(schema, {
+        ...definition,
+        shape: () => ({ ...shape, ...projectedFields }),
+      }) as z.ZodType);
 }
 
 export function getZodObjectShape(schema: unknown): Record<string, unknown> {

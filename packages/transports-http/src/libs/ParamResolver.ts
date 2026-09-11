@@ -1,5 +1,13 @@
 import { ProblemFactory } from "@croco/problems-core";
-import { getHttpParamFallbackSchema, isZodType } from "@croco/protocols-core";
+import {
+  type ContractSchemaDescriptor,
+  describeZodSchema,
+  getHttpParamFallbackSchema,
+  getZodArrayInputSchema,
+  getZodInputObjectSchema,
+  getZodQueryInputSchema,
+  isZodType,
+} from "@croco/protocols-core";
 import {
   type ArgumentMetadata,
   type Constructor,
@@ -31,6 +39,37 @@ const SCHEMALESS_NAMED_PARAM_PIPES: Partial<Record<ParamType, PipeTransform>> = 
 };
 
 type PipeInstanceFactory = (pipe: PipeTransformConstructor) => PipeTransform | null | undefined;
+
+function requiresQueryArrayInput(schema: ContractSchemaDescriptor | null): boolean {
+  if (!schema) {
+    return false;
+  }
+  switch (schema.kind) {
+    case "array":
+      return true;
+    case "union":
+      return (
+        schema.typeName === "ZodUnion" &&
+        !!schema.options?.length &&
+        schema.options.every(requiresQueryArrayInput)
+      );
+    case "optional":
+    case "nullable":
+    case "default":
+    case "catch":
+    case "branded":
+    case "readonly":
+      return !!schema.inner && requiresQueryArrayInput(schema.inner);
+    case "effects":
+      return (
+        schema.effectType === "refinement" &&
+        !!schema.inner &&
+        requiresQueryArrayInput(schema.inner)
+      );
+    default:
+      return false;
+  }
+}
 
 /**
  * 컨트롤러 파라미터 메타데이터를 읽어 실제 메서드 인자 배열로 변환합니다.
@@ -73,12 +112,80 @@ class ParamResolverEngine {
     const args: unknown[] = Array.from({ length: maxIndex + 1 }).fill(undefined) as unknown[];
     const cachedBody = await this.resolveBody(ctx, sortedParams);
 
+    const parsedContracts = new Map<z.ZodType, Map<ParamType, unknown>>();
     for (const param of sortedParams) {
-      const rawValue = await this.resolveParam(ctx, param, cachedBody);
+      let rawValue: unknown;
+      if (param.contractSchema) {
+        let parsedSources = parsedContracts.get(param.contractSchema);
+        if (!parsedSources) {
+          parsedSources = new Map();
+          parsedContracts.set(param.contractSchema, parsedSources);
+        }
+        if (!parsedSources.has(param.type)) {
+          parsedSources.set(param.type, await this.parseContract(ctx, param));
+        }
+        const parsed = parsedSources.get(param.type);
+        rawValue = this.isRecord(parsed) && param.name ? parsed[param.name] : undefined;
+      } else {
+        rawValue = await this.resolveParam(ctx, param, cachedBody);
+      }
       args[param.index] = await this.runPipes(rawValue, param, routePipes);
     }
 
     return args;
+  }
+
+  private async parseContract(ctx: CrocoHttpContext, param: ParamMetadata): Promise<unknown> {
+    const schema = param.contractSchema;
+    const inputObject = schema ? getZodInputObjectSchema(schema) : undefined;
+    if (
+      !schema ||
+      !inputObject ||
+      (param.type !== ParamType.PARAM && param.type !== ParamType.QUERY)
+    ) {
+      throw ProblemFactory.internalServerError(
+        "transports-http/invalid-contract-binding",
+        "Contract parameter bindings require a path or query object schema",
+      );
+    }
+    const source = param.type === ParamType.PARAM ? "params" : "query";
+    const input: Record<string, unknown> = { ...ctx.req[source] };
+    if (param.type === ParamType.QUERY) {
+      for (const [name, field] of Object.entries(inputObject.shape)) {
+        const value = input[name];
+        if (Array.isArray(value) && !getZodArrayInputSchema(field)) {
+          throw new RequestValidationProblem("query", [
+            { path: name, message: "Expected a single query value" },
+          ]);
+        }
+        if (
+          typeof value === "string" &&
+          isZodType(field) &&
+          requiresQueryArrayInput(describeZodSchema(field))
+        ) {
+          input[name] = [value];
+        }
+      }
+    }
+    const parseSchema =
+      param.type === ParamType.QUERY ? getZodQueryInputSchema(schema, input) : schema;
+    const result = await parseSchema.safeParseAsync(input);
+    if (!result.success) {
+      throw new RequestValidationProblem(
+        source,
+        result.error.issues.map((issue) => ({
+          path: issue.path.join(".") || "value",
+          message: issue.message,
+        })),
+      );
+    }
+    if (!this.isRecord(result.data) || Array.isArray(result.data)) {
+      throw ProblemFactory.internalServerError(
+        "transports-http/invalid-contract-output",
+        "Contract parameter schemas must produce an object",
+      );
+    }
+    return result.data;
   }
 
   private async resolveBody(ctx: CrocoHttpContext, params: ParamMetadata[]): Promise<unknown> {
@@ -248,7 +355,8 @@ class ParamResolverEngine {
     }
 
     if (!param.pipes || param.pipes.length === 0) {
-      const fallbackPipe = param.name ? SCHEMALESS_NAMED_PARAM_PIPES[param.type] : undefined;
+      const fallbackPipe =
+        !param.contractSchema && param.name ? SCHEMALESS_NAMED_PARAM_PIPES[param.type] : undefined;
       return fallbackPipe ? fallbackPipe.transform(result, metadata) : result;
     }
 

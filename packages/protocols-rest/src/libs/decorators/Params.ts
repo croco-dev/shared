@@ -3,6 +3,8 @@ import type { z } from "zod";
 import { ParamType, REST_PARAMS_KEY } from "../constants";
 import { captureRestDecoratorSourceLocation } from "../sourceLocation";
 import type { ParamMetadata } from "../types";
+import { getRouteParameterObject } from "../internal/routeParameterSchema";
+import type { RouteParameterSchema } from "../internal/routeParameterSchema";
 import {
   hasRouteBodyContract,
   hasRouteParamsContract,
@@ -13,15 +15,12 @@ import {
   type RouteHandlerBody,
   type RouteHandlerPathParams,
   type RouteHandlerQuery,
-  type RoutePathParamName,
 } from "../types/RouteContract";
 import { ValidationPipe } from "../validators/ValidationPipe";
 import type { ContractParameterDecorator } from "./contractDecoratorSignature";
 
-type AnyZodObject = z.AnyZodObject;
-
 function createParamDecorator(type: ParamType) {
-  return (name?: string, schema?: z.ZodType): ParameterDecorator => {
+  return (name?: string, schema?: z.ZodType, contractSchema?: z.ZodType): ParameterDecorator => {
     const sourceLocation = captureRestDecoratorSourceLocation();
 
     return (target: object, propertyKey: string | symbol | undefined, parameterIndex: number) => {
@@ -47,6 +46,7 @@ function createParamDecorator(type: ParamType) {
         type,
         index: parameterIndex,
         ...(name === undefined ? {} : { name }),
+        ...(contractSchema ? { contractSchema } : {}),
         ...(sourceLocation ? { sourceLocation } : {}),
       };
 
@@ -65,9 +65,7 @@ function createParamDecorator(type: ParamType) {
  */
 export function Param<
   TContract extends RouteContractWithParams,
-  Name extends RoutePathParamName<TContract["path"]> &
-    keyof RouteHandlerPathParams<TContract> &
-    string,
+  Name extends keyof RouteHandlerPathParams<TContract> & string,
 >(
   contract: TContract,
   name: Name,
@@ -80,7 +78,7 @@ export function Param(
   if (hasRouteParamsContract(nameOrContract)) {
     const name = schemaOrName as keyof RouteHandlerPathParams<typeof nameOrContract> & string;
 
-    return createParamDecorator(ParamType.PARAM)(name, getObjectShape(nameOrContract.params)[name]);
+    return createContractParamDecorator(ParamType.PARAM, nameOrContract.params, name);
   }
 
   return createParamDecorator(ParamType.PARAM)(nameOrContract, schemaOrName as z.ZodType);
@@ -101,7 +99,7 @@ export function Query(
   if (hasRouteQueryContract(nameOrContract)) {
     const name = schemaOrName as keyof RouteHandlerQuery<typeof nameOrContract> & string;
 
-    return createParamDecorator(ParamType.QUERY)(name, getObjectShape(nameOrContract.query)[name]);
+    return createContractParamDecorator(ParamType.QUERY, nameOrContract.query, name);
   }
 
   return createParamDecorator(ParamType.QUERY)(nameOrContract, schemaOrName as z.ZodType);
@@ -136,6 +134,13 @@ export const Ctx = (): ParameterDecorator => createParamDecorator(ParamType.CTX)
  */
 export const Raw = (): ParameterDecorator => createParamDecorator(ParamType.RAW)();
 
-function getObjectShape(schema: AnyZodObject): z.ZodRawShape {
-  return schema.shape;
+function createContractParamDecorator(
+  type: ParamType,
+  schema: RouteParameterSchema,
+  name: string,
+): ParameterDecorator {
+  const inputObject = getRouteParameterObject(schema);
+  return schema === inputObject
+    ? createParamDecorator(type)(name, inputObject.shape[name])
+    : createParamDecorator(type)(name, undefined, schema);
 }

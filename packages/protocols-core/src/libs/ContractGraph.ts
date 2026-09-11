@@ -21,6 +21,7 @@ import {
   describeZodSchema,
   getSchemaDescriptorDiagnostics,
   getZodObjectShape,
+  getZodInputObjectSchema,
 } from "./SchemaDescriptor";
 import {
   type Constructor,
@@ -448,6 +449,7 @@ function validateRoute(
   diagnostics.push(...validateNamedParams(route));
   diagnostics.push(...validateBodyParams(route));
   diagnostics.push(...validateRouteContract(route));
+  diagnostics.push(...validateBindingContractSchemas(route));
   diagnostics.push(...validateStrictSchemas(route, options));
   diagnostics.push(...validateRouteSchemas(route));
   diagnostics.push(...validateProblemResponses(route));
@@ -533,7 +535,7 @@ function isNamedParamSchemaBacked(
   route: ContractGraphRoute,
   param: ContractGraphRoute["params"][number],
 ): boolean {
-  if (param.schema) {
+  if (param.schema || param.contractSchema) {
     return true;
   }
 
@@ -565,6 +567,20 @@ function validateRouteContract(route: ContractGraphRoute): ContractDiagnostic[] 
     ...validateContractBody(route),
     ...validateContractResponse(route),
   ];
+}
+
+function validateBindingContractSchemas(route: ContractGraphRoute): ContractDiagnostic[] {
+  if (route.routeContract) {
+    return [];
+  }
+
+  const diagnostics: ContractDiagnostic[] = [];
+  for (const kind of ["path", "query"] as const) {
+    if (route.params.some((param) => param.kind === kind && param.contractSchema)) {
+      diagnostics.push(...validateContractNamedParams(route, kind, route.inputSchemas[kind]));
+    }
+  }
+  return diagnostics;
 }
 
 function validateContractMethod(route: ContractGraphRoute): ContractDiagnostic[] {
@@ -606,9 +622,17 @@ function validateContractNamedParams(
     );
   }
 
+  const schemaBoundParams = params.filter((param) => param.contractSchema);
+  const hasContractBinding = schemaBoundParams.some(
+    (param) => param.contractSchema === contractSchema,
+  );
+
   for (const name of contractNames) {
     const param = params.find((candidate) => candidate.name === name);
 
+    if (!param && hasContractBinding) {
+      continue;
+    }
     if (!param) {
       diagnostics.push(
         createRouteDiagnostic(
@@ -638,6 +662,22 @@ function validateContractNamedParams(
   }
 
   for (const param of params) {
+    if (param.contractSchema) {
+      if (param.contractSchema !== contractSchema) {
+        diagnostics.push(
+          createRouteDiagnostic(
+            route,
+            kind === "path"
+              ? "contract-route-path-param-schema-mismatch"
+              : "contract-route-query-param-schema-mismatch",
+            "error",
+            `Controller binding for ${kind} parameter '${param.name}' uses a different object schema than the route contract.`,
+            param.sourceLocation,
+          ),
+        );
+      }
+      continue;
+    }
     if (!contractNames.has(param.name)) {
       diagnostics.push(
         createRouteDiagnostic(
@@ -954,11 +994,20 @@ function validatePathParams(route: ContractGraphRoute): ContractDiagnostic[] {
   const diagnostics: ContractDiagnostic[] = [];
   const pathParamNames = new Set(getContractPathParamNames(route.path));
   const declaredParamNames = new Set(
-    route.params.filter((param) => param.kind === "path").map((param) => param.name),
+    route.params
+      .filter((param) => param.kind === "path" && !param.contractSchema)
+      .map((param) => param.name),
+  );
+  const contractInputNames = new Set(
+    route.params
+      .filter((param) => param.kind === "path")
+      .flatMap((param) =>
+        param.contractSchema ? Object.keys(getNamedSchemaShape(param.contractSchema)) : [],
+      ),
   );
 
   for (const name of pathParamNames) {
-    if (!declaredParamNames.has(name)) {
+    if (!declaredParamNames.has(name) && !contractInputNames.has(name)) {
       diagnostics.push(
         createRouteDiagnostic(
           route,
@@ -978,6 +1027,19 @@ function validatePathParams(route: ContractGraphRoute): ContractDiagnostic[] {
           "contract-route-unbound-path-param",
           "error",
           `@Param("${name}") is not present in route path '${route.path}'.`,
+        ),
+      );
+    }
+  }
+
+  for (const name of contractInputNames) {
+    if (!pathParamNames.has(name)) {
+      diagnostics.push(
+        createRouteDiagnostic(
+          route,
+          "contract-route-unbound-path-param",
+          "error",
+          `Contract params schema field '${name}' is not present in route path '${route.path}'.`,
         ),
       );
     }
@@ -1140,7 +1202,7 @@ function validateUniqueOperationIds(routes: readonly ContractGraphRoute[]): Cont
 }
 
 function getNamedSchemaShape(schema: z.ZodType | null): Record<string, z.ZodType> {
-  const shape = schema ? getZodObjectShape(schema) : {};
+  const shape = schema ? getZodObjectShape(getZodInputObjectSchema(schema)) : {};
   const result: Record<string, z.ZodType> = {};
 
   for (const [name, value] of Object.entries(shape)) {
@@ -1176,6 +1238,13 @@ function getRouteSchemaEntries(route: ContractGraphRoute): RouteSchemaDiagnostic
   }
 
   for (const param of route.params) {
+    if (param.contractSchema && !seen.has(param.contractSchema)) {
+      seen.add(param.contractSchema);
+      entries.push({
+        schema: param.contractSchema,
+        location: formatParamSchemaLocation(param.kind, param.name),
+      });
+    }
     if (
       !param.schema ||
       seen.has(param.schema) ||

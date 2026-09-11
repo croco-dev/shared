@@ -9,6 +9,8 @@ import {
   describeZodSchema,
   getSchemaDescriptorDiagnostics,
   getZodArrayInputSchema,
+  getZodInputObjectSchema,
+  getZodQueryInputSchema,
   getZodArrayElementSchema,
   isZodArraySchema,
   isZodType,
@@ -468,3 +470,38 @@ function collectTypeScriptFiles(directory: string): string[] {
     return filePath.endsWith(".ts") ? [filePath] : [];
   });
 }
+
+describe("wrapped object input schemas", () => {
+  const input = z.object({ id: z.string(), filter: z.string().optional() });
+  it("unwraps nested effects and pipeline inputs without choosing the output schema", () => {
+    const output = z.object({ renamed: z.string() });
+    const schema = input.transform((value) => ({ renamed: value.id })).pipe(output);
+    expect(getZodInputObjectSchema(schema)).toBe(input);
+    expect(getZodInputObjectSchema(z.string())).toBeUndefined();
+    expect(getZodInputObjectSchema(z.object({}))).toBeDefined();
+  });
+  it("preserves query schema identity when input fields need no projection", () => {
+    const schema = z
+      .object({ tags: z.array(z.string()), count: z.number().catch(0) })
+      .refine(() => true)
+      .pipe(z.object({ tags: z.array(z.string()), count: z.number() }));
+    expect(getZodQueryInputSchema(schema, { tags: ["one"], count: "invalid" })).toBe(schema);
+  });
+
+  it("removes array catches through pipeline input while retaining one outer transform execution", () => {
+    let executions = 0;
+    const schema = z
+      .object({ tags: z.array(z.number()).catch([]) })
+      .transform((value) => {
+        executions++;
+        return { renamed: value.tags };
+      })
+      .pipe(z.object({ renamed: z.array(z.number()) }));
+    const projected = getZodQueryInputSchema(schema, { tags: ["invalid"] });
+    expect(projected.safeParse({ tags: ["invalid"] }).success).toBe(false);
+    expect(executions).toBe(0);
+    expect(projected.parse({ tags: [1, 2] })).toEqual({ renamed: [1, 2] });
+    expect(executions).toBe(1);
+    expect(schema.parse({ tags: ["invalid"] })).toEqual({ renamed: [] });
+  });
+});

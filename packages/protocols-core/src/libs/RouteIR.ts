@@ -57,6 +57,7 @@ export interface ParamIR {
   kind: "body" | "query" | "path" | "header" | "ctx";
   name: string;
   schema: z.ZodType | null;
+  contractSchema?: z.ZodType;
   sourceLocation?: RouteContractSourceLocation;
 }
 

@@ -24,8 +24,10 @@ const routePathParamNameLink =
 const routePathParamsLink =
   "[`RoutePathParams`](/api/protocols-rest/src/type-aliases/routepathparams/)";
 const routeQueryLink = "[`RouteQuery`](/api/protocols-rest/src/type-aliases/routequery/)";
-const paramsNameConstraint = `${routePathParamNameLink}\\<\`TContract\`\\[\`"path"\`\\]\\> & keyof ${routePathParamsLink}\\<\`TContract\`\\> & \`string\``;
+const paramsNameConstraint = `keyof ${routePathParamsLink}\\<\`TContract\`\\> & \`string\``;
 const queryNameConstraint = `keyof ${routeQueryLink}\\<\`TContract\`\\> & \`string\``;
+const paramsInputNameConstraint = `${routePathParamNameLink}\\<\`TContract\`\\[\`"path"\`\\]\\> & keyof \`RouteParameterObject\`\\<\`TContract\`\\[\`"params"\`\\]\\>\\[\`"shape"\`\\] & \`string\``;
+const queryInputNameConstraint = `keyof \`RouteParameterObject\`\\<\`TContract\`\\[\`"query"\`\\]\\>\\[\`"shape"\`\\] & \`string\``;
 
 function formatMarkdownTable(rows) {
   const cells = rows.map((row) =>
@@ -159,7 +161,7 @@ const routeContractDocs = [
       ],
       [
         "`TContract` *extends* [`RouteContractWithParams`](/api/protocols-rest/src/type-aliases/routecontractwithparams/)",
-        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly params: AnyZodObject }\``,
+        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly params: RouteParameterSchema }\``,
       ],
       ["`Name` *extends* `string`", `\`Name\` *extends* ${paramsNameConstraint}`],
       [
@@ -177,7 +179,7 @@ const routeContractDocs = [
       ],
       [
         "`TContract` *extends* [`RouteContractWithQuery`](/api/protocols-rest/src/type-aliases/routecontractwithquery/)",
-        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly query: AnyZodObject }\``,
+        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly query: RouteParameterSchema }\``,
       ],
       ["`Name` *extends* `string`", `\`Name\` *extends* ${queryNameConstraint}`],
       [
@@ -208,9 +210,9 @@ const routeContractDocs = [
     replacements: [
       [
         "`TContract` *extends* [`RouteContractWithParams`](/api/protocols-rest/src/type-aliases/routecontractwithparams/)",
-        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly params: AnyZodObject }\``,
+        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly params: RouteParameterSchema }\``,
       ],
-      ["`Name` *extends* `string`", `\`Name\` *extends* ${paramsNameConstraint}`],
+      ["`Name` *extends* `string`", `\`Name\` *extends* ${paramsInputNameConstraint}`],
     ],
   },
   {
@@ -218,9 +220,9 @@ const routeContractDocs = [
     replacements: [
       [
         "`TContract` *extends* [`RouteContractWithQuery`](/api/protocols-rest/src/type-aliases/routecontractwithquery/)",
-        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly query: AnyZodObject }\``,
+        `\`TContract\` *extends* ${routeContractSpecLink} & \`{ readonly query: RouteParameterSchema }\``,
       ],
-      ["`Name` *extends* `string`", `\`Name\` *extends* ${queryNameConstraint}`],
+      ["`Name` *extends* `string`", `\`Name\` *extends* ${queryInputNameConstraint}`],
     ],
   },
   {
@@ -250,7 +252,7 @@ const routeContractDocs = [
     replacements: [
       [
         `> **RouteContractWithParams** = ${routeContractSpecLink} & \`object\``,
-        `> **RouteContractWithParams** = ${routeContractSpecLink} & \`{ readonly params: AnyZodObject }\``,
+        `> **RouteContractWithParams** = ${routeContractSpecLink} & \`{ readonly params: RouteParameterSchema }\``,
       ],
     ],
   },
@@ -259,7 +261,7 @@ const routeContractDocs = [
     replacements: [
       [
         `> **RouteContractWithQuery** = ${routeContractSpecLink} & \`object\``,
-        `> **RouteContractWithQuery** = ${routeContractSpecLink} & \`{ readonly query: AnyZodObject }\``,
+        `> **RouteContractWithQuery** = ${routeContractSpecLink} & \`{ readonly query: RouteParameterSchema }\``,
       ],
     ],
   },

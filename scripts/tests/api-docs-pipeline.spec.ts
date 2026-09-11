@@ -126,6 +126,41 @@ describe("API documentation pipeline", () => {
     expect(generatedDirectories).toEqual(catalogDirectories);
   });
 
+  it("documents wrapped route schemas consistently across decorators and contract aliases", () => {
+    for (const path of [
+      "functions/Param.md",
+      "functions/Query.md",
+      "functions/routeParamSchema.md",
+      "functions/routeQueryParamSchema.md",
+      "type-aliases/RouteContractWithParams.md",
+      "type-aliases/RouteContractWithQuery.md",
+    ]) {
+      const content = readFileSync(join(API_DOCS_ROOT, "protocols-rest/src", path), "utf8");
+      expect(content, path).toContain("RouteParameterSchema");
+      expect(content, path).not.toContain("AnyZodObject");
+    }
+  });
+
+  it("documents decorator output keys separately from schema helper input keys", () => {
+    const param = readFileSync(
+      join(API_DOCS_ROOT, "protocols-rest/src/functions/Param.md"),
+      "utf8",
+    );
+    expect(param).toContain("routepathparams/");
+    expect(param).not.toContain("routepathparamname/");
+    for (const name of ["routeParamSchema", "routeQueryParamSchema"]) {
+      const content = readFileSync(
+        join(API_DOCS_ROOT, `protocols-rest/src/functions/${name}.md`),
+        "utf8",
+      );
+      const constraint = content.split("### Name")[1].split("## Parameters")[0];
+      expect(constraint, name).toContain("RouteParameterObject");
+      expect(constraint, name).toContain('"shape"');
+      expect(constraint, name).not.toContain("routepathparams/");
+      expect(constraint, name).not.toContain("routequery/");
+    }
+  });
+
   it("contains no untranslated TypeDoc Markdown theme tokens", () => {
     const untranslated = markdownFiles(API_DOCS_ROOT).filter((path) =>
       /\btheme_[a-z_]+\b/.test(readFileSync(path, "utf8")),

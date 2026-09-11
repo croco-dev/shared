@@ -1,5 +1,6 @@
 import { Problem, ProblemCategory } from "@croco/problems-core";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { HttpMethod, isRouteContractSpec } from "../index";
 
 class UserNotFoundProblem extends Problem {
@@ -123,6 +124,34 @@ describe("isRouteContractSpec", () => {
     "rejects malformed Problem constructor entries",
     (problem) => {
       expect(isRouteContractSpec(routeContract([problem]))).toBe(false);
+    },
+  );
+});
+
+describe("wrapped route parameter schemas", () => {
+  const object = z.object({ id: z.string() });
+
+  it.each([
+    object.refine(({ id }) => id.length > 0),
+    object.transform(({ id }) => ({ id: id.length })),
+    object.refine(() => true).pipe(object.transform(({ id }) => ({ id: id.length }))),
+  ])("recognizes object wrappers without executing them", (schema) => {
+    expect(
+      isRouteContractSpec({
+        method: HttpMethod.GET,
+        path: "/users/:id",
+        params: schema,
+        query: schema,
+      }),
+    ).toBe(true);
+  });
+
+  it.each([z.string(), z.string().transform((id) => ({ id })), z.array(object), object.optional()])(
+    "rejects unsupported input schemas",
+    (schema) => {
+      expect(
+        isRouteContractSpec({ method: HttpMethod.GET, path: "/users/:id", params: schema }),
+      ).toBe(false);
     },
   );
 });

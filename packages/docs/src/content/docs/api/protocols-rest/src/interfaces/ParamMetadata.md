@@ -7,6 +7,12 @@ title: "ParamMetadata"
 
 ## Properties
 
+### contractSchema?
+
+> `optional` **contractSchema?**: `ZodType`\<`any`, `ZodTypeDef`, `any`\>
+
+---
+
 ### index
 
 > **index**: `number`

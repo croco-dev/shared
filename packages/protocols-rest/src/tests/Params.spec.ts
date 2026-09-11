@@ -76,6 +76,51 @@ describe("Param decorators", () => {
     expect(params.every((param) => param.pipes?.length === 1)).toBe(true);
   });
 
+  it.each([
+    ["refine", z.object({ id: z.string() }).refine(({ id }) => id.length > 0)],
+    ["superRefine", z.object({ id: z.string() }).superRefine(() => undefined)],
+    ["transform", z.object({ id: z.string() }).transform(({ id }) => ({ id: id.length }))],
+    ["pipe", z.object({ id: z.string() }).pipe(z.object({ id: z.coerce.number() }))],
+    [
+      "nested effects",
+      z
+        .object({ id: z.string() })
+        .refine(() => true)
+        .transform(({ id }) => ({ id })),
+    ],
+  ])("preserves the complete %s schema for contract-bound parameters", (_name, schema) => {
+    const contract = defineRouteContract({
+      method: HttpMethod.GET,
+      path: "/users/:id",
+      params: schema,
+      query: schema,
+    });
+
+    class UserController {
+      getUser(@Param(contract, "id") id: unknown, @Query(contract, "id") queryId: unknown) {
+        return { id, queryId };
+      }
+    }
+
+    const params = getParamsMeta(UserController, "getUser");
+    expect(params).toHaveLength(2);
+    expect(params).toEqual([
+      expect.objectContaining({
+        index: 1,
+        name: "id",
+        type: ParamType.QUERY,
+        contractSchema: schema,
+      }),
+      expect.objectContaining({
+        index: 0,
+        name: "id",
+        type: ParamType.PARAM,
+        contractSchema: schema,
+      }),
+    ]);
+    expect(params.every((param) => param.pipes === undefined)).toBe(true);
+  });
+
   it("should isolate inherited metadata between controller constructors", () => {
     class BaseController {
       handle(@Param("id") id: string, _filter?: string) {
