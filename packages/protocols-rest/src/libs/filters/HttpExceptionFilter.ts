@@ -28,7 +28,13 @@ function parseProblemDetails(exception: unknown, instance: string): ProblemDetai
  */
 export class HttpExceptionFilter implements ExceptionFilter<unknown, ExecutionContext> {
   catch(exception: unknown, context: ExecutionContext): HttpExceptionFilterResponse {
-    const problem = parseProblemDetails(exception, context.getRequest().url);
+    let instance: string;
+    try {
+      instance = context.getRequest().url;
+    } catch {
+      instance = context.getPath();
+    }
+    const problem = parseProblemDetails(exception, instance);
 
     if (problem) {
       return {

@@ -1,7 +1,36 @@
+import "reflect-metadata";
+import { Problem, ProblemCategory } from "@croco/problems-core";
+import { HttpExceptionFilter } from "@croco/protocols-rest";
 import { describe, expect, it } from "vitest";
 import { TrpcExecutionContext } from "../libs/TrpcExecutionContext";
 
 class TestController {}
+
+describe("TrpcExecutionContext exception filtering", () => {
+  it("preserves the original Problem and route instance without an HTTP request", () => {
+    const context = new TrpcExecutionContext({}, TestController, "users", "/users", "GET");
+    const problem = new (class extends Problem {
+      constructor() {
+        super("USER_NOT_FOUND", ProblemCategory.NotFound, "User not found");
+      }
+    })();
+
+    expect(() => context.getRequest()).toThrow(
+      expect.objectContaining({ code: "protocols-trpc/request-unavailable" }),
+    );
+
+    const response = new HttpExceptionFilter().catch(problem, context);
+
+    expect(response.status).toBe(404);
+    expect(response.headers).toEqual({ "Content-Type": "application/problem+json" });
+    expect(response.body).toMatchObject({
+      status: 404,
+      code: "USER_NOT_FOUND",
+      detail: "User not found",
+      instance: "/users",
+    });
+  });
+});
 
 function normalizeRequest(headers: Record<string, unknown>, encrypted = false): Request {
   return new TrpcExecutionContext(
