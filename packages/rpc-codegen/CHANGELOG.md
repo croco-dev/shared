@@ -1,5 +1,290 @@
 # @croco/rpc-codegen
 
+## 0.2.0
+
+### Minor Changes
+
+- d99ede2: Compose REST RPC and Meta Vite server actions into one deterministic frontend action manifest while rejecting schema mismatches and conflicting duplicate action identities before output replacement.
+- d96d794: Generate instance-scoped RPC client factories with configurable base URLs, fetch implementations, shared headers, and request defaults while preserving static clients and allowing React Query option factories to bind to the configured client.
+- 0e0a46c: Expose deterministic ContractGraph monetization nodes, edges, provider mapping drift input, and actionable structural diagnostics for billable meters, plan versions, entitlements, and provider capabilities.
+
+### Patch Changes
+
+- ccc4ba3: Contract-graph client generation preserves existing output bytes and does not create an output
+  directory when consumer-route coverage validation fails.
+- 98001e1: - fix: lock Problem response protocol contracts
+- b278729: - fix: block critical test tooling advisories
+- 7cdfcae: Declare audited package side effects so bundlers remove pure imports while preserving required initialization and CSS.
+- f647df2: - fix(codegen): compile controller contracts with the application TypeScript config
+- 202fac0: OpenAPI and RPC code generation commands now fail with stable diagnostics when options are misspelled or unsupported positional arguments are provided.
+- 5461651: Escape static and parameterized route paths through a single TypeScript string encoder so generated client code stays syntactically valid for paths containing apostrophes, backslashes, backticks, CR/LF, and Unicode line separators.
+- 8522b0c: Keep default package tests deterministic while exposing integration, published-package, and live-resource verification through explicit test lanes.
+- 81d0dfc: Generated RPC clients serialize omitted or null query and header inputs without throwing, preserving configured default headers.
+- fcb2c3c: - fix: generate projects whose validation path runs without a POSIX compatibility shell
+  - fix: load controller contract graphs from Windows drive paths without collapsing the TypeScript rootDir
+  - fix: load OpenAPI contract sources from Windows drive paths without collapsing the TypeScript rootDir
+  - change: expose machine-readable next steps as structured command, argument, and working-directory data
+- 789ca0a: Preserve error-response body cancellation and JSON parse causes in generated RPC clients.
+- 0717955: Remove stale generator-owned RPC client files after successful regeneration while preserving unrelated output-directory contents, and seed new generated apps with explicit RPC output ownership.
+- 5d54fb4: declare Apache-2.0 license across all publishable package manifests and ship LICENSE in published packages
+- a2353be: Initialize each application's Zod OpenAPI runtime before evaluating RPC controller schemas, sharing the existing CommonJS and ESM initialization with OpenAPI generation.
+
+  Keep generated Problem source locations aligned with the controller loaders.
+
+- 72fbcd0: Detect stale committed OpenAPI and RPC outputs without rewriting them, make generated app contract verification use the read-only checks, and scaffold Next.js applications with the patched 15.5.21 release.
+- f5503fd: Reject Problem responses whose body status does not match the HTTP status before exposing typed or generic Problem failures.
+- c5eee6e: Preserve repeated query values for HTTP parameter binding, validate list-valued query and headers consistently, and align generated OpenAPI, RPC client serialization, and CLI templates. Direct query accessors now expose repeated keys as `string[]`, so consumers that require one scalar value must narrow the result.
+
+  Schema-less named `@Query()` parameters retain their generated optional-scalar contract and reject repeated values. Declare an array schema when a controller parameter accepts repeated keys.
+
+- ab51ace: Separate route contract client inputs, parsed handler inputs, handler return values, and wire response outputs while preserving existing helper aliases. HTTP routes now parse handler returns through their response schema before serialization, and generated RPC clients project request and response schemas according to their lifecycle direction.
+- 19594c6: Generated Result methods return an external failure when response body reading is aborted in either problem runtime, preserving the original cancellation error.
+- 96f44d1: Preserve configured base URL path prefixes in generated RPC clients while normalizing joining slashes.
+- a637305: Verify generated RPC clients stay in parity with OpenAPI contract artifacts and preserve Problem cookbook paths in generated declarations.
+- c3c1c3a: Verify generated RPC clients against a real Croco HTTP app for success, validation, and declared Problem responses.
+- cd5fffd: Resolve runtime dependency paths to a brace-expansion release that includes the latest security fix.
+- 95cedd9: Give OpenAPI and RPC generators one REST controller source loader, normalize decorator and parameter locations to project-relative paths, and preserve generator-specific TypeScript diagnostic Problems.
+- 847ecbf: Align 1.0 spine package manifests with the checked source-root entrypoint policy and direct-dist exceptions.
+- fa8eea4: Generated OpenAPI and RPC contract paths now run strict ContractGraph schema checks by default, fail generated app scripts on strict ContractGraph diagnostics, and keep legacy compatibility behavior behind explicit opt-out flags.
+- 208952c: Resolve generated `*Result` network and cancellation failures as external results while preserving throwing client behavior, distinct telemetry events, and scaffold compatibility with unknown external errors.
+- 1b201e5: Represent malformed successful JSON responses as typed external failures while preserving the HTTP response and parse cause.
+- 377c684: Bind parameters from refined, transformed, and piped object route contracts without decorator evaluation failures. Wrapped contracts validate once per request and inject their parsed output, preserving handler types and cross-field validation.
+
+  RPC generation reports unsupported transformed path schemas with the JSON-safety diagnostic before checking path field bindings.
+
+- Updated dependencies [38cba9c]
+- Updated dependencies [b278729]
+- Updated dependencies [6795b4d]
+- Updated dependencies [fe51253]
+- Updated dependencies [868ea09]
+- Updated dependencies [c1d0ed0]
+- Updated dependencies [e0c11de]
+- Updated dependencies [d7b2bde]
+- Updated dependencies [319d43e]
+- Updated dependencies [269d9df]
+- Updated dependencies [1380ce5]
+- Updated dependencies [64af41f]
+- Updated dependencies [7cdfcae]
+- Updated dependencies [c91a72b]
+- Updated dependencies [30bad55]
+- Updated dependencies [121b830]
+- Updated dependencies [0e658fc]
+- Updated dependencies [34b6c3d]
+- Updated dependencies [cb61f2e]
+- Updated dependencies [13cfab4]
+- Updated dependencies [f05e38e]
+- Updated dependencies [ade3461]
+- Updated dependencies [e9e2d49]
+- Updated dependencies [d0ed66c]
+- Updated dependencies [9404839]
+- Updated dependencies [2d74ff8]
+- Updated dependencies [b07ae3a]
+- Updated dependencies [5d08b1b]
+- Updated dependencies [99ace13]
+- Updated dependencies [08cfa9b]
+- Updated dependencies [1084825]
+- Updated dependencies [81ed45b]
+- Updated dependencies [26f4b9e]
+- Updated dependencies [88c6ce1]
+- Updated dependencies [7c632bb]
+- Updated dependencies [772a244]
+- Updated dependencies [2bbb09f]
+- Updated dependencies [1d12013]
+- Updated dependencies [50c8c7d]
+- Updated dependencies [d6e9b2d]
+- Updated dependencies [939af32]
+- Updated dependencies [3853d82]
+- Updated dependencies [935d29f]
+- Updated dependencies [583588d]
+- Updated dependencies [da978b0]
+- Updated dependencies [718ee7d]
+- Updated dependencies [527475f]
+- Updated dependencies [2cc5438]
+- Updated dependencies [c008825]
+- Updated dependencies [98fcaed]
+- Updated dependencies [f647df2]
+- Updated dependencies [d1a03e6]
+- Updated dependencies [77794c4]
+- Updated dependencies [d99ede2]
+- Updated dependencies [50db523]
+- Updated dependencies [7df16bb]
+- Updated dependencies [ea742a4]
+- Updated dependencies [7e46a3d]
+- Updated dependencies [c1ce071]
+- Updated dependencies [639abfe]
+- Updated dependencies [0fa2546]
+- Updated dependencies [077bb26]
+- Updated dependencies [91e7bb6]
+- Updated dependencies [0584573]
+- Updated dependencies [500c048]
+- Updated dependencies [c9c1c1d]
+- Updated dependencies [09c48b3]
+- Updated dependencies [2973efe]
+- Updated dependencies [daef820]
+- Updated dependencies [1f6522c]
+- Updated dependencies [9b997bb]
+- Updated dependencies [6d81e46]
+- Updated dependencies [ec75eb4]
+- Updated dependencies [101a7f1]
+- Updated dependencies [7aabe26]
+- Updated dependencies [dda0a50]
+- Updated dependencies [15e39cc]
+- Updated dependencies [03ea9aa]
+- Updated dependencies [7d248c5]
+- Updated dependencies [00ac668]
+- Updated dependencies [9b379dd]
+- Updated dependencies [ba1974d]
+- Updated dependencies [04ea69c]
+- Updated dependencies [558c255]
+- Updated dependencies [96b6b80]
+- Updated dependencies [8522b0c]
+- Updated dependencies [969d87e]
+- Updated dependencies [6fa6843]
+- Updated dependencies [6069742]
+- Updated dependencies [210015b]
+- Updated dependencies [1255323]
+- Updated dependencies [1216b88]
+- Updated dependencies [b91d384]
+- Updated dependencies [ba6ba75]
+- Updated dependencies [05c9c45]
+- Updated dependencies [76be188]
+- Updated dependencies [d52f81f]
+- Updated dependencies [b228e78]
+- Updated dependencies [eed5e70]
+- Updated dependencies [10f3601]
+- Updated dependencies [bf62995]
+- Updated dependencies [3bb5093]
+- Updated dependencies [6f8080b]
+- Updated dependencies [e039e2d]
+- Updated dependencies [c30879a]
+- Updated dependencies [26bcc38]
+- Updated dependencies [0b5e89b]
+- Updated dependencies [3d9e585]
+- Updated dependencies [37dab98]
+- Updated dependencies [00ec1c5]
+- Updated dependencies [a4a5a49]
+- Updated dependencies [6d8a31f]
+- Updated dependencies [9a03a84]
+- Updated dependencies [67e0cbe]
+- Updated dependencies [fb10b5f]
+- Updated dependencies [a7df589]
+- Updated dependencies [8c2b316]
+- Updated dependencies [986ce2d]
+- Updated dependencies [8630cf3]
+- Updated dependencies [31636bb]
+- Updated dependencies [f92404b]
+- Updated dependencies [44fb02d]
+- Updated dependencies [1c843a5]
+- Updated dependencies [a8d733b]
+- Updated dependencies [2a6e12c]
+- Updated dependencies [796290f]
+- Updated dependencies [efb33f9]
+- Updated dependencies [157089a]
+- Updated dependencies [47b942b]
+- Updated dependencies [a458c5c]
+- Updated dependencies [e90e7bc]
+- Updated dependencies [5d54fb4]
+- Updated dependencies [19bdcd1]
+- Updated dependencies [16ff048]
+- Updated dependencies [6aaafc8]
+- Updated dependencies [badfb5c]
+- Updated dependencies [a2353be]
+- Updated dependencies [affa795]
+- Updated dependencies [72fbcd0]
+- Updated dependencies [fb810a9]
+- Updated dependencies [c7299d2]
+- Updated dependencies [0530556]
+- Updated dependencies [350833d]
+- Updated dependencies [049b25e]
+- Updated dependencies [7328ec4]
+- Updated dependencies [d77aedc]
+- Updated dependencies [92f606b]
+- Updated dependencies [b07fb90]
+- Updated dependencies [56f440b]
+- Updated dependencies [f5503fd]
+- Updated dependencies [54f9a57]
+- Updated dependencies [4505d13]
+- Updated dependencies [c5eee6e]
+- Updated dependencies [f24f196]
+- Updated dependencies [cc8106d]
+- Updated dependencies [a2760e3]
+- Updated dependencies [753b3cd]
+- Updated dependencies [ab51ace]
+- Updated dependencies [c11a9b4]
+- Updated dependencies [037c3c4]
+- Updated dependencies [5e64d94]
+- Updated dependencies [344995f]
+- Updated dependencies [c0c9679]
+- Updated dependencies [286a5ad]
+- Updated dependencies [918a960]
+- Updated dependencies [44c16c9]
+- Updated dependencies [7f7ccee]
+- Updated dependencies [25bfb06]
+- Updated dependencies [5feb5b8]
+- Updated dependencies [f0f20c2]
+- Updated dependencies [605d41d]
+- Updated dependencies [6234fdf]
+- Updated dependencies [115ed96]
+- Updated dependencies [952f2f0]
+- Updated dependencies [b19a904]
+- Updated dependencies [95cedd9]
+- Updated dependencies [847ecbf]
+- Updated dependencies [bd95a2c]
+- Updated dependencies [422326b]
+- Updated dependencies [6f3c5b4]
+- Updated dependencies [fa8eea4]
+- Updated dependencies [be64cc8]
+- Updated dependencies [ae4a089]
+- Updated dependencies [ac94fc6]
+- Updated dependencies [3a9e51d]
+- Updated dependencies [0026f76]
+- Updated dependencies [86eb935]
+- Updated dependencies [fccf65b]
+- Updated dependencies [65f3fdc]
+- Updated dependencies [3cca753]
+- Updated dependencies [28c3ab5]
+- Updated dependencies [aa19802]
+- Updated dependencies [97ba64a]
+- Updated dependencies [6542499]
+- Updated dependencies [d808f9d]
+- Updated dependencies [ea4d1d1]
+- Updated dependencies [51d2d51]
+- Updated dependencies [7b1505b]
+- Updated dependencies [b0eb7c7]
+- Updated dependencies [8c1acbd]
+- Updated dependencies [683bd47]
+- Updated dependencies [99da854]
+- Updated dependencies [c80ce21]
+- Updated dependencies [589087a]
+- Updated dependencies [50d0153]
+- Updated dependencies [b8fdd47]
+- Updated dependencies [9b96858]
+- Updated dependencies [1b201e5]
+- Updated dependencies [713cf3b]
+- Updated dependencies [8a1dad8]
+- Updated dependencies [3bd0a5a]
+- Updated dependencies [abb5e10]
+- Updated dependencies [facdc89]
+- Updated dependencies [87e0994]
+- Updated dependencies [87a375e]
+- Updated dependencies [4afb5cf]
+- Updated dependencies [62885fe]
+- Updated dependencies [525847a]
+- Updated dependencies [b65ed66]
+- Updated dependencies [76e734f]
+- Updated dependencies [7e88b45]
+- Updated dependencies [70fd27f]
+- Updated dependencies [8e19e13]
+- Updated dependencies [6d10475]
+- Updated dependencies [0e0a46c]
+- Updated dependencies [a144d94]
+- Updated dependencies [913c441]
+- Updated dependencies [377c684]
+  - @croco/problems-core@1.0.0
+  - @croco/presentation-preset@0.1.0
+  - @croco/protocols-core@0.2.0
+  - @croco/protocol-codegen@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

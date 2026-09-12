@@ -1,5 +1,80 @@
 # @croco/framework-routes
 
+## 0.0.5
+
+### Patch Changes
+
+- b278729: - fix: block critical test tooling advisories
+- 7cdfcae: Declare audited package side effects so bundlers remove pure imports while preserving required initialization and CSS.
+- c64b83f: Generated route registration now accepts `@All()` controllers and binds them through the adapter's all-method registration path.
+- a513c78: Generated route modules now resolve declared controllers through Croco DI and invoke their bound handler methods instead of returning placeholder responses.
+- 67e0cbe: fix: resolve published package types before runtime conditions
+- 5d54fb4: declare Apache-2.0 license across all publishable package manifests and ship LICENSE in published packages
+- c11a9b4: Preserve named catch-all matching and parameter extraction when routes are registered from generated tables, and
+  keep published Problem registry source locations synchronized with the shared route compiler import.
+- Updated dependencies [4ca14ab]
+- Updated dependencies [38cba9c]
+- Updated dependencies [b278729]
+- Updated dependencies [7008727]
+- Updated dependencies [868ea09]
+- Updated dependencies [7cdfcae]
+- Updated dependencies [c91a72b]
+- Updated dependencies [cb61f2e]
+- Updated dependencies [9404839]
+- Updated dependencies [81ed45b]
+- Updated dependencies [26f4b9e]
+- Updated dependencies [2cc5438]
+- Updated dependencies [7df16bb]
+- Updated dependencies [c1ce071]
+- Updated dependencies [639abfe]
+- Updated dependencies [0fa2546]
+- Updated dependencies [008f3f0]
+- Updated dependencies [6489abb]
+- Updated dependencies [3648511]
+- Updated dependencies [dda0a50]
+- Updated dependencies [7d248c5]
+- Updated dependencies [be7408f]
+- Updated dependencies [16cc286]
+- Updated dependencies [eed5e70]
+- Updated dependencies [a90659b]
+- Updated dependencies [cfdc20a]
+- Updated dependencies [67e0cbe]
+- Updated dependencies [e3bb85e]
+- Updated dependencies [44fb02d]
+- Updated dependencies [1c843a5]
+- Updated dependencies [45882f1]
+- Updated dependencies [f0c328e]
+- Updated dependencies [efb33f9]
+- Updated dependencies [157089a]
+- Updated dependencies [df8d018]
+- Updated dependencies [5d54fb4]
+- Updated dependencies [20eccc9]
+- Updated dependencies [e745cc9]
+- Updated dependencies [33d4b2f]
+- Updated dependencies [54f9a57]
+- Updated dependencies [65f9c8a]
+- Updated dependencies [c5eee6e]
+- Updated dependencies [a2760e3]
+- Updated dependencies [ab51ace]
+- Updated dependencies [c11a9b4]
+- Updated dependencies [8aa72a1]
+- Updated dependencies [f141c18]
+- Updated dependencies [7f7ccee]
+- Updated dependencies [5306098]
+- Updated dependencies [6cb0a5c]
+- Updated dependencies [fa8eea4]
+- Updated dependencies [aa19802]
+- Updated dependencies [ea4d1d1]
+- Updated dependencies [7b1505b]
+- Updated dependencies [8c1acbd]
+- Updated dependencies [99da854]
+- Updated dependencies [76e734f]
+- Updated dependencies [0e0a46c]
+- Updated dependencies [377c684]
+  - @croco/framework-context@0.1.0
+  - @croco/protocols-core@0.2.0
+  - @croco/protocols-rest@0.1.0
+
 ## 0.0.4
 
 ### Patch Changes

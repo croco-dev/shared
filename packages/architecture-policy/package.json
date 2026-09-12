@@ -1,6 +1,6 @@
 {
   "name": "@croco/architecture-policy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Static architecture policy engine for Croco package and app boundaries",
   "license": "Apache-2.0",
   "repository": {

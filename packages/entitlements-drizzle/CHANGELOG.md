@@ -1,5 +1,102 @@
 # @croco/entitlements-drizzle
 
+## 0.1.0
+
+### Minor Changes
+
+- 5d08b1b: Resolve entitlement and overage policies from immutable subscription plan versions while preserving an explicit legacy plan-ID migration path.
+
+### Patch Changes
+
+- 7cdfcae: Declare audited package side effects so bundlers remove pure imports while preserving required initialization and CSS.
+- 1f6522c: Persist subscription cancel and resume commands before provider I/O, carry stable provider idempotency keys,
+  use revision-fenced local reconciliation, durably retry cancellation event delivery through an
+  event-ID-idempotent publisher contract, expose bounded
+  reconciliation APIs, and project provider-applied lifecycle state into entitlement reads until local state
+  converges.
+
+  Stale commands cannot overwrite replacement subscriptions, while lifecycle deltas rebase onto newer snapshots
+  of the same external subscription and persist their local outcome. Canceled or revoked subscriptions no longer
+  grant a current entitlement plan. Polar lifecycle mutations now forward command keys and verify already-applied
+  cancellation targets, while the billing provider conformance suite requires distinct lifecycle idempotency
+  evidence.
+
+  The generated SaaS demo leaves lifecycle event delivery unconfigured until an application supplies a durable,
+  event-ID-idempotent publisher.
+
+- 67e0cbe: fix: resolve published package types before runtime conditions
+- 1c843a5: Preserve runtime class-decorator metadata in published ESM and CJS bundles so Croco can resolve concrete constructor dependencies from installed packages.
+- 157089a: Remove package-local registry publish commands so releases can only write through the protected Changesets workflow.
+- 5d54fb4: declare Apache-2.0 license across all publishable package manifests and ship LICENSE in published packages
+- db03f5b: Reject duplicate or semantically invalid legacy entitlement rules before evaluation while preserving meter-derived legacy quotas, and diagnose existing PostgreSQL conflicts before enforcing one legacy rule per plan and feature.
+- Updated dependencies [4ca14ab]
+- Updated dependencies [38cba9c]
+- Updated dependencies [b278729]
+- Updated dependencies [7008727]
+- Updated dependencies [868ea09]
+- Updated dependencies [7cdfcae]
+- Updated dependencies [30bad55]
+- Updated dependencies [34b6c3d]
+- Updated dependencies [d29c25b]
+- Updated dependencies [98b1a17]
+- Updated dependencies [9404839]
+- Updated dependencies [5d08b1b]
+- Updated dependencies [26f4b9e]
+- Updated dependencies [2bbb09f]
+- Updated dependencies [2cc5438]
+- Updated dependencies [d1a03e6]
+- Updated dependencies [7df16bb]
+- Updated dependencies [0fa2546]
+- Updated dependencies [008f3f0]
+- Updated dependencies [500c048]
+- Updated dependencies [6489abb]
+- Updated dependencies [1f6522c]
+- Updated dependencies [ec75eb4]
+- Updated dependencies [dda0a50]
+- Updated dependencies [7d248c5]
+- Updated dependencies [9b379dd]
+- Updated dependencies [ba1974d]
+- Updated dependencies [523ed8a]
+- Updated dependencies [be7408f]
+- Updated dependencies [16cc286]
+- Updated dependencies [eed5e70]
+- Updated dependencies [bf62995]
+- Updated dependencies [cfdc20a]
+- Updated dependencies [0b5e89b]
+- Updated dependencies [67e0cbe]
+- Updated dependencies [e3bb85e]
+- Updated dependencies [8c2b316]
+- Updated dependencies [986ce2d]
+- Updated dependencies [8630cf3]
+- Updated dependencies [7721747]
+- Updated dependencies [1c843a5]
+- Updated dependencies [45882f1]
+- Updated dependencies [f0c328e]
+- Updated dependencies [f38d9fa]
+- Updated dependencies [efb33f9]
+- Updated dependencies [157089a]
+- Updated dependencies [5d54fb4]
+- Updated dependencies [b68b670]
+- Updated dependencies [8aa72a1]
+- Updated dependencies [3240609]
+- Updated dependencies [f141c18]
+- Updated dependencies [fccf65b]
+- Updated dependencies [dda0a50]
+- Updated dependencies [b2eef05]
+- Updated dependencies [6754896]
+- Updated dependencies [8c1acbd]
+- Updated dependencies [99da854]
+- Updated dependencies [e493f8b]
+- Updated dependencies [5f9bddc]
+- Updated dependencies [76e734f]
+- Updated dependencies [db03f5b]
+- Updated dependencies [e91643e]
+- Updated dependencies [0e0a46c]
+  - @croco/framework-context@0.1.0
+  - @croco/tx-drizzle@0.1.0
+  - @croco/billing-core@1.0.0
+  - @croco/entitlements-core@0.1.0
+
 ## 0.0.4
 
 ### Patch Changes
