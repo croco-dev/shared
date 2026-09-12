@@ -28,6 +28,19 @@ export type OnboardingStateRow = typeof onboardingStates.$inferSelect;
  */
 export const DRIZZLE_TOKEN = new Token<DrizzleOnboardingClient>("DRIZZLE_TOKEN");
 
+function hydrateSteps(steps: OnboardingState["steps"]): OnboardingState["steps"] {
+  return Object.fromEntries(
+    Object.entries(steps).map(([stepId, step]) => {
+      const completedAt: unknown = step.completedAt;
+
+      return [
+        stepId,
+        typeof completedAt === "string" ? { ...step, completedAt: new Date(completedAt) } : step,
+      ];
+    }),
+  );
+}
+
 /**
  * 온보딩 상태를 Drizzle로 저장하고 조회하는 구현체입니다.
  */
@@ -71,7 +84,7 @@ export class DrizzleOnboardingStore extends OnboardingStore {
 
     const row = rows[0];
     return {
-      steps: row.steps as OnboardingState["steps"],
+      steps: hydrateSteps(row.steps),
       isCompleted: row.isCompleted,
       completedAt: row.completedAt ?? undefined,
       status: row.status ?? undefined,
@@ -205,7 +218,7 @@ export class DrizzleOnboardingStore extends OnboardingStore {
     return {
       status: "completed",
       state: {
-        steps: row.steps as OnboardingState["steps"],
+        steps: hydrateSteps(row.steps),
         isCompleted: row.isCompleted,
         completedAt: row.completedAt ?? undefined,
         status: row.status ?? undefined,

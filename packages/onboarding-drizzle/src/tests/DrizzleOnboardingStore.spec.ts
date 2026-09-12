@@ -51,13 +51,17 @@ describe("DrizzleOnboardingStore", () => {
   });
 
   it("should load every public lifecycle field", async () => {
+    const stepCompletedAt = "2026-08-19T00:00:00.000Z";
     const startedAt = new Date("2026-08-20T00:00:00.000Z");
     mockDb.select.mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue([
             {
-              steps: { "step-1": { completed: false } },
+              steps: {
+                "step-1": { completed: true, completedAt: stepCompletedAt },
+                "step-2": { completed: false },
+              },
               isCompleted: false,
               completedAt: null,
               status: "in_progress",
@@ -69,14 +73,23 @@ describe("DrizzleOnboardingStore", () => {
       }),
     });
 
-    await expect(store.getState("tenant-1", "user-1", "onboarding-1")).resolves.toEqual({
-      steps: { "step-1": { completed: false } },
+    const state = await store.getState("tenant-1", "user-1", "onboarding-1");
+
+    expect(state).toEqual({
+      steps: {
+        "step-1": { completed: true, completedAt: new Date(stepCompletedAt) },
+        "step-2": { completed: false },
+      },
       isCompleted: false,
       completedAt: undefined,
       status: "in_progress",
       startedAt,
       currentStepId: "step-1",
     });
+    expect(state?.steps["step-1"]?.completedAt).toBeInstanceOf(Date);
+    expect(state?.steps["step-1"]?.completedAt?.getTime()).toBe(
+      new Date(stepCompletedAt).getTime(),
+    );
   });
 
   it("should save state using insert on conflict", async () => {
@@ -137,9 +150,10 @@ describe("DrizzleOnboardingStore", () => {
 
   it("should complete a step and its onboarding transition with one atomic upsert", async () => {
     const completedAt = new Date("2026-08-13T00:00:00.000Z");
+    const serializedCompletedAt = completedAt.toISOString();
     const returning = vi.fn().mockResolvedValue([
       {
-        steps: { "step-1": { completed: true, completedAt } },
+        steps: { "step-1": { completed: true, completedAt: serializedCompletedAt } },
         isCompleted: true,
         completedAt,
         status: "in_progress",
@@ -176,6 +190,10 @@ describe("DrizzleOnboardingStore", () => {
         currentStepId: "step-1",
       },
     });
+    if (result.status === "completed") {
+      expect(result.state.steps["step-1"]?.completedAt).toBeInstanceOf(Date);
+      expect(result.state.steps["step-1"]?.completedAt?.getTime()).toBe(completedAt.getTime());
+    }
     expect(onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ set: expect.any(Object), setWhere: expect.any(Object) }),
     );
