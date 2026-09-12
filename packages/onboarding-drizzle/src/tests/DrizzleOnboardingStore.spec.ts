@@ -106,13 +106,13 @@ describe("DrizzleOnboardingStore", () => {
     expect(onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         set: expect.objectContaining({
-          completionStepId: null,
           status: newState.status,
           startedAt: newState.startedAt,
           currentStepId: newState.currentStepId,
         }),
       }),
     );
+    expect(onConflictDoUpdate.mock.calls[0]?.[0].set).not.toHaveProperty("completionStepId");
   });
 
   it("should clear omitted lifecycle fields on update", async () => {
@@ -133,6 +133,23 @@ describe("DrizzleOnboardingStore", () => {
         set: expect.objectContaining({ status: null, startedAt: null, currentStepId: null }),
       }),
     );
+  });
+
+  it("should preserve the completion step identity when updating state", async () => {
+    let row: Record<string, unknown> = { completionStepId: "step-final" };
+    const onConflictDoUpdate = vi.fn(async ({ set }: { set: Record<string, unknown> }) => {
+      row = { ...row, ...set };
+    });
+    const values = vi.fn().mockReturnValue({ onConflictDoUpdate });
+    mockDb.insert.mockReturnValue({ values });
+
+    await store.saveState("tenant-1", "user-1", "onboarding-1", {
+      steps: { "step-final": { completed: true } },
+      isCompleted: true,
+      completedAt: new Date("2026-08-20T01:00:00.000Z"),
+    });
+
+    expect(row.completionStepId).toBe("step-final");
   });
 
   it("should complete a step and its onboarding transition with one atomic upsert", async () => {

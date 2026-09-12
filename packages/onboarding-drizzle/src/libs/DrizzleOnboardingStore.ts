@@ -114,7 +114,6 @@ export class DrizzleOnboardingStore extends OnboardingStore {
           status: state.status ?? null,
           startedAt: state.startedAt ?? null,
           currentStepId: state.currentStepId ?? null,
-          completionStepId: null,
           updatedAt: new Date(),
         },
       });
