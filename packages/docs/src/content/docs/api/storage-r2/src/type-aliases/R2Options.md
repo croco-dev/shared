@@ -41,11 +41,11 @@ R2 버킷 이름
 
 공개 URL 기본 경로 (선택)
 
-Custom domain을 사용하는 경우 설정합니다.
+getPublicUrl 호출 시 R2에서 발급한 공개 도메인 또는 커스텀 도메인을 설정해야 합니다.
 예: 'https://cdn.example.com'
 
-설정하지 않으면 R2의 기본 퍼블릭 URL을 사용합니다:
-`https://{bucket}.{accountId}.r2.dev`
+설정하지 않으면 getPublicUrl이 MissingR2ConfigProblem을 발생시킵니다.
+비공개 객체 작업과 서명 URL 생성에는 필요하지 않습니다.
 
 ---
 
