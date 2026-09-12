@@ -18,6 +18,7 @@ import type {
 } from "@croco/storage-core";
 import { BaseStorageProvider, validateSignedUrlExpiry } from "@croco/storage-core";
 import { storageStreamToNodeReadable } from "@croco/storage-core/node";
+import { MissingR2ConfigProblem } from "./problems/MissingR2ConfigProblem";
 import { EmptyR2BodyProblem } from "./problems/EmptyR2BodyProblem";
 import { R2ObjectTooLargeProblem } from "./problems/R2ObjectTooLargeProblem";
 import { validateR2Options } from "./R2Config";
@@ -381,7 +382,7 @@ export class R2StorageProvider extends BaseStorageProvider {
       return `${normalizedBase}/${key}`;
     }
 
-    return `https://${this.options.bucket}.${this.options.accountId}.r2.dev/${key}`;
+    throw new MissingR2ConfigProblem("R2_PUBLIC_URL_BASE");
   }
 
   async getSignedUrl(key: string, options: SignedUrlOptions): Promise<string> {

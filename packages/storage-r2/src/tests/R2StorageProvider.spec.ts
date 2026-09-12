@@ -166,7 +166,10 @@ describe("R2StorageProvider", () => {
       createStorageProviderConformanceSuite({
         createProvider: () => {
           useInMemoryR2Backend();
-          return provider;
+          vi.mocked(configService.get).mockImplementation((key: string) =>
+            key === "R2_PUBLIC_URL_BASE" ? "https://pub-example.r2.dev" : defaultEnvs[key],
+          );
+          return new R2StorageProvider(configService, logger);
         },
         keyPrefix: "r2-conformance",
         metadata: {
@@ -174,7 +177,7 @@ describe("R2StorageProvider", () => {
           customMetadata: "required",
         },
         providerName: "storage-r2",
-        publicUrl: "https://test-bucket.test-account-id.r2.dev/",
+        publicUrl: "https://pub-example.r2.dev/",
         signedUrl: "https://signed-url.example.com",
       }).cases,
     )("$name", async ({ run }) => {
@@ -347,21 +350,30 @@ describe("R2StorageProvider", () => {
   });
 
   describe("getPublicUrl", () => {
-    it("should return default R2 public URL when publicUrlBase is not set", () => {
-      const url = provider.getPublicUrl("test/file.txt");
-      expect(url).toBe("https://test-bucket.test-account-id.r2.dev/test/file.txt");
-    });
+    it.each([undefined, "", "   "])(
+      "should reject a missing public URL base (%j)",
+      (publicUrlBase) => {
+        vi.mocked(configService.get).mockImplementation((key: string) =>
+          key === "R2_PUBLIC_URL_BASE" ? publicUrlBase : defaultEnvs[key],
+        );
+        const privateProvider = new R2StorageProvider(configService, logger);
 
-    it("should return custom public URL when publicUrlBase is set", () => {
-      vi.mocked(configService.get).mockImplementation((key: string) => {
-        if (key === "R2_PUBLIC_URL_BASE") return "https://cdn.example.com";
-        if (key === "R2_BUCKET") return "test-bucket";
-        return "test-value";
-      });
+        expect(() => privateProvider.getPublicUrl("test/file.txt")).toThrow(MissingR2ConfigProblem);
+        expect(() => privateProvider.getPublicUrl("test/file.txt")).toThrow("R2_PUBLIC_URL_BASE");
+      },
+    );
 
+    it.each([
+      ["https://cdn.example.com", "https://cdn.example.com/test/file.txt"],
+      ["https://pub-example.r2.dev", "https://pub-example.r2.dev/test/file.txt"],
+      ["https://cdn.example.com/assets///", "https://cdn.example.com/assets/test/file.txt"],
+    ])("should use the configured public URL base %s", (publicUrlBase, expected) => {
+      vi.mocked(configService.get).mockImplementation((key: string) =>
+        key === "R2_PUBLIC_URL_BASE" ? publicUrlBase : defaultEnvs[key],
+      );
       const customProvider = new R2StorageProvider(configService, logger);
-      const url = customProvider.getPublicUrl("test/file.txt");
-      expect(url).toBe("https://cdn.example.com/test/file.txt");
+
+      expect(customProvider.getPublicUrl("test/file.txt")).toBe(expected);
     });
   });
 
