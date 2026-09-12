@@ -262,6 +262,12 @@ export function Auditable(options: AuditableOptions): MethodDecorator {
     descriptor.value = async function (this: unknown, ...args: unknown[]): Promise<unknown> {
       const context = Context.get();
       const dependencies = resolveAuditWriteDependencies();
+      if (!dependencies && options.throwOnFailure) {
+        throw new AuditableDecoratorProblem(
+          "@Auditable could not resolve audit write dependencies",
+        );
+      }
+
       const payloadInput =
         paramMetadata.payloadIndex !== undefined ? args[paramMetadata.payloadIndex] : undefined;
       const resourceIdValue =
