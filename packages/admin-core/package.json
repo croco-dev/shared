@@ -1,6 +1,6 @@
 {
   "name": "@croco/admin-core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "UI-agnostic admin resource and action contracts for Croco admin surfaces",
   "license": "Apache-2.0",
   "repository": {

@@ -1,5 +1,379 @@
 # @croco/cli
 
+## 1.0.0
+
+### Major Changes
+
+- 5c6e4d2: Return prompt cancellation and migration exit outcomes to programmatic callers without terminating or mutating their process.
+
+### Minor Changes
+
+- 527475f: Expose a side-effect-free root command factory and in-process runner with injectable IO, working directory, environment, and structured exit results.
+- 03ea9aa: Plan changed tests from executable assurance artifact impact and record advisory full-suite selection misses before enforcement.
+- a458c5c: Generate a deterministic SaaS metered-overage path with durable provider delivery, duplicate acknowledgement, version-pinned entitlement evidence, billing drift diagnostics, and deployment-time monetization contract canaries.
+- eab7148: Add deterministic desktop contract generation plus read-only check and baseline diff commands.
+
+### Patch Changes
+
+- 7b5e9e4: - fix: preserve verification evidence after output failures
+  - fix: keep publish-profile CLI tests deterministic
+- 38cba9c: - fix: enforce full strict contract spine
+- 4855fe8: - fix: lock doctor JSON contract
+- b278729: - fix: block critical test tooling advisories
+- 7cdfcae: Declare audited package side effects so bundlers remove pure imports while preserving required initialization and CSS.
+- ad6a2a8: Bind fallback controller registration to the resolved Croco application variable and reject ambiguous listener ownership without modifying the entry file.
+- f64896c: Generate events that extend the non-generic DomainEvent API so event and listener scaffolds typecheck together.
+- 7ee9fdd: Keep generated-file status and dry-run diff output consistent across every CLI scaffolding command.
+- 0fa2546: Generate deterministic DI graph manifests through the CLI and generated app verification scripts.
+- 6489abb: Expose a shared versioned application intent contract and make `croco doctor` report malformed, unsupported, or workspace-drifted `croco.app.json` manifests while custom workspaces remain explicitly skipped.
+- cd98718: croco doctor now reports advisory release-hardening readiness warnings for core coverage selection, bundle-size baselines, benchmark variance evidence, and static-misuse allowlist metadata.
+- 2825ef2: Preserve custom page route paths exactly while emitting parseable SPA and SSR TypeScript modules, and reject non-absolute paths before generating files.
+- dda0a50: Generate the Node/Postgres SaaS profile as an executable canonical plugin graph, run the selected graph at application bootstrap, release its application-owned PostgreSQL pool through canonical module shutdown, and expose explicit production, local replacement, unavailable, and documentation-only capability states.
+
+  Register stable Problem codes for provider-profile mismatches and unavailable runtimes.
+
+- 7d248c5: Expose host, transport, and build-target composition as separate runtime metadata, bind host callbacks
+  to their owning application scope, preserve the legacy Cloudflare handler context, and teach generated
+  apps and presentation adapters to use explicit host and build-target entry points. Generated Lambda and
+  Cloudflare SaaS apps now advertise commands that validate their actual deployment targets, including a
+  Wrangler configuration with explicit Node.js compatibility for the generated Worker composition. Raw
+  Hono callbacks must explicitly select raw-Hono dispatch when using the canonical Cloudflare host.
+
+  Generated SaaS hosts await provider initialization and leave telemetry shutdown to the application
+  runtime. Lambda and Workers host artifacts do not enable their documentation-only SaaS provider
+  composition; invoking those profiles still reports `CROCO_SAAS_PROFILE_RUNTIME_UNAVAILABLE`.
+
+- bc367bb: Make `croco migrate` apply its working directory locally, translate dry-run arguments, and reject unsupported options before delegation.
+- bf9a514: Lambda preset handlers can now flush telemetry before returning, and `croco doctor` detects preset handlers that omit the flush boundary.
+- 8522b0c: Keep default package tests deterministic while exposing integration, published-package, and live-resource verification through explicit test lanes.
+- d550dff: Allow ContractGraph snapshots to be compared directly with `croco contracts diff --current-snapshot`.
+- 0b5e89b: Make bulk repository reads return explicit keyed partial results, and reject duplicate, unexpected, unkeyed, or identity-mismatched batch entries before they can be assigned to callers.
+
+  Custom `ReadRepository` and `AbstractDrizzleRepository` implementations must return `{ key, value }` entries from `findByIds`; omit entries for missing IDs.
+
+- 67e0cbe: fix: resolve published package types before runtime conditions
+- fc92a1f: croco codegen openapi and croco migrate now delegate correctly when the CLI runs from a published package install.
+- 8bf1a44: Version generated SaaS provider and tenant manifests as public compatibility contracts with doctor diagnostics for unsupported manifest versions.
+- e90e7bc: Enforce deterministic compatibility snapshots for every published export subpath, including conditional code targets and manifest-only assets.
+- 5d54fb4: declare Apache-2.0 license across all publishable package manifests and ship LICENSE in published packages
+- 13694e9: - fix(cli): repair controller imports for idempotent registrations
+- c5eee6e: Preserve repeated query values for HTTP parameter binding, validate list-valued query and headers consistently, and align generated OpenAPI, RPC client serialization, and CLI templates. Direct query accessors now expose repeated keys as `string[]`, so consumers that require one scalar value must narrow the result.
+
+  Schema-less named `@Query()` parameters retain their generated optional-scalar contract and reject repeated values. Declare an array schema when a controller parameter accepts repeated keys.
+
+- dc2c367: - fix: reject runtime and provider profile drift with stable recovery guidance
+- cd5fffd: Resolve runtime dependency paths to a brace-expansion release that includes the latest security fix.
+- c771e41: Resolve delegated RPC and OpenAPI generators through one package entrypoint contract, with actionable failures for invalid layouts or missing binaries.
+- badf6b5: Show compact unified diffs for generated file previews, including accurate line edits, newline-at-EOF changes, and explicit truncation for large outputs.
+- c3fa4e1: Keep upgrade findings deterministic and safe codemods idempotent while rejecting overlapping rule replacements before mutation.
+- 772a244: Run the CLI unit suite consistently across shells while keeping integration coverage on the explicit e2e command.
+- fa8eea4: Generated OpenAPI and RPC contract paths now run strict ContractGraph schema checks by default, fail generated app scripts on strict ContractGraph diagnostics, and keep legacy compatibility behavior behind explicit opt-out flags.
+- e826709: Report explicit completed, skipped, unsupported, and failed telemetry lifecycle outcomes, preserve initialization failures through shutdown, and make generated Lambda handlers fail when a requested flush cannot run or complete.
+- e030c39: Keep local thresholds, CI selection, doctor diagnostics, and recovery guidance aligned to one validated core coverage package definition.
+- Updated dependencies [ef11bcc]
+- Updated dependencies [934f52b]
+- Updated dependencies [ff71685]
+- Updated dependencies [4ca14ab]
+- Updated dependencies [28d9461]
+- Updated dependencies [ccc4ba3]
+- Updated dependencies [38cba9c]
+- Updated dependencies [98001e1]
+- Updated dependencies [b278729]
+- Updated dependencies [7008727]
+- Updated dependencies [6795b4d]
+- Updated dependencies [baa5b35]
+- Updated dependencies [fe51253]
+- Updated dependencies [868ea09]
+- Updated dependencies [c35f4d9]
+- Updated dependencies [c1d0ed0]
+- Updated dependencies [d7b2bde]
+- Updated dependencies [319d43e]
+- Updated dependencies [269d9df]
+- Updated dependencies [1380ce5]
+- Updated dependencies [64af41f]
+- Updated dependencies [7cdfcae]
+- Updated dependencies [c91a72b]
+- Updated dependencies [30bad55]
+- Updated dependencies [121b830]
+- Updated dependencies [ba1c12d]
+- Updated dependencies [0e658fc]
+- Updated dependencies [34b6c3d]
+- Updated dependencies [cb61f2e]
+- Updated dependencies [13cfab4]
+- Updated dependencies [f05e38e]
+- Updated dependencies [ade3461]
+- Updated dependencies [e9e2d49]
+- Updated dependencies [d0ed66c]
+- Updated dependencies [9404839]
+- Updated dependencies [2d74ff8]
+- Updated dependencies [b07ae3a]
+- Updated dependencies [5d08b1b]
+- Updated dependencies [99ace13]
+- Updated dependencies [08cfa9b]
+- Updated dependencies [1084825]
+- Updated dependencies [81ed45b]
+- Updated dependencies [5833c83]
+- Updated dependencies [26f4b9e]
+- Updated dependencies [88c6ce1]
+- Updated dependencies [7c632bb]
+- Updated dependencies [772a244]
+- Updated dependencies [2bbb09f]
+- Updated dependencies [1d12013]
+- Updated dependencies [50c8c7d]
+- Updated dependencies [d6e9b2d]
+- Updated dependencies [939af32]
+- Updated dependencies [3853d82]
+- Updated dependencies [935d29f]
+- Updated dependencies [583588d]
+- Updated dependencies [da978b0]
+- Updated dependencies [718ee7d]
+- Updated dependencies [527475f]
+- Updated dependencies [2cc5438]
+- Updated dependencies [c008825]
+- Updated dependencies [98fcaed]
+- Updated dependencies [f647df2]
+- Updated dependencies [202fac0]
+- Updated dependencies [d1a03e6]
+- Updated dependencies [77794c4]
+- Updated dependencies [d99ede2]
+- Updated dependencies [d96d794]
+- Updated dependencies [50db523]
+- Updated dependencies [7df16bb]
+- Updated dependencies [ea742a4]
+- Updated dependencies [7e46a3d]
+- Updated dependencies [c1ce071]
+- Updated dependencies [4e4fbf7]
+- Updated dependencies [b62c1e1]
+- Updated dependencies [639abfe]
+- Updated dependencies [0fa2546]
+- Updated dependencies [077bb26]
+- Updated dependencies [91e7bb6]
+- Updated dependencies [008f3f0]
+- Updated dependencies [0584573]
+- Updated dependencies [e7e4f1c]
+- Updated dependencies [500c048]
+- Updated dependencies [c9c1c1d]
+- Updated dependencies [09c48b3]
+- Updated dependencies [6489abb]
+- Updated dependencies [713d734]
+- Updated dependencies [cd98718]
+- Updated dependencies [2973efe]
+- Updated dependencies [daef820]
+- Updated dependencies [1f6522c]
+- Updated dependencies [9b997bb]
+- Updated dependencies [6d81e46]
+- Updated dependencies [ec75eb4]
+- Updated dependencies [101a7f1]
+- Updated dependencies [7aabe26]
+- Updated dependencies [5461651]
+- Updated dependencies [f5f0b7d]
+- Updated dependencies [3648511]
+- Updated dependencies [dda0a50]
+- Updated dependencies [15e39cc]
+- Updated dependencies [03ea9aa]
+- Updated dependencies [9f681cf]
+- Updated dependencies [7d248c5]
+- Updated dependencies [00ac668]
+- Updated dependencies [9b379dd]
+- Updated dependencies [ba1974d]
+- Updated dependencies [04ea69c]
+- Updated dependencies [558c255]
+- Updated dependencies [96b6b80]
+- Updated dependencies [8522b0c]
+- Updated dependencies [be7408f]
+- Updated dependencies [969d87e]
+- Updated dependencies [6fa6843]
+- Updated dependencies [6069742]
+- Updated dependencies [81d0dfc]
+- Updated dependencies [210015b]
+- Updated dependencies [16cc286]
+- Updated dependencies [c64b83f]
+- Updated dependencies [1255323]
+- Updated dependencies [1216b88]
+- Updated dependencies [a513c78]
+- Updated dependencies [b91d384]
+- Updated dependencies [ba6ba75]
+- Updated dependencies [05c9c45]
+- Updated dependencies [76be188]
+- Updated dependencies [1670346]
+- Updated dependencies [d52f81f]
+- Updated dependencies [b228e78]
+- Updated dependencies [eed5e70]
+- Updated dependencies [10f3601]
+- Updated dependencies [bf62995]
+- Updated dependencies [3bb5093]
+- Updated dependencies [6f8080b]
+- Updated dependencies [e039e2d]
+- Updated dependencies [c30879a]
+- Updated dependencies [26bcc38]
+- Updated dependencies [cfdc20a]
+- Updated dependencies [0b5e89b]
+- Updated dependencies [3d9e585]
+- Updated dependencies [37dab98]
+- Updated dependencies [00ec1c5]
+- Updated dependencies [88494b8]
+- Updated dependencies [a4a5a49]
+- Updated dependencies [3f14cf9]
+- Updated dependencies [c9b2e11]
+- Updated dependencies [6d8a31f]
+- Updated dependencies [9a03a84]
+- Updated dependencies [67e0cbe]
+- Updated dependencies [e3bb85e]
+- Updated dependencies [fb10b5f]
+- Updated dependencies [a7df589]
+- Updated dependencies [8c2b316]
+- Updated dependencies [986ce2d]
+- Updated dependencies [8630cf3]
+- Updated dependencies [31636bb]
+- Updated dependencies [fcb2c3c]
+- Updated dependencies [f92404b]
+- Updated dependencies [44fb02d]
+- Updated dependencies [1c843a5]
+- Updated dependencies [45882f1]
+- Updated dependencies [a8d733b]
+- Updated dependencies [425f20a]
+- Updated dependencies [2a6e12c]
+- Updated dependencies [f0c328e]
+- Updated dependencies [789ca0a]
+- Updated dependencies [796290f]
+- Updated dependencies [efb33f9]
+- Updated dependencies [157089a]
+- Updated dependencies [47b942b]
+- Updated dependencies [a458c5c]
+- Updated dependencies [8bf1a44]
+- Updated dependencies [e1ac339]
+- Updated dependencies [0717955]
+- Updated dependencies [e90e7bc]
+- Updated dependencies [5d54fb4]
+- Updated dependencies [5e886a9]
+- Updated dependencies [19bdcd1]
+- Updated dependencies [16ff048]
+- Updated dependencies [6aaafc8]
+- Updated dependencies [badfb5c]
+- Updated dependencies [a2353be]
+- Updated dependencies [affa795]
+- Updated dependencies [72fbcd0]
+- Updated dependencies [82ce9a0]
+- Updated dependencies [fb810a9]
+- Updated dependencies [c7299d2]
+- Updated dependencies [0530556]
+- Updated dependencies [350833d]
+- Updated dependencies [049b25e]
+- Updated dependencies [7328ec4]
+- Updated dependencies [d77aedc]
+- Updated dependencies [92f606b]
+- Updated dependencies [b07fb90]
+- Updated dependencies [56f440b]
+- Updated dependencies [f5503fd]
+- Updated dependencies [54f9a57]
+- Updated dependencies [4505d13]
+- Updated dependencies [c5eee6e]
+- Updated dependencies [f24f196]
+- Updated dependencies [cc8106d]
+- Updated dependencies [a2760e3]
+- Updated dependencies [753b3cd]
+- Updated dependencies [ab51ace]
+- Updated dependencies [19594c6]
+- Updated dependencies [96f44d1]
+- Updated dependencies [a637305]
+- Updated dependencies [c3c1c3a]
+- Updated dependencies [dc2c367]
+- Updated dependencies [c11a9b4]
+- Updated dependencies [8aa72a1]
+- Updated dependencies [037c3c4]
+- Updated dependencies [5e64d94]
+- Updated dependencies [344995f]
+- Updated dependencies [c0c9679]
+- Updated dependencies [286a5ad]
+- Updated dependencies [918a960]
+- Updated dependencies [44c16c9]
+- Updated dependencies [f141c18]
+- Updated dependencies [7f7ccee]
+- Updated dependencies [25bfb06]
+- Updated dependencies [5feb5b8]
+- Updated dependencies [f0f20c2]
+- Updated dependencies [605d41d]
+- Updated dependencies [6234fdf]
+- Updated dependencies [115ed96]
+- Updated dependencies [952f2f0]
+- Updated dependencies [cd5fffd]
+- Updated dependencies [5c7c332]
+- Updated dependencies [b19a904]
+- Updated dependencies [95cedd9]
+- Updated dependencies [847ecbf]
+- Updated dependencies [bd95a2c]
+- Updated dependencies [422326b]
+- Updated dependencies [6f3c5b4]
+- Updated dependencies [4b20808]
+- Updated dependencies [fa8eea4]
+- Updated dependencies [be64cc8]
+- Updated dependencies [ae4a089]
+- Updated dependencies [ac94fc6]
+- Updated dependencies [3a9e51d]
+- Updated dependencies [0026f76]
+- Updated dependencies [86eb935]
+- Updated dependencies [8c141de]
+- Updated dependencies [fccf65b]
+- Updated dependencies [65f3fdc]
+- Updated dependencies [3cca753]
+- Updated dependencies [28c3ab5]
+- Updated dependencies [aa19802]
+- Updated dependencies [97ba64a]
+- Updated dependencies [208952c]
+- Updated dependencies [6542499]
+- Updated dependencies [d808f9d]
+- Updated dependencies [ea4d1d1]
+- Updated dependencies [51d2d51]
+- Updated dependencies [7b1505b]
+- Updated dependencies [b0eb7c7]
+- Updated dependencies [8c1acbd]
+- Updated dependencies [683bd47]
+- Updated dependencies [99da854]
+- Updated dependencies [c80ce21]
+- Updated dependencies [589087a]
+- Updated dependencies [87c48a3]
+- Updated dependencies [5312e2b]
+- Updated dependencies [50d0153]
+- Updated dependencies [423ca2a]
+- Updated dependencies [b8fdd47]
+- Updated dependencies [9b96858]
+- Updated dependencies [1b201e5]
+- Updated dependencies [713cf3b]
+- Updated dependencies [8a1dad8]
+- Updated dependencies [3bd0a5a]
+- Updated dependencies [e030c39]
+- Updated dependencies [abb5e10]
+- Updated dependencies [cadc8b7]
+- Updated dependencies [facdc89]
+- Updated dependencies [87e0994]
+- Updated dependencies [87a375e]
+- Updated dependencies [4afb5cf]
+- Updated dependencies [62885fe]
+- Updated dependencies [525847a]
+- Updated dependencies [b65ed66]
+- Updated dependencies [76e734f]
+- Updated dependencies [7e88b45]
+- Updated dependencies [70fd27f]
+- Updated dependencies [8e19e13]
+- Updated dependencies [6d10475]
+- Updated dependencies [405633b]
+- Updated dependencies [0e0a46c]
+- Updated dependencies [a144d94]
+- Updated dependencies [913c441]
+- Updated dependencies [377c684]
+  - @croco/protocols-desktop@1.0.0
+  - @croco/migration-runner@0.0.5
+  - @croco/openapi-spec@0.1.1
+  - @croco/framework-context@0.1.0
+  - @croco/architecture-policy@0.1.1
+  - @croco/rpc-codegen@0.2.0
+  - @croco/problems-core@1.0.0
+  - @croco/testing@1.0.0
+  - @croco/framework-routes@0.0.5
+  - @croco/protocols-core@0.2.0
+  - @croco/desktop-codegen@0.2.0
+  - @croco/diagnostics-core@0.1.0
+
 ## 0.0.4
 
 ### Patch Changes
