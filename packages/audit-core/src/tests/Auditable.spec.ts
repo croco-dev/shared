@@ -4,6 +4,7 @@ import { Container, Context, LOGGER_TOKEN } from "@croco/framework-context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Auditable } from "../libs/Auditable";
 import type { AuditLogRepository } from "../libs/AuditLogRepository";
+import { AUDIT_LOG_REPOSITORY_TOKEN } from "../libs/AuditLogRepositoryToken";
 import { AUDIT_METADATA_KEY } from "../libs/constants";
 import { AuditableDecoratorProblem } from "../libs/problems/AuditableDecoratorProblem";
 import type { AuditableOptions, AuditLogEntry } from "../libs/types";
@@ -796,6 +797,56 @@ describe("@Auditable", () => {
       expect.objectContaining({
         diff: null,
       }),
+    );
+  });
+
+  describe("audit dependency resolution", () => {
+    it.each(["repository", "logger"])(
+      "should block business execution when the %s is missing in strict mode",
+      async (missingDependency) => {
+        const business = vi.fn(() => "updated");
+        const create = vi.fn();
+        if (missingDependency === "logger") {
+          Container.set(AUDIT_LOG_REPOSITORY_TOKEN, { create, find: vi.fn() });
+        }
+
+        class TestService {
+          @Auditable({ action: "project.update", resourceType: "Project", throwOnFailure: true })
+          update(): string {
+            return business();
+          }
+        }
+
+        await expect(new TestService().update()).rejects.toThrow(AuditableDecoratorProblem);
+        expect(business).not.toHaveBeenCalled();
+        expect(create).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([true, false, undefined])(
+      "should respect throwOnFailure=%s when dependency resolution throws",
+      async (throwOnFailure) => {
+        vi.spyOn(Container, "getMany").mockImplementation(() => {
+          throw new Error("dependency factory failed");
+        });
+        const business = vi.fn(async () => "updated");
+
+        class TestService {
+          @Auditable({ action: "project.update", resourceType: "Project", throwOnFailure })
+          async update(): Promise<string> {
+            return business();
+          }
+        }
+
+        const result = new TestService().update();
+        if (throwOnFailure) {
+          await expect(result).rejects.toThrow(AuditableDecoratorProblem);
+          expect(business).not.toHaveBeenCalled();
+        } else {
+          await expect(result).resolves.toBe("updated");
+          expect(business).toHaveBeenCalledTimes(1);
+        }
+      },
     );
   });
 
