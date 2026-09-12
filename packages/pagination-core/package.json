@@ -1,6 +1,6 @@
 {
   "name": "@croco/pagination-core",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "DB-agnostic pagination utilities with cursor and offset support",
   "license": "Apache-2.0",
   "repository": {

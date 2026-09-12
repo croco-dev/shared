@@ -1,6 +1,6 @@
 {
   "name": "@croco/ui-astryx",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Astryx UI profile adapters for Croco React applications",
   "license": "Apache-2.0",
   "repository": {

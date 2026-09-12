@@ -348,7 +348,10 @@
     "access-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Access control"
     },
     "admin-core": {
@@ -372,7 +375,10 @@
     "admin-react": {
       "role": "Plugins",
       "subtype": "presentation",
-      "runtimes": ["browser", "node"],
+      "runtimes": [
+        "browser",
+        "node"
+      ],
       "domain": "Admin React"
     },
     "analytics-core": {
@@ -384,7 +390,10 @@
     "analytics-posthog": {
       "role": "Plugins",
       "subtype": "integration",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Analytics"
     },
     "architecture-policy": {
@@ -402,19 +411,28 @@
     "audit-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Audit"
     },
     "auth-better-auth": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Auth"
     },
     "auth-clerk": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Auth"
     },
     "auth-core": {
@@ -426,7 +444,10 @@
     "auth-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Auth"
     },
     "batch-core": {
@@ -438,7 +459,10 @@
     "batch-qstash": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Batch"
     },
     "billing-core": {
@@ -450,7 +474,10 @@
     "billing-polar": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Billing"
     },
     "cache-core": {
@@ -480,7 +507,10 @@
     "credits-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Credits"
     },
     "customer-health-core": {
@@ -492,7 +522,10 @@
     "customer-health-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Customer health"
     },
     "dataloader-core": {
@@ -522,7 +555,10 @@
     "engagement-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Engagement"
     },
     "entitlements-core": {
@@ -534,7 +570,10 @@
     "entitlements-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Entitlements"
     },
     "esbuild-plugin": {
@@ -570,7 +609,10 @@
     "execution-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Execution"
     },
     "features-core": {
@@ -582,7 +624,10 @@
     "features-posthog": {
       "role": "Plugins",
       "subtype": "integration",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Feature flags"
     },
     "framework-config": {
@@ -624,25 +669,37 @@
     "frontend-cloudflare": {
       "role": "Plugins",
       "subtype": "presentation",
-      "runtimes": ["cloudflare-workers"],
+      "runtimes": [
+        "cloudflare-workers"
+      ],
       "domain": "Frontend SSR"
     },
     "frontend-problems": {
       "role": "Plugins",
       "subtype": "presentation",
-      "runtimes": ["browser", "cloudflare-workers"],
+      "runtimes": [
+        "browser",
+        "cloudflare-workers"
+      ],
       "domain": "Frontend Problems"
     },
     "frontend-react": {
       "role": "Plugins",
       "subtype": "presentation",
-      "runtimes": ["browser", "node"],
+      "runtimes": [
+        "browser",
+        "node"
+      ],
       "domain": "Frontend React"
     },
     "frontend-vite": {
       "role": "Tooling",
       "subtype": "build-target",
-      "runtimes": ["node", "browser", "cloudflare-workers"],
+      "runtimes": [
+        "node",
+        "browser",
+        "cloudflare-workers"
+      ],
       "domain": "Frontend Vite"
     },
     "gid-core": {
@@ -678,7 +735,10 @@
     "integrations-posthog": {
       "role": "Plugins",
       "subtype": "integration",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "PostHog"
     },
     "invitation-core": {
@@ -690,7 +750,10 @@
     "invitation-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Invitation"
     },
     "lifecycle-core": {
@@ -714,7 +777,10 @@
     "llm-openai": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "LLM"
     },
     "membership-core": {
@@ -726,13 +792,21 @@
     "membership-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Membership"
     },
     "meta-vite": {
       "role": "Tooling",
       "subtype": "build-target",
-      "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
+      "runtimes": [
+        "node",
+        "lambda",
+        "cloudflare-workers",
+        "browser"
+      ],
       "domain": "Frontend routing"
     },
     "metering-core": {
@@ -744,19 +818,29 @@
     "metering-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Metering"
     },
     "metering-upstash": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Metering"
     },
     "metrics-billing": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda", "cloudflare-workers"],
+      "runtimes": [
+        "node",
+        "lambda",
+        "cloudflare-workers"
+      ],
       "domain": "Metrics"
     },
     "metrics-core": {
@@ -780,13 +864,19 @@
     "notifications-react-email": {
       "role": "Plugins",
       "subtype": "presentation",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Notifications"
     },
     "notifications-resend": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Notifications"
     },
     "onboarding-core": {
@@ -798,7 +888,10 @@
     "onboarding-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Onboarding"
     },
     "openapi-spec": {
@@ -822,25 +915,36 @@
     "presentation-preset": {
       "role": "Profiles",
       "subtype": "composition",
-      "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
+      "runtimes": [
+        "node",
+        "lambda",
+        "cloudflare-workers",
+        "browser"
+      ],
       "domain": "Presentation preset"
     },
     "preset-cloudflare": {
       "role": "Plugins",
       "subtype": "host",
-      "runtimes": ["cloudflare-workers"],
+      "runtimes": [
+        "cloudflare-workers"
+      ],
       "domain": "Cloudflare Workers host"
     },
     "preset-lambda": {
       "role": "Plugins",
       "subtype": "host",
-      "runtimes": ["lambda"],
+      "runtimes": [
+        "lambda"
+      ],
       "domain": "AWS Lambda host"
     },
     "preset-node": {
       "role": "Plugins",
       "subtype": "host",
-      "runtimes": ["node"],
+      "runtimes": [
+        "node"
+      ],
       "domain": "Node host"
     },
     "problems-core": {
@@ -894,7 +998,10 @@
     "ratelimit-upstash": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Rate limiting"
     },
     "repository-core": {
@@ -924,25 +1031,37 @@
     "search-drizzle": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Search"
     },
     "search-meilisearch": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Search"
     },
     "storage-cloudflare": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Storage"
     },
     "storage-cloudinary": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Storage"
     },
     "storage-core": {
@@ -954,7 +1073,10 @@
     "storage-r2": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Storage"
     },
     "tasks-core": {
@@ -966,19 +1088,30 @@
     "tasks-qstash": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Tasks"
     },
     "telemetry-api": {
       "role": "Contracts",
       "subtype": "observability",
-      "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
+      "runtimes": [
+        "node",
+        "lambda",
+        "cloudflare-workers",
+        "browser"
+      ],
       "domain": "Telemetry"
     },
     "telemetry-sdk-node": {
       "role": "Plugins",
       "subtype": "integration",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Telemetry"
     },
     "tenant-core": {
@@ -1002,19 +1135,27 @@
     "transports-cloudflare-workers": {
       "role": "Plugins",
       "subtype": "host",
-      "runtimes": ["cloudflare-workers"],
+      "runtimes": [
+        "cloudflare-workers"
+      ],
       "domain": "Cloudflare Workers host"
     },
     "transports-graphql": {
       "role": "Plugins",
       "subtype": "transport",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "GraphQL transport"
     },
     "transports-http": {
       "role": "Plugins",
       "subtype": "transport",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "HTTP transport"
     },
     "triggers-core": {
@@ -1026,7 +1167,10 @@
     "triggers-qstash": {
       "role": "Plugins",
       "subtype": "provider",
-      "runtimes": ["node", "lambda"],
+      "runtimes": [
+        "node",
+        "lambda"
+      ],
       "domain": "Triggers"
     },
     "tx-core": {
@@ -1044,7 +1188,10 @@
     "ui-astryx": {
       "role": "Plugins",
       "subtype": "presentation",
-      "runtimes": ["browser", "node"],
+      "runtimes": [
+        "browser",
+        "node"
+      ],
       "domain": "Astryx UI"
     },
     "webhooks-core": {
@@ -1185,7 +1332,10 @@
     },
     "Transport": {
       "description": "Protocol transports that execute application surfaces independently from deployment hosts",
-      "packages": ["transports-graphql", "transports-http"]
+      "packages": [
+        "transports-graphql",
+        "transports-http"
+      ]
     },
     "Host": {
       "description": "Runtime lifecycle adapters for Node processes, Lambda invocations, and Cloudflare Workers fetch events",
@@ -1198,7 +1348,9 @@
     },
     "Build Target": {
       "description": "Build-time entrypoint, output, format, and bundling contracts without runtime lifecycle ownership",
-      "packages": ["framework-preset"]
+      "packages": [
+        "framework-preset"
+      ]
     },
     "Presentation": {
       "description": "Frontend, SSR, and presentation-layer adapters",
@@ -1369,13 +1521,24 @@
     }
   },
   "extensionMatrix": {
-    "groups": ["Provider", "Integration", "Transport", "Host", "Presentation"],
+    "groups": [
+      "Provider",
+      "Integration",
+      "Transport",
+      "Host",
+      "Presentation"
+    ],
     "packages": {
       "admin-react": {
         "domain": "Admin React",
         "adapter": "Tenant and cross-domain business workspace primitives",
-        "runtimes": ["browser", "node"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "browser",
+          "node"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "billing panel contract",
           "contract-aware DataTable",
@@ -1399,15 +1562,29 @@
       "access-drizzle": {
         "domain": "Access control",
         "adapter": "Drizzle repository",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["permission checks", "policy storage"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "permission checks",
+          "policy storage"
+        ]
       },
       "analytics-posthog": {
         "domain": "Analytics",
         "adapter": "PostHog analytics provider",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["POSTHOG_API_KEY", "POSTHOG_HOST optional"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "POSTHOG_API_KEY",
+          "POSTHOG_HOST optional"
+        ],
         "features": [
           "event capture",
           "user/group analytics",
@@ -1419,14 +1596,25 @@
       "audit-drizzle": {
         "domain": "Audit",
         "adapter": "Drizzle repository",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["audit event persistence", "tenant audit lookup"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "audit event persistence",
+          "tenant audit lookup"
+        ]
       },
       "auth-better-auth": {
         "domain": "Auth",
         "adapter": "Better Auth + Drizzle provider",
-        "runtimes": ["node", "lambda"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
         "requiredEnv": [
           "BETTER_AUTH_URL",
           "BETTER_AUTH_SECRET",
@@ -1444,7 +1632,10 @@
       "auth-clerk": {
         "domain": "Auth",
         "adapter": "Clerk Backend provider",
-        "runtimes": ["node", "lambda"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
         "requiredEnv": [
           "CLERK_SECRET_KEY",
           "CLERK_PUBLISHABLE_KEY optional",
@@ -1463,15 +1654,29 @@
       "auth-drizzle": {
         "domain": "Auth",
         "adapter": "Drizzle store",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["API key store", "role registry"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "API key store",
+          "role registry"
+        ]
       },
       "batch-qstash": {
         "domain": "Batch",
         "adapter": "QStash chunk executor",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["QSTASH_TOKEN", "public webhook URL"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "QSTASH_TOKEN",
+          "public webhook URL"
+        ],
         "features": [
           "chunk scheduling",
           "checkpoint resume",
@@ -1483,7 +1688,10 @@
       "billing-polar": {
         "domain": "Billing",
         "adapter": "Polar billing gateway",
-        "runtimes": ["node", "lambda"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
         "requiredEnv": [
           "POLAR_ACCESS_TOKEN",
           "POLAR_WEBHOOK_SECRET",
@@ -1503,8 +1711,13 @@
       "credits-drizzle": {
         "domain": "Credits",
         "adapter": "Transactional Drizzle credit ledger",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["PostgreSQL connection supplied by app"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "PostgreSQL connection supplied by app"
+        ],
         "features": [
           "atomic credit ledger persistence",
           "concurrent overdraft prevention",
@@ -1516,15 +1729,28 @@
       "customer-health-drizzle": {
         "domain": "Customer health",
         "adapter": "Drizzle repository",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["health score persistence", "customer health lookup"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "health score persistence",
+          "customer health lookup"
+        ]
       },
       "engagement-drizzle": {
         "domain": "Engagement",
         "adapter": "Transactional Drizzle engagement store",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["PostgreSQL connection supplied by app"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "PostgreSQL connection supplied by app"
+        ],
         "features": [
           "tenant-scoped contact endpoints",
           "durable preferences and suppressions",
@@ -1537,29 +1763,59 @@
       "entitlements-drizzle": {
         "domain": "Entitlements",
         "adapter": "Drizzle repository",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["entitlement persistence", "billing entitlement lookup"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "entitlement persistence",
+          "billing entitlement lookup"
+        ]
       },
       "execution-drizzle": {
         "domain": "Execution",
         "adapter": "Drizzle execution store",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["execution state persistence", "retryable failure records"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "execution state persistence",
+          "retryable failure records"
+        ]
       },
       "features-posthog": {
         "domain": "Feature flags",
         "adapter": "PostHog feature provider",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["POSTHOG_API_KEY", "POSTHOG_HOST optional"],
-        "features": ["feature flag lookup", "PostHog client reuse"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "POSTHOG_API_KEY",
+          "POSTHOG_HOST optional"
+        ],
+        "features": [
+          "feature flag lookup",
+          "PostHog client reuse"
+        ]
       },
       "frontend-cloudflare": {
         "domain": "Frontend SSR",
         "adapter": "Cloudflare SSR handler",
-        "runtimes": ["cloudflare-workers"],
-        "requiredEnv": ["API_WORKER binding optional", "ASSETS binding optional"],
+        "runtimes": [
+          "cloudflare-workers"
+        ],
+        "requiredEnv": [
+          "API_WORKER binding optional",
+          "ASSETS binding optional"
+        ],
         "features": [
           "Worker SSR request handling",
           "service binding API routing",
@@ -1572,8 +1828,13 @@
       "frontend-problems": {
         "domain": "Frontend Problems",
         "adapter": "Problem-aware client runtime",
-        "runtimes": ["browser", "cloudflare-workers"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "browser",
+          "cloudflare-workers"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "Problem Details parsing",
           "Problem-aware fetch results",
@@ -1584,8 +1845,13 @@
       "frontend-react": {
         "domain": "Frontend React",
         "adapter": "React integration helpers",
-        "runtimes": ["browser", "node"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "browser",
+          "node"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "React bindings",
           "meta-vite integration",
@@ -1599,8 +1865,14 @@
       "frontend-vite": {
         "domain": "Frontend Vite",
         "adapter": "Vite integration helpers",
-        "runtimes": ["node", "browser", "cloudflare-workers"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "node",
+          "browser",
+          "cloudflare-workers"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "Vite config helpers",
           "Cloudflare Vite compatibility",
@@ -1612,8 +1884,13 @@
       "ui-astryx": {
         "domain": "Astryx UI",
         "adapter": "Croco-aware Astryx React presentation adapter",
-        "runtimes": ["browser", "node"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "browser",
+          "node"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "Astryx neutral theme provider",
           "application shell",
@@ -1626,22 +1903,45 @@
       "integrations-posthog": {
         "domain": "PostHog",
         "adapter": "Shared PostHog client",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["POSTHOG_API_KEY", "POSTHOG_HOST optional"],
-        "features": ["client lifecycle", "capture flush", "diagnostics"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "POSTHOG_API_KEY",
+          "POSTHOG_HOST optional"
+        ],
+        "features": [
+          "client lifecycle",
+          "capture flush",
+          "diagnostics"
+        ]
       },
       "invitation-drizzle": {
         "domain": "Invitation",
         "adapter": "Drizzle repository",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["invitation persistence", "transaction-aware repository"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "invitation persistence",
+          "transaction-aware repository"
+        ]
       },
       "llm-openai": {
         "domain": "LLM",
         "adapter": "OpenAI Responses provider",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["OPENAI_API_KEY"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "OPENAI_API_KEY"
+        ],
         "features": [
           "Responses text generation",
           "SSE streaming",
@@ -1655,14 +1955,27 @@
       "membership-drizzle": {
         "domain": "Membership",
         "adapter": "Drizzle repository",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["membership persistence", "transaction-aware repository"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "membership persistence",
+          "transaction-aware repository"
+        ]
       },
       "meta-vite": {
         "domain": "Frontend routing",
         "adapter": "Meta Vite runtime",
-        "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
+        "runtimes": [
+          "node",
+          "lambda",
+          "cloudflare-workers",
+          "browser"
+        ],
         "requiredEnv": [
           "optional Redis-compatible ISR adapter config",
           "Worker-safe IsrCacheStore required for durable Workers ISR"
@@ -1680,15 +1993,30 @@
       "metering-drizzle": {
         "domain": "Metering",
         "adapter": "Drizzle usage store",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["usage persistence", "quota lookup", "migration scripts"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "usage persistence",
+          "quota lookup",
+          "migration scripts"
+        ]
       },
       "metering-upstash": {
         "domain": "Metering",
         "adapter": "Upstash Redis client adapter",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "UPSTASH_REDIS_REST_URL",
+          "UPSTASH_REDIS_REST_TOKEN"
+        ],
         "features": [
           "Redis command adapter",
           "serverless usage storage",
@@ -1699,8 +2027,14 @@
       "metrics-billing": {
         "domain": "Metrics",
         "adapter": "Billing metrics bridge",
-        "runtimes": ["node", "lambda", "cloudflare-workers"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "node",
+          "lambda",
+          "cloudflare-workers"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "billing event metrics",
           "usage aggregation bridge",
@@ -1712,8 +2046,14 @@
       "notifications-resend": {
         "domain": "Notifications",
         "adapter": "Resend email provider",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["RESEND_API_KEY", "default from address"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "RESEND_API_KEY",
+          "default from address"
+        ],
         "features": [
           "email send",
           "rendered template send",
@@ -1729,8 +2069,13 @@
       "notifications-react-email": {
         "domain": "Notifications",
         "adapter": "React Email renderer",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "typed email content",
           "HTML rendering",
@@ -1742,15 +2087,30 @@
       "onboarding-drizzle": {
         "domain": "Onboarding",
         "adapter": "Drizzle repository",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["onboarding state persistence", "step completion storage"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "onboarding state persistence",
+          "step completion storage"
+        ]
       },
       "presentation-preset": {
         "domain": "Presentation preset",
         "adapter": "Backend/frontend preset composition",
-        "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "node",
+          "lambda",
+          "cloudflare-workers",
+          "browser"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "preset composition",
           "contract wiring",
@@ -1761,8 +2121,14 @@
       "ratelimit-upstash": {
         "domain": "Rate limiting",
         "adapter": "Upstash Redis rate-limit store",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "UPSTASH_REDIS_REST_URL",
+          "UPSTASH_REDIS_REST_TOKEN"
+        ],
         "features": [
           "sliding window",
           "token bucket",
@@ -1775,15 +2141,29 @@
       "search-drizzle": {
         "domain": "Search",
         "adapter": "Drizzle search index",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["database connection supplied by app"],
-        "features": ["search document persistence", "tenant-aware lookup"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "database connection supplied by app"
+        ],
+        "features": [
+          "search document persistence",
+          "tenant-aware lookup"
+        ]
       },
       "search-meilisearch": {
         "domain": "Search",
         "adapter": "Meilisearch engine",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["MEILISEARCH_HOST", "MEILISEARCH_API_KEY"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "MEILISEARCH_HOST",
+          "MEILISEARCH_API_KEY"
+        ],
         "features": [
           "indexing",
           "search",
@@ -1796,8 +2176,15 @@
       "storage-cloudflare": {
         "domain": "Storage",
         "adapter": "Cloudflare Images provider",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_HASH"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "CLOUDFLARE_ACCOUNT_ID",
+          "CLOUDFLARE_API_TOKEN",
+          "CLOUDFLARE_ACCOUNT_HASH"
+        ],
         "features": [
           "image upload",
           "transform URLs",
@@ -1811,8 +2198,15 @@
       "storage-cloudinary": {
         "domain": "Storage",
         "adapter": "Cloudinary provider",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "CLOUDINARY_CLOUD_NAME",
+          "CLOUDINARY_API_KEY",
+          "CLOUDINARY_API_SECRET"
+        ],
         "features": [
           "file upload",
           "transform URLs",
@@ -1826,8 +2220,16 @@
       "storage-r2": {
         "domain": "Storage",
         "adapter": "Cloudflare R2 S3-compatible provider",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "R2_ACCOUNT_ID",
+          "R2_ACCESS_KEY_ID",
+          "R2_SECRET_ACCESS_KEY",
+          "R2_BUCKET"
+        ],
         "features": [
           "put/get/delete",
           "signed URLs",
@@ -1840,8 +2242,14 @@
       "tasks-qstash": {
         "domain": "Tasks",
         "adapter": "QStash task runner",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["UPSTASH_QSTASH_TOKEN", "UPSTASH_QSTASH_DESTINATION_URL"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "UPSTASH_QSTASH_TOKEN",
+          "UPSTASH_QSTASH_DESTINATION_URL"
+        ],
         "features": [
           "task publish",
           "delay override",
@@ -1854,8 +2262,15 @@
       "telemetry-api": {
         "domain": "Telemetry",
         "adapter": "OpenTelemetry application API",
-        "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
-        "requiredEnv": ["none"],
+        "runtimes": [
+          "node",
+          "lambda",
+          "cloudflare-workers",
+          "browser"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
         "features": [
           "Trace decorator",
           "withSpan",
@@ -1867,52 +2282,104 @@
       "telemetry-sdk-node": {
         "domain": "Telemetry",
         "adapter": "OpenTelemetry Node SDK runtime",
-        "runtimes": ["node", "lambda"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
         "requiredEnv": [
           "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT",
           "TELEMETRY_ENABLED optional"
         ],
-        "features": ["SDK init", "Lambda preset", "OTLP export", "forceFlush"]
+        "features": [
+          "SDK init",
+          "Lambda preset",
+          "OTLP export",
+          "forceFlush"
+        ]
       },
       "transports-cloudflare-workers": {
         "domain": "Cloudflare Workers host",
         "adapter": "Legacy-named Workers fetch lifecycle adapter",
-        "runtimes": ["cloudflare-workers"],
-        "requiredEnv": ["Cloudflare Worker env object supplied by platform"],
-        "features": ["Worker fetch adapter", "request context bridge"]
+        "runtimes": [
+          "cloudflare-workers"
+        ],
+        "requiredEnv": [
+          "Cloudflare Worker env object supplied by platform"
+        ],
+        "features": [
+          "Worker fetch adapter",
+          "request context bridge"
+        ]
       },
       "preset-cloudflare": {
         "domain": "Cloudflare Workers host",
         "adapter": "Workers fetch lifecycle and build-target compatibility facade",
-        "runtimes": ["cloudflare-workers"],
-        "requiredEnv": ["Cloudflare Worker env object supplied by platform"],
-        "features": ["fetch lifecycle host", "runtime context bridge", "ESM build target"]
+        "runtimes": [
+          "cloudflare-workers"
+        ],
+        "requiredEnv": [
+          "Cloudflare Worker env object supplied by platform"
+        ],
+        "features": [
+          "fetch lifecycle host",
+          "runtime context bridge",
+          "ESM build target"
+        ]
       },
       "preset-lambda": {
         "domain": "AWS Lambda host",
         "adapter": "Lambda invocation lifecycle and build-target compatibility facade",
-        "runtimes": ["lambda"],
-        "requiredEnv": ["AWS Lambda invocation context supplied by platform"],
-        "features": ["invocation host", "flush boundary", "ESM build target"]
+        "runtimes": [
+          "lambda"
+        ],
+        "requiredEnv": [
+          "AWS Lambda invocation context supplied by platform"
+        ],
+        "features": [
+          "invocation host",
+          "flush boundary",
+          "ESM build target"
+        ]
       },
       "preset-node": {
         "domain": "Node host",
         "adapter": "Node process/server lifecycle and build-target compatibility facade",
-        "runtimes": ["node"],
-        "requiredEnv": ["PORT optional", "HOST optional"],
-        "features": ["server start", "graceful close", "dual-format build target"]
+        "runtimes": [
+          "node"
+        ],
+        "requiredEnv": [
+          "PORT optional",
+          "HOST optional"
+        ],
+        "features": [
+          "server start",
+          "graceful close",
+          "dual-format build target"
+        ]
       },
       "transports-graphql": {
         "domain": "GraphQL transport",
         "adapter": "GraphQL Yoga transport",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["none"],
-        "features": ["GraphQL server", "resolver execution", "Problem mapping"]
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "none"
+        ],
+        "features": [
+          "GraphQL server",
+          "resolver execution",
+          "Problem mapping"
+        ]
       },
       "transports-http": {
         "domain": "HTTP transport",
         "adapter": "Hono HTTP/Lambda transport",
-        "runtimes": ["node", "lambda"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
         "requiredEnv": [
           "CROCO_DIAGNOSTICS_TOKEN optional",
           "CROCO_HTTP_DI_VALIDATION optional",
@@ -1928,8 +2395,14 @@
       "triggers-qstash": {
         "domain": "Triggers",
         "adapter": "QStash scheduler and webhook handler",
-        "runtimes": ["node", "lambda"],
-        "requiredEnv": ["QSTASH_TOKEN", "public webhook URL"],
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "requiredEnv": [
+          "QSTASH_TOKEN",
+          "public webhook URL"
+        ],
         "features": [
           "schedule publish",
           "webhook verification",
@@ -1945,7 +2418,13 @@
     "schemaVersion": 1,
     "policy": {
       "scope": {
-        "extensionGroups": ["Provider", "Integration", "Transport", "Host", "Presentation"],
+        "extensionGroups": [
+          "Provider",
+          "Integration",
+          "Transport",
+          "Host",
+          "Presentation"
+        ],
         "requiredMaturity": "production",
         "claimRequiresCertified": true,
         "states": {
@@ -1960,8 +2439,11 @@
         "package": "@croco/auth-clerk",
         "contract": "@croco/auth-core/AuthProvider",
         "adapterCategory": "provider",
-        "runtimes": ["node", "lambda"],
-        "packageVersion": "0.0.4",
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "packageVersion": "0.1.0",
         "state": "uncertified",
         "evidence": {
           "conformance": {
@@ -1993,14 +2475,19 @@
             "description": "No-credential diagnostics exclude configured Clerk secret samples."
           }
         },
-        "knownGaps": ["Recorded real Clerk liveSmoke evidence is required before certified state."]
+        "knownGaps": [
+          "Recorded real Clerk liveSmoke evidence is required before certified state."
+        ]
       },
       {
         "package": "@croco/tasks-qstash",
         "contract": "@croco/tasks-core/TaskRunner",
         "adapterCategory": "provider",
-        "runtimes": ["node", "lambda"],
-        "packageVersion": "0.0.4",
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "packageVersion": "0.1.0",
         "state": "uncertified",
         "evidence": {
           "conformance": {
@@ -2032,14 +2519,19 @@
             "description": "No-credential Problems exclude secret-bearing default header values."
           }
         },
-        "knownGaps": ["liveSmoke"]
+        "knownGaps": [
+          "liveSmoke"
+        ]
       },
       {
         "package": "@croco/storage-r2",
         "contract": "@croco/storage-core/StorageProvider",
         "adapterCategory": "provider",
-        "runtimes": ["node", "lambda"],
-        "packageVersion": "0.0.4",
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "packageVersion": "1.0.0",
         "state": "uncertified",
         "evidence": {
           "conformance": {
@@ -2066,14 +2558,19 @@
             "description": "Problem and diagnostics tests cover R2 access key and secret redaction."
           }
         },
-        "knownGaps": ["Recorded real R2 liveSmoke evidence is required before certified state."]
+        "knownGaps": [
+          "Recorded real R2 liveSmoke evidence is required before certified state."
+        ]
       },
       {
         "package": "@croco/billing-polar",
         "contract": "@croco/billing-core/BillingGateway",
         "adapterCategory": "provider",
-        "runtimes": ["node", "lambda"],
-        "packageVersion": "0.0.4",
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "packageVersion": "1.0.0",
         "state": "uncertified",
         "evidence": {
           "conformance": {
@@ -2111,8 +2608,11 @@
         "package": "@croco/search-meilisearch",
         "contract": "@croco/search-core/SearchEngine",
         "adapterCategory": "provider",
-        "runtimes": ["node", "lambda"],
-        "packageVersion": "0.0.4",
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "packageVersion": "1.0.0",
         "state": "uncertified",
         "evidence": {
           "conformance": {
@@ -2147,8 +2647,13 @@
         "package": "@croco/telemetry-api",
         "contract": "@croco/telemetry-api/Trace",
         "adapterCategory": "integration",
-        "runtimes": ["node", "lambda", "cloudflare-workers", "browser"],
-        "packageVersion": "0.1.0",
+        "runtimes": [
+          "node",
+          "lambda",
+          "cloudflare-workers",
+          "browser"
+        ],
+        "packageVersion": "0.1.1",
         "state": "certified",
         "evidence": {
           "conformance": {
@@ -2183,8 +2688,11 @@
         "package": "@croco/telemetry-sdk-node",
         "contract": "@croco/telemetry-sdk-node/TelemetryRuntime",
         "adapterCategory": "integration",
-        "runtimes": ["node", "lambda"],
-        "packageVersion": "0.0.4",
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "packageVersion": "0.1.0",
         "state": "certified",
         "evidence": {
           "conformance": {
@@ -2219,8 +2727,11 @@
         "package": "@croco/transports-http",
         "contract": "@croco/transports-http/HttpTransport",
         "adapterCategory": "transport",
-        "runtimes": ["node", "lambda"],
-        "packageVersion": "0.0.4",
+        "runtimes": [
+          "node",
+          "lambda"
+        ],
+        "packageVersion": "0.1.0",
         "state": "certified",
         "evidence": {
           "conformance": {
