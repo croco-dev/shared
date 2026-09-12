@@ -390,6 +390,31 @@ describe("InMemoryEventBus dead-letter execution", () => {
     EventBusConfig.setStats(new EventBusStats());
   });
 
+  it("uses a provided handler instance when dead-letter handling is enabled", async () => {
+    class ContainerHandler implements EventHandler<DeadLetterTestEvent> {
+      handle(): void {
+        throw new Error("Container fallback should not be used");
+      }
+    }
+
+    const queue = new InMemoryDeadLetterQueue();
+    const resolvedHandler: EventHandler<DeadLetterTestEvent> = {
+      handle: vi.fn(),
+    };
+    const bus = new InMemoryEventBus<DeadLetterTestEvent>({ deadLetterQueue: queue });
+    bus.subscribe({
+      eventName: DeadLetterTestEvent.eventName,
+      handlerClass: ContainerHandler,
+      handlerId: "container-handler.v1",
+      handler: resolvedHandler,
+    });
+
+    await bus.publish(new DeadLetterTestEvent("resolved"));
+
+    expect(resolvedHandler.handle).toHaveBeenCalledOnce();
+    await expect(queue.size()).resolves.toBe(0);
+  });
+
   it("keeps collection payloads unchanged across failed attempts and dead-letter storage", async () => {
     class CollectionEvent extends DomainEvent {
       static readonly eventName = "collection-retry";

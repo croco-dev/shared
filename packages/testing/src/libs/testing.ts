@@ -544,7 +544,7 @@ export async function createEventTestingHarness<TEvent extends DomainEvent = Dom
     config.subscribe(subscription);
   }
 
-  await config.start({ handlers: [] });
+  await config.start({ handlers: [], resolver: { resolve: Container.get } });
 
   return new CrocoEventTestingHarness(eventBus, config, transactionContext);
 }

@@ -4,6 +4,7 @@ import {
   EventBusConfig,
   EventBusIntakeClosedProblem,
   EventBusStats,
+  type HandlerResolver,
   InvalidEventBusDrainTimeoutProblem,
   type EventHandler,
   type EventSubscription,
@@ -91,6 +92,38 @@ describe("InMemoryEventBus", () => {
   });
 
   describe("subscribe", () => {
+    it("should use the handler instance resolved by EventBusConfig", async () => {
+      class ContainerHandler implements EventHandler<TestEvent> {
+        handle(): void {
+          throw new Error("Container fallback should not be used");
+        }
+      }
+
+      const resolvedHandler: EventHandler<TestEvent> = {
+        handle: vi.fn(),
+      };
+      const resolver = {
+        resolve(): EventHandler<TestEvent> {
+          return resolvedHandler;
+        },
+      };
+      const config = new EventBusConfig();
+      config.setEventBus(eventBus);
+      config.subscribe({
+        eventName: TestEvent.eventName,
+        handlerClass: ContainerHandler,
+      });
+
+      await config.start({ handlers: [], resolver: resolver as HandlerResolver });
+      const event = new TestEvent("custom-resolver");
+      await eventBus.publish(event);
+
+      expect(resolvedHandler.handle).toHaveBeenCalledOnce();
+      expect(resolvedHandler.handle).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "custom-resolver" }),
+      );
+    });
+
     it("should subscribe a handler to an event", async () => {
       Container.set(TestHandler, testHandler);
       const subscription: EventSubscription<TestEvent> = {
@@ -103,6 +136,34 @@ describe("InMemoryEventBus", () => {
       await eventBus.publish(event);
       expect(testHandler.handledEvents).toHaveLength(1);
       expect(testHandler.handledEvents[0].message).toBe("subscribe-test");
+    });
+
+    it("should restore Container fallback after a provided handler is unsubscribed", async () => {
+      class SharedHandler implements EventHandler<TestEvent> {
+        handle = vi.fn();
+      }
+
+      const providedHandler = new SharedHandler();
+      const containerHandler = new SharedHandler();
+      Container.set(SharedHandler, containerHandler);
+      eventBus.subscribe({
+        eventName: TestEvent.eventName,
+        handlerClass: SharedHandler,
+        handler: providedHandler,
+      });
+      eventBus.unsubscribe({
+        eventName: TestEvent.eventName,
+        handlerClass: SharedHandler,
+      });
+      eventBus.subscribe({
+        eventName: TestEvent.eventName,
+        handlerClass: SharedHandler,
+      });
+
+      await eventBus.publish(new TestEvent("container-fallback"));
+
+      expect(providedHandler.handle).not.toHaveBeenCalled();
+      expect(containerHandler.handle).toHaveBeenCalledOnce();
     });
 
     it("should allow multiple handlers for same event", async () => {
