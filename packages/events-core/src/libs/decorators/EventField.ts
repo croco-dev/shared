@@ -9,8 +9,9 @@ const EVENT_FIELDS_META_KEY = "@croco/events-core:event-fields";
  */
 export function EventField(options?: { name?: string }): PropertyDecorator {
   return (target: object, propertyKey: string | symbol): void => {
-    const existing: EventFieldMeta[] =
-      Reflect.getMetadata(EVENT_FIELDS_META_KEY, target.constructor) ?? [];
+    const existing: EventFieldMeta[] = [
+      ...(Reflect.getMetadata(EVENT_FIELDS_META_KEY, target.constructor) ?? []),
+    ];
     const serializedKey = options?.name ?? String(propertyKey);
 
     if (existing.some((field) => field.serializedKey === serializedKey)) {
