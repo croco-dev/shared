@@ -142,6 +142,11 @@ const DEFAULT_BACKPRESSURE_TIMEOUT_MS = 5000;
 type DeadLetterCapableHandler<TEvent extends DomainEvent> = EventHandler<TEvent> &
   Partial<RetryableEventHandler>;
 
+type RegisteredSubscriber<TEvent extends DomainEvent> = {
+  handlerClass: EventHandlerClass<TEvent>;
+  handler?: EventHandler<TEvent>;
+};
+
 type SubscriberExecution = {
   source: "publish" | "replay";
   priorRetryCount: number;
@@ -159,7 +164,11 @@ type SubscriberExecutionResult<TEvent extends DomainEvent> = {
 export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
   implements EventBus<TEvent>, EventBusLifecycle
 {
-  private readonly index = new EventSubscriptionIndex<EventHandlerClass<TEvent>>();
+  private readonly index = new EventSubscriptionIndex<RegisteredSubscriber<TEvent>>();
+  private readonly subscriptions = new Map<
+    string,
+    Map<EventHandlerClass<TEvent>, RegisteredSubscriber<TEvent>>
+  >();
   private readonly tracer = getTracer();
   private readonly maxConcurrency: number;
   private readonly backpressureStrategy: BackpressureStrategy;
@@ -219,7 +228,7 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
     const eventName = event.eventName;
     const traceInfo = getActiveTraceInfo();
     const baseEvent = this.createEventWithTraceContext(event, traceInfo);
-    const handlerClasses = this.resolveSubscribers(eventName);
+    const subscribers = this.resolveSubscribers(eventName);
     const inspector = this.resolveRuntimeInspector();
     const startedAt = Date.now();
 
@@ -228,7 +237,7 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
       outcome: "started",
       name: eventName,
       details: {
-        subscriberCount: handlerClasses.length,
+        subscriberCount: subscribers.length,
         eventTimestamp: event.timestamp,
         traceId: traceInfo.traceId,
       },
@@ -238,10 +247,10 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
       await this.tracer.startActiveSpan(
         `event.publish:${eventName}`,
         {
-          attributes: this.createPublishSpanAttributes(event, traceInfo, handlerClasses.length),
+          attributes: this.createPublishSpanAttributes(event, traceInfo, subscribers.length),
         },
         async (publishSpan: Span) =>
-          this.finishPublishSpan(publishSpan, handlerClasses, baseEvent, eventName),
+          this.finishPublishSpan(publishSpan, subscribers, baseEvent, eventName),
       );
       this.recordInspectionEvent(inspector, {
         kind: "event.publish",
@@ -249,7 +258,7 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
         name: eventName,
         durationMs: Date.now() - startedAt,
         details: {
-          subscriberCount: handlerClasses.length,
+          subscriberCount: subscribers.length,
         },
       });
     } catch (error) {
@@ -257,12 +266,12 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
       const details =
         normalizedError instanceof EventPublishDroppedProblem
           ? {
-              subscriberCount: handlerClasses.length,
+              subscriberCount: subscribers.length,
               deliveredCount: normalizedError.deliveredCount,
               droppedCount: normalizedError.droppedCount,
             }
           : {
-              subscriberCount: handlerClasses.length,
+              subscriberCount: subscribers.length,
               error: {
                 name: normalizedError.name,
               },
@@ -302,8 +311,8 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
       let execution: SubscriberExecutionResult<TEvent>;
       try {
         this.assertIntakeOpen();
-        const handlerClass = this.resolveReplayHandler(item);
-        if (!handlerClass) {
+        const subscriber = this.resolveReplayHandler(item);
+        if (!subscriber) {
           throw new DeadLetterReplayHandlerUnavailableProblem(item.event.eventName, item.handlerId);
         }
         while (!this.hasAvailableSlot()) {
@@ -314,7 +323,7 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
         }
         this.assertIntakeOpen();
         execution = await this.executeSubscriberWithTracking(
-          handlerClass,
+          subscriber,
           this.cloneEvent(item.event),
           item.event.eventName,
           { source: "replay", priorRetryCount: item.retryCount },
@@ -357,12 +366,12 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
 
   private async finishPublishSpan(
     publishSpan: Span,
-    handlerClasses: EventHandlerClass<TEvent>[],
+    subscribers: RegisteredSubscriber<TEvent>[],
     baseEvent: TEvent,
     eventName: string,
   ): Promise<void> {
     try {
-      await this.executeWithBackpressure(handlerClasses, baseEvent, eventName);
+      await this.executeWithBackpressure(subscribers, baseEvent, eventName);
       publishSpan.setStatus({ code: SpanStatusCode.OK });
       EventBusConfig.getStats()?.publish(false);
     } catch (error) {
@@ -388,14 +397,14 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
   }
 
   private async executeWithBackpressure(
-    handlerClasses: EventHandlerClass<TEvent>[],
+    subscribers: RegisteredSubscriber<TEvent>[],
     baseEvent: TEvent,
     eventName: string,
   ): Promise<void> {
     const failures: EventPublishFailure[] = [];
     let deliveredCount = 0;
 
-    for (const [index, handlerClass] of handlerClasses.entries()) {
+    for (const [index, subscriber] of subscribers.entries()) {
       this.assertIntakeOpen();
       while (!this.hasAvailableSlot()) {
         switch (this.backpressureStrategy) {
@@ -403,7 +412,7 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
             throw new EventPublishDroppedProblem(
               eventName,
               deliveredCount,
-              handlerClasses.length - index,
+              subscribers.length - index,
               failures,
             );
           }
@@ -421,7 +430,7 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
 
       this.assertIntakeOpen();
       const { failure, storageError } = await this.executeSubscriberWithTracking(
-        handlerClass,
+        subscriber,
         baseEvent,
         eventName,
         { source: "publish", priorRetryCount: 0 },
@@ -515,12 +524,12 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
   }
 
   private async executeSubscriberWithTracking(
-    handlerClass: EventHandlerClass<TEvent>,
+    subscriber: RegisteredSubscriber<TEvent>,
     baseEvent: TEvent,
     eventName: string,
     execution: SubscriberExecution,
   ): Promise<SubscriberExecutionResult<TEvent>> {
-    const handlerName = handlerClass.name;
+    const handlerName = subscriber.handlerClass.name;
     const handlerId = `${handlerName}-${++this.handlerCounter}`;
     const startTime = Date.now();
     const inspector = this.resolveRuntimeInspector();
@@ -536,7 +545,7 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
     });
 
     try {
-      const result = await this.executeSubscriber(handlerClass, baseEvent, eventName, execution);
+      const result = await this.executeSubscriber(subscriber, baseEvent, eventName, execution);
       const { failure } = result;
       this.recordInspectionEvent(inspector, {
         kind: "event.handler",
@@ -575,33 +584,46 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
     };
   }
 
-  private resolveSubscribers(eventName: string): EventHandlerClass<TEvent>[] {
-    return Array.from(this.index.match(eventName));
+  private resolveSubscribers(eventName: string): RegisteredSubscriber<TEvent>[] {
+    const subscribersByClass = new Map<EventHandlerClass<TEvent>, RegisteredSubscriber<TEvent>>();
+    for (const subscriber of this.index.match(eventName)) {
+      const existing = subscribersByClass.get(subscriber.handlerClass);
+      if (!existing || (!existing.handler && subscriber.handler)) {
+        subscribersByClass.set(subscriber.handlerClass, subscriber);
+      }
+    }
+    return Array.from(subscribersByClass.values());
   }
 
   private resolveReplayHandler(
     item: DeadLetterItem<TEvent>,
-  ): EventHandlerClass<TEvent> | undefined {
+  ): RegisteredSubscriber<TEvent> | undefined {
     if (!item.handlerId) {
       return undefined;
     }
 
     const matchingHandlers = this.resolveSubscribers(item.event.eventName).filter(
-      (handlerClass) => this.deadLetterHandlerIds.get(handlerClass) === item.handlerId,
+      (subscriber) => this.deadLetterHandlerIds.get(subscriber.handlerClass) === item.handlerId,
     );
     return matchingHandlers.length === 1 ? matchingHandlers[0] : undefined;
   }
 
   private async executeSubscriber(
-    handlerClass: EventHandlerClass<TEvent>,
+    subscriber: RegisteredSubscriber<TEvent>,
     baseEvent: TEvent,
     eventName: string,
     execution: SubscriberExecution,
   ): Promise<SubscriberExecutionResult<TEvent>> {
+    const { handler, handlerClass } = subscriber;
     const handlerName = handlerClass.name;
     if (!this.deadLetterQueue || !this.deadLetterPolicy) {
       return {
-        failure: await this.executeHandlerAttempt(handlerClass, handlerName, baseEvent, eventName),
+        failure: await this.executeHandlerAttempt(
+          handler ?? handlerClass,
+          handlerName,
+          baseEvent,
+          eventName,
+        ),
       };
     }
 
@@ -612,7 +634,8 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
 
     let handlerInstance: DeadLetterCapableHandler<TEvent>;
     try {
-      handlerInstance = Container.get(handlerClass) as DeadLetterCapableHandler<TEvent>;
+      handlerInstance = (handler ??
+        Container.get(handlerClass)) as DeadLetterCapableHandler<TEvent>;
     } catch (error) {
       const failure = { handlerName, error: this.normalizeError(error) };
       if (execution.source === "replay") {
@@ -1037,15 +1060,45 @@ export class InMemoryEventBus<TEvent extends DomainEvent = DomainEvent>
       }
       this.deadLetterHandlerIds.set(handlerClass, handlerId);
     }
-    this.index.add(subscription.eventName, subscription.handlerClass);
+    let subscribers = this.subscriptions.get(subscription.eventName);
+    if (!subscribers) {
+      subscribers = new Map();
+      this.subscriptions.set(subscription.eventName, subscribers);
+    }
+
+    const existing = subscribers.get(subscription.handlerClass);
+    if (existing) {
+      if (subscription.handler) {
+        existing.handler = subscription.handler;
+      }
+      return;
+    }
+
+    const subscriber: RegisteredSubscriber<TEvent> = {
+      handlerClass: subscription.handlerClass,
+      ...(subscription.handler ? { handler: subscription.handler } : {}),
+    };
+    subscribers.set(subscription.handlerClass, subscriber);
+    this.index.add(subscription.eventName, subscriber);
   }
 
   unsubscribe(subscription: EventSubscription<TEvent>): void {
-    this.index.delete(subscription.eventName, subscription.handlerClass);
+    const subscribers = this.subscriptions.get(subscription.eventName);
+    const subscriber = subscribers?.get(subscription.handlerClass);
+    if (!subscribers || !subscriber) {
+      return;
+    }
+
+    this.index.delete(subscription.eventName, subscriber);
+    subscribers.delete(subscription.handlerClass);
+    if (subscribers.size === 0) {
+      this.subscriptions.delete(subscription.eventName);
+    }
   }
 
   clear(): void {
     this.index.clear();
+    this.subscriptions.clear();
   }
 
   async shutdown(options: EventBusShutdownOptions = {}): Promise<EventBusShutdownResult> {
