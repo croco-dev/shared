@@ -1,7 +1,7 @@
 import { MetadataStorage } from "@croco/framework-context";
 import { beforeEach, describe, expect, it } from "vitest";
 import { DomainEvent } from "../libs/DomainEvent";
-import { EventField } from "../libs/decorators/EventField";
+import { EventField, getEventFields } from "../libs/decorators/EventField";
 import { EventRegistry, globalEventRegistry, RegisterEvent } from "../libs/EventRegistry";
 import { DefaultEventSerializer, type SerializedEvent } from "../libs/EventSerializer";
 import {
@@ -131,6 +131,39 @@ Reflect.defineMetadata(
   ],
   DuplicateSerializedKeyEvent,
 );
+
+describe("EventField", () => {
+  it("isolates inherited metadata between sibling event classes", () => {
+    class BaseUserEvent {
+      @EventField()
+      public readonly userId = "user-1";
+    }
+
+    expect(() => {
+      class UserCreatedEvent extends BaseUserEvent {
+        @EventField()
+        public readonly occurredBy = "admin";
+      }
+
+      class UserUpdatedEvent extends BaseUserEvent {
+        @EventField()
+        public readonly occurredBy = "system";
+      }
+
+      expect(getEventFields(BaseUserEvent)).toEqual([
+        { propertyKey: "userId", serializedKey: "userId" },
+      ]);
+      expect(getEventFields(UserCreatedEvent)).toEqual([
+        { propertyKey: "userId", serializedKey: "userId" },
+        { propertyKey: "occurredBy", serializedKey: "occurredBy" },
+      ]);
+      expect(getEventFields(UserUpdatedEvent)).toEqual([
+        { propertyKey: "userId", serializedKey: "userId" },
+        { propertyKey: "occurredBy", serializedKey: "occurredBy" },
+      ]);
+    }).not.toThrow();
+  });
+});
 
 describe("DefaultEventSerializer", () => {
   let registry!: EventRegistry;
