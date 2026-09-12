@@ -298,20 +298,87 @@ describe("AccessEngine", () => {
   });
 
   describe("revoke", () => {
-    it("should delegate to provider", async () => {
+    it.each(["user:user-1", "role:editor", "group:team-1"] as const)(
+      "should forward a valid %s tuple unchanged to the provider",
+      async (subject) => {
+        const request: RevokeRequest = {
+          tenantId: "tenant-1",
+          tuple: {
+            object: "document:document-1",
+            relation: "editor",
+            subject,
+          },
+        };
+        vi.mocked(mockProvider.revoke).mockResolvedValue(undefined);
+
+        await accessEngine.revoke(request);
+
+        expect(mockProvider.revoke).toHaveBeenCalledExactlyOnceWith(request);
+        expect(vi.mocked(mockProvider.revoke).mock.calls[0]?.[0]).toBe(request);
+      },
+    );
+
+    it.each([
+      {
+        field: "tuple.object",
+        tuple: { object: "documents", relation: "viewer", subject: "user:user-1" },
+      },
+      {
+        field: "tuple.object",
+        tuple: { object: "document:", relation: "viewer", subject: "user:user-1" },
+      },
+      {
+        field: "tuple.object",
+        tuple: { relation: "viewer", subject: "user:user-1" },
+      },
+      {
+        field: "tuple.relation",
+        tuple: { object: "document:document-1", relation: "", subject: "user:user-1" },
+      },
+      {
+        field: "tuple.relation",
+        tuple: { object: "document:document-1", relation: "  ", subject: "user:user-1" },
+      },
+      {
+        field: "tuple.relation",
+        tuple: { object: "document:document-1", subject: "user:user-1" },
+      },
+      {
+        field: "tuple.subject",
+        tuple: { object: "document:document-1", relation: "viewer", subject: "account:user-1" },
+      },
+      {
+        field: "tuple.subject",
+        tuple: { object: "document:document-1", relation: "viewer", subject: "user:" },
+      },
+      {
+        field: "tuple.subject",
+        tuple: { object: "document:document-1", relation: "viewer" },
+      },
+      { field: "tuple", tuple: null },
+      { field: "tuple", tuple: undefined },
+      { field: "tuple", tuple: "document:document-1" },
+    ])("should reject an invalid $field before calling the provider", async ({ field, tuple }) => {
+      const request = { tenantId: "tenant-1", tuple } as unknown as RevokeRequest;
+
+      await expect(accessEngine.revoke(request)).rejects.toMatchObject({
+        category: ProblemCategory.BadRequest,
+        code: "access-core/invalid-relation-tuple",
+        extensions: { field },
+      });
+      expect(mockProvider.revoke).not.toHaveBeenCalled();
+    });
+
+    it("should propagate a provider failure for a valid tuple", async () => {
       const request: RevokeRequest = {
         tenantId: "tenant-1",
-        tuple: {
-          object: "document:document-1",
-          relation: "editor",
-          subject: "user:user-1",
-        },
+        tuple: { object: "document:document-1", relation: "editor", subject: "user:user-1" },
       };
-      vi.mocked(mockProvider.revoke).mockResolvedValue(undefined);
+      const problem = new TestSystemProblem("Revoke failed");
+      vi.mocked(mockProvider.revoke).mockRejectedValue(problem);
 
-      await accessEngine.revoke(request);
-
-      expect(mockProvider.revoke).toHaveBeenCalledWith(request);
+      await expect(accessEngine.revoke(request)).rejects.toBe(problem);
+      expect(mockProvider.revoke).toHaveBeenCalledExactlyOnceWith(request);
     });
   });
 

@@ -379,7 +379,7 @@ describe("AccessGuard", () => {
     expect(mockAccessEngine.check).not.toHaveBeenCalled();
   });
 
-  it("should throw BadRequestProblem when authenticated user is missing", async () => {
+  it("should return 401 when authenticated user is missing", async () => {
     class TestController {
       @Access("document", "viewer")
       protectedMethod() {}
@@ -390,8 +390,55 @@ describe("AccessGuard", () => {
       rawParams: { id: "doc-1" },
     });
 
-    await expect(accessGuard.canActivate(context)).rejects.toThrow(BadRequestProblem);
-    await expect(accessGuard.canActivate(context)).rejects.toThrow("Authenticated user missing");
+    await expect(accessGuard.canActivate(context)).rejects.toMatchObject({
+      code: "access-core/unauthorized",
+      status: 401,
+      detail: "Authenticated user missing",
+    });
     expect(mockAccessEngine.check).not.toHaveBeenCalled();
   });
+  it.each([undefined, null, { id: 42 }])(
+    "should reject invalid request user %j with 401",
+    async (user) => {
+      class TestController {
+        @Access("document", "viewer")
+        protectedMethod() {}
+      }
+      const context = createMockContext(TestController, "protectedMethod", user, mockTenantId, {
+        id: "doc-1",
+      });
+      await expect(accessGuard.canActivate(context)).rejects.toMatchObject({
+        code: "access-core/unauthorized",
+        status: 401,
+      });
+      expect(mockAccessEngine.check).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { requestUser: undefined, expectedId: "context-user" },
+    { requestUser: mockUser, expectedId: mockUser.id },
+  ])(
+    "should resolve principal $expectedId with an active Context",
+    async ({ requestUser, expectedId }) => {
+      class TestController {
+        @Access("document", "viewer")
+        protectedMethod() {}
+      }
+      const context = createMockContext(
+        TestController,
+        "protectedMethod",
+        requestUser,
+        mockTenantId,
+        { id: "doc-1" },
+      );
+      vi.mocked(mockAccessEngine.check).mockResolvedValue({ decision: "allow", allowed: true });
+      await Context.run({ requestId: "context-auth", user: { id: "context-user" } }, async () => {
+        await expect(accessGuard.canActivate(context)).resolves.toBe(true);
+      });
+      expect(mockAccessEngine.check).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: `user:${expectedId}` }),
+      );
+    },
+  );
 });
