@@ -51,7 +51,7 @@
     {
       "package": "@croco/transports-graphql",
       "file": "packages/transports-graphql/src/libs/GraphQLServer.ts",
-      "line": 240,
+      "line": 247,
       "excerpt": "} catch {",
       "reason": "Startup logging is optional and must not prevent the GraphQL server from resolving a successful listen callback.",
       "owner": "framework-error-handling",

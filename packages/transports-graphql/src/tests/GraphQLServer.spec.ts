@@ -306,6 +306,64 @@ function createLoggerMock(): LoggerMock {
   return logger;
 }
 
+describe("GraphQLServer start", () => {
+  beforeEach(() => {
+    Container.reset();
+  });
+
+  it("should reject an occupied port with the original bind error", async () => {
+    const occupied = createServer();
+    occupied.listen(0);
+    await once(occupied, "listening");
+    const address = occupied.address();
+    if (!address || typeof address === "string") throw new Error("Expected TCP address");
+    const server = new GraphQLServer({
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+    });
+
+    try {
+      await expect(server.start(address.port)).rejects.toMatchObject({
+        code: "EADDRINUSE",
+        syscall: "listen",
+        port: address.port,
+      });
+      const nodeServer = Reflect.get(server, "server") as Server;
+      expect(nodeServer.listening).toBe(false);
+      expect(nodeServer.listenerCount("error")).toBe(0);
+      expect(nodeServer.listeners("listening")).toEqual(createServer().listeners("listening"));
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        occupied.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  }, 2000);
+
+  it("should remove startup listeners after successful binding", async () => {
+    const server = new GraphQLServer({
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+    });
+    await server.start(0);
+    try {
+      const nodeServer = Reflect.get(server, "server") as Server;
+      expect(nodeServer.listening).toBe(true);
+      expect(nodeServer.listenerCount("error")).toBe(0);
+      expect(nodeServer.listeners("listening")).toEqual(createServer().listeners("listening"));
+    } finally {
+      await server.stop();
+    }
+  });
+
+  it("should reject synchronous listen errors and remove startup listeners", async () => {
+    const server = new GraphQLServer({
+      schemaOptions: { resolvers: [UserResolver], autoDiscover: false },
+    });
+    await expect(server.start(-1)).rejects.toMatchObject({ code: "ERR_SOCKET_BAD_PORT" });
+    const nodeServer = Reflect.get(server, "server") as Server;
+    expect(nodeServer.listenerCount("error")).toBe(0);
+    expect(nodeServer.listeners("listening")).toEqual(createServer().listeners("listening"));
+  });
+});
+
 describe("GraphQLServer stop", () => {
   beforeEach(() => {
     Container.reset();

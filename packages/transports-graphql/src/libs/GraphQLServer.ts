@@ -225,24 +225,38 @@ export class GraphQLServer {
         .finally(() => abortScope.dispose());
     };
 
-    this.server = createServer(handler);
+    const server = createServer(handler);
+    this.server = server;
 
     await new Promise<void>((resolve, reject) => {
-      this.server?.listen(port, (error?: Error) => {
-        if (error) {
-          reject(error);
-        } else {
-          try {
-            const logger = Container.get(Logger);
-            logger.info(
-              `GraphQL Server running on http://localhost:${port}${this.options.graphqlEndpoint || "/graphql"}`,
-            );
-          } catch {
-            // Intentionally ignored: Logger is optional for startup logging
-          }
-          resolve();
+      const cleanup = () => {
+        server.off("error", onError);
+        server.off("listening", onListening);
+      };
+      const onError = (error: unknown) => {
+        cleanup();
+        reject(error);
+      };
+      const onListening = () => {
+        cleanup();
+        try {
+          const logger = Container.get(Logger);
+          logger.info(
+            `GraphQL Server running on http://localhost:${port}${this.options.graphqlEndpoint || "/graphql"}`,
+          );
+        } catch {
+          // Intentionally ignored: Logger is optional for startup logging
         }
-      });
+        resolve();
+      };
+
+      server.once("error", onError);
+      server.once("listening", onListening);
+      try {
+        server.listen(port);
+      } catch (error) {
+        onError(error);
+      }
     });
   }
 
