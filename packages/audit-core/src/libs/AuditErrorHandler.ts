@@ -20,8 +20,20 @@ function calculateBackoff(attempt: number, baseDelay: number, maxDelay: number):
   return Math.min(exponentialDelay + jitter, maxDelay);
 }
 
-async function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const finish = (): void => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    signal?.addEventListener("abort", finish, { once: true });
+  });
 }
 
 export class AuditErrorHandler {
@@ -31,18 +43,28 @@ export class AuditErrorHandler {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async executeWithRetry<T>(operation: () => Promise<T>, context: string): Promise<T | undefined> {
+  async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    context: string,
+    signal?: AbortSignal,
+  ): Promise<T | undefined> {
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
+      if (signal?.aborted) {
+        return undefined;
+      }
       try {
         return await operation();
       } catch (error) {
+        if (signal?.aborted) {
+          return undefined;
+        }
         lastError = error instanceof Error ? error : new Error(String(error));
 
         if (attempt < this.config.maxRetries) {
           const delay = calculateBackoff(attempt, this.config.baseDelayMs, this.config.maxDelayMs);
-          await sleep(delay);
+          await sleep(delay, signal);
         }
       }
     }
@@ -97,18 +119,9 @@ export function fireAndForgetWithRetry<T>(
   config?: Partial<AuditErrorHandlerConfig>,
 ): FireAndForgetResult<T> {
   const handler = new AuditErrorHandler(config);
-  let aborted = false;
-
-  const promise = (async (): Promise<T | undefined> => {
-    if (aborted) {
-      return undefined;
-    }
-    return handler.executeWithRetry(operation, "audit-log-write");
-  })();
-
-  const abort = (): void => {
-    aborted = true;
-  };
+  const controller = new AbortController();
+  const promise = handler.executeWithRetry(operation, "audit-log-write", controller.signal);
+  const abort = (): void => controller.abort();
 
   return { promise, abort };
 }

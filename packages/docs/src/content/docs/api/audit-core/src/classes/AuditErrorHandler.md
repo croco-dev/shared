@@ -27,7 +27,7 @@ title: "AuditErrorHandler"
 
 ### executeWithRetry()
 
-> **executeWithRetry**\<`T`\>(`operation`, `context`): `Promise`\<`T` \| `undefined`\>
+> **executeWithRetry**\<`T`\>(`operation`, `context`, `signal?`): `Promise`\<`T` \| `undefined`\>
 
 #### Type Parameters
 
@@ -44,6 +44,10 @@ title: "AuditErrorHandler"
 ##### context
 
 `string`
+
+##### signal?
+
+`AbortSignal`
 
 #### Returns
 
