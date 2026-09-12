@@ -1060,6 +1060,22 @@ describe("PolarBillingGateway", () => {
       expect(mockGetSubscription).toHaveBeenCalledWith({ id: "sub-1" });
     });
 
+    it("should treat an already-revoked immediate cancellation retry as success", async () => {
+      const gateway = createGateway();
+      mockRevokeSubscription.mockRejectedValueOnce(createAlreadyCanceledSubscriptionError());
+      mockGetSubscription.mockResolvedValue({
+        status: "revoked",
+        cancelAtPeriodEnd: false,
+      });
+
+      await expect(
+        gateway.cancelSubscription("sub-1", true, {
+          idempotencyKey: "cancel-immediate-revoked-retry-1",
+        }),
+      ).resolves.toBeUndefined();
+      expect(mockGetSubscription).toHaveBeenCalledWith({ id: "sub-1" });
+    });
+
     it("should not hide an already-canceled response when the requested target is absent", async () => {
       const gateway = createGateway();
       mockUpdateSubscription.mockRejectedValueOnce(createAlreadyCanceledSubscriptionError());

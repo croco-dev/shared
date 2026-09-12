@@ -435,7 +435,7 @@ export class PolarBillingGateway implements BillingGateway {
         id: externalSubscriptionId,
       });
       if (immediate) {
-        return subscription.status === "canceled";
+        return subscription.status === "canceled" || subscription.status === "revoked";
       }
 
       return subscription.cancelAtPeriodEnd;
