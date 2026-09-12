@@ -31,15 +31,15 @@ QStash에 태스크 메시지를 발행하는 태스크 러너입니다.
 
 ### execute()
 
-> **execute**(`taskId`, `payload`, `options?`): `Promise`\<[`TaskDispatchResult`](/api/tasks-core/src/type-aliases/taskdispatchresult/)\>
+> **execute**(`task`, `payload`, `options?`): `Promise`\<[`TaskDispatchResult`](/api/tasks-core/src/type-aliases/taskdispatchresult/)\>
 
-태스크 식별자와 페이로드를 QStash에 발행합니다.
+태스크 식별자 또는 참조와 페이로드를 QStash에 발행합니다.
 
 #### Parameters
 
-##### taskId
+##### task
 
-`string`
+`string` \| [`TaskReference`](/api/tasks-core/src/type-aliases/taskreference/)
 
 ##### payload
 

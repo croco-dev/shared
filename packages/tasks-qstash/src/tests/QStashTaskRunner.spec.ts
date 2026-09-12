@@ -1,4 +1,5 @@
 import { createQStashTaskConformanceSuite } from "@croco/testing";
+import { Task, taskRef } from "@croco/tasks-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as QStashSdk from "@upstash/qstash";
 
@@ -128,6 +129,33 @@ describe("QStashTaskRunner", () => {
     });
 
     const result = await runner.execute("send-email", { userId: "user-123" });
+
+    expect(mockPublishJSON).toHaveBeenCalledWith({
+      url: "https://example.com/api/tasks/webhook",
+      body: {
+        taskId: "send-email",
+        payload: { userId: "user-123" },
+      },
+      delay: undefined,
+      headers: {},
+    });
+    expect(result.messageId).toBe("msg-test-123");
+  });
+
+  it("should publish task references by name", async () => {
+    class SendEmailTask {
+      @Task({ name: "send-email" })
+      run(payload: { userId: string }): void {
+        void payload;
+      }
+    }
+
+    const runner = new QStashTaskRunner({
+      token: "test-token",
+      destinationUrl: "https://example.com/api/tasks/webhook",
+    });
+
+    const result = await runner.execute(taskRef(SendEmailTask, "run"), { userId: "user-123" });
 
     expect(mockPublishJSON).toHaveBeenCalledWith({
       url: "https://example.com/api/tasks/webhook",

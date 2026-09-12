@@ -1,6 +1,11 @@
 import { Client } from "@upstash/qstash";
 import { Problem } from "@croco/problems-core";
-import type { TaskDispatcher, TaskDispatchOptions, TaskDispatchResult } from "@croco/tasks-core";
+import type {
+  TaskDispatcher,
+  TaskDispatchOptions,
+  TaskDispatchResult,
+  TaskReference,
+} from "@croco/tasks-core";
 import {
   QStashTaskConfigProblem,
   QStashTaskPublishProblem,
@@ -49,13 +54,14 @@ export class QStashTaskRunner implements TaskDispatcher {
   }
 
   /**
-   * 태스크 식별자와 페이로드를 QStash에 발행합니다.
+   * 태스크 식별자 또는 참조와 페이로드를 QStash에 발행합니다.
    */
   async execute(
-    taskId: string,
+    task: string | TaskReference,
     payload: unknown,
     options?: QStashTaskExecuteOptions,
   ): Promise<TaskDispatchResult> {
+    const taskId = typeof task === "string" ? task : task.name;
     validateRequiredString(taskId, "taskId");
     const delay = options?.delay ?? this.defaultDelay;
     validateDelay(delay, "delay");
