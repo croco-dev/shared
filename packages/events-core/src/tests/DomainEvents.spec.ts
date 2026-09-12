@@ -55,11 +55,12 @@ describe("DomainEvent", () => {
     expect(event.timestamp.getTime()).toBeLessThanOrEqual(after.getTime());
   });
 
-  it("should have stable eventId set automatically", () => {
+  it("should generate a UUID v4 eventId automatically", () => {
     const event = new TestEvent("test");
 
-    expect(event.eventId).toMatch(/^[a-z0-9]+$/);
-    expect(event.eventId).toBe(event.eventId);
+    expect(event.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 
   it("should preserve an explicitly supplied logical event identity", () => {

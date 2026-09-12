@@ -27,7 +27,7 @@ export abstract class DomainEvent {
       throw new EventDefinitionProblem();
     }
 
-    this.eventId = eventId ?? Math.random().toString(36).substring(2, 15);
+    this.eventId = eventId ?? globalThis.crypto.randomUUID();
     this.eventName = ctor.eventName;
     this.timestamp = new Date();
     this.metadata = {};
