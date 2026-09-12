@@ -8,6 +8,7 @@ import {
   type RuntimeCapabilityManifest,
 } from "@croco/framework-context";
 import {
+  createCloudflareWorkersHost,
   createRawHonoWorkerFetchHandler,
   createWorkerFetchHandler,
   type RawHonoFetch,
@@ -109,8 +110,9 @@ class ContractRuntimeDifferentialIntegrationController {
 
   @Get("/worker-context")
   workerContext() {
-    observedWorkerAbortSignal = FrameworkContext.getRuntimeContext()?.abortSignal;
-    return { ok: true };
+    const runtime = FrameworkContext.getRuntimeContext();
+    observedWorkerAbortSignal = runtime?.abortSignal;
+    return { ok: true, platform: runtime?.platform, binding: runtime?.env?.MY_KV };
   }
 }
 
@@ -295,25 +297,40 @@ describe("ContractRuntimeDifferentialIntegration", () => {
     ]);
   });
 
-  it("passes the Worker request signal through a real CrocoApp runtime handler", async () => {
-    const app = createApp({
-      controllers: [ContractRuntimeDifferentialIntegrationController],
-      securityValidation: "off",
-      diValidation: "off",
-    });
-    const handler = createWorkerFetchHandler(app);
-    const request = new Request("https://worker.test/runtime-differential/worker-context");
-    const executionContext: Parameters<RawHonoFetch>[2] = {
-      waitUntil: () => {},
-      passThroughOnException: () => {},
-    };
+  it.each(["legacy-runtime", "legacy-raw", "canonical-raw", "raw-helper"] as const)(
+    "identifies Worker runtime and bindings through a real Croco route using %s",
+    async (adapter) => {
+      const app = createApp({
+        controllers: [ContractRuntimeDifferentialIntegrationController],
+        securityValidation: "off",
+        diValidation: "off",
+      });
+      const handler =
+        adapter === "legacy-runtime"
+          ? createWorkerFetchHandler(app)
+          : adapter === "legacy-raw"
+            ? createWorkerFetchHandler(app.getHono(), { mode: "raw-hono" })
+            : adapter === "canonical-raw"
+              ? createCloudflareWorkersHost(app.getHono(), { mode: "raw-hono" })
+              : createRawHonoWorkerFetchHandler(app.getHono());
+      const request = new Request("https://worker.test/runtime-differential/worker-context");
+      const executionContext = {
+        props: {},
+        waitUntil: () => {},
+        passThroughOnException: () => {},
+      };
 
-    const response = await handler(request, {}, executionContext);
+      const response = await handler(request, { MY_KV: "users-kv" }, executionContext);
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(observedWorkerAbortSignal).toBe(request.signal);
-  });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        ok: true,
+        platform: "cloudflare-workers",
+        binding: "users-kv",
+      });
+      expect(observedWorkerAbortSignal).toBe(request.signal);
+    },
+  );
 
   it("omits nullish and empty query values while string-encoding array entries through TestKernel", async () => {
     await using kernel = await createTestKernel({

@@ -44,6 +44,20 @@ const fetch = runtime.bindHostCallback(createCloudflareWorkersHost(app));
 export default { fetch };
 ```
 
+For a raw Hono application, select Hono argument forwarding explicitly:
+
+```typescript
+const fetch = createCloudflareWorkersHost(honoApp, { mode: "raw-hono" });
+export default { fetch };
+```
+
+Raw mode forwards `request`, `env`, and `ctx` directly, preserving `c.env` bindings and
+`c.executionCtx.waitUntil()`. Croco routes mounted in the Hono application infer the
+`cloudflare-workers` runtime from the execution context. The default mode accepts a Croco
+application's `fetch(request, runtimeContext, options)` contract; it must not receive a raw
+Hono dispatcher. The deprecated `createWorkerFetchHandler` also supports `{ mode: "raw-hono" }`,
+and `createRawHonoWorkerFetchHandler(honoApp)` selects that forwarding path directly.
+
 The preset facade owns the Workers lifecycle, `@croco/transports-http` owns HTTP execution, and
 `createCloudflareBuildTarget()` only describes the deployable artifact.
 
