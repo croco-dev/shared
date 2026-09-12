@@ -212,6 +212,12 @@
       "owner": "@croco/architecture-policy"
     },
     {
+      "path": "packages/audit-core/src/tests/AuditErrorHandler.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "@croco/audit-core"
+    },
+    {
       "path": "packages/audit-core/src/tests/AuditInterceptor.spec.ts",
       "lane": "fast",
       "qualifiers": [],
