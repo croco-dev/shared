@@ -51,6 +51,7 @@ export class AccessEngine {
   }
 
   async revoke(request: RevokeRequest): Promise<void> {
+    assertValidRelationTuple(request.tuple);
     return this.provider.revoke(request);
   }
 

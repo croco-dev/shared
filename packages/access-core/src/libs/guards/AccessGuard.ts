@@ -12,6 +12,12 @@ export class BadRequestProblem extends Problem {
   }
 }
 
+class UnauthorizedProblem extends Problem {
+  constructor(detail: string) {
+    super("access-core/unauthorized", ProblemCategory.Unauthorized, detail);
+  }
+}
+
 export class ForbiddenProblem extends Problem {
   constructor(detail = "Forbidden", decisionId?: string) {
     super(
@@ -63,7 +69,7 @@ export class AccessGuard implements Guard<AccessExecutionContext> {
     const request = context.getRequest() as Request;
     const user = this.resolveUser(request);
     if (!user) {
-      throw new BadRequestProblem("Authenticated user missing");
+      throw new UnauthorizedProblem("Authenticated user missing");
     }
 
     const tenantId = this.resolveTenantId(context, request);
@@ -95,7 +101,7 @@ export class AccessGuard implements Guard<AccessExecutionContext> {
 
   private resolveUser(request: Request): { id: string } | null {
     const accessRequest = request as unknown as RequestWithAccessData;
-    const user = accessRequest.user;
+    const user = accessRequest.user ?? Context.getCurrentUser();
 
     if (!user || typeof user.id !== "string") {
       return null;

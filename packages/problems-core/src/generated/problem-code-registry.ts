@@ -3,7 +3,7 @@ import type { ProblemCodeRegistry } from "../libs/ProblemRegistry";
 
 export const CROCO_PROBLEM_CODE_REGISTRY = {
   version: "croco.problem-code-registry.v1",
-  problemCount: 774,
+  problemCount: 775,
   problems: [
     {
       code: "ACCESS_DENIED",
@@ -59,7 +59,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/access-core/src/libs/guards/AccessGuard.ts",
-          line: 17,
+          line: 23,
           column: 5,
           kind: "problem-constructor",
         },
@@ -92,7 +92,7 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/access-core/src/libs/AccessEngine.ts",
-          line: 109,
+          line: 110,
           column: 10,
           kind: "problem-factory",
         },
@@ -123,9 +123,39 @@ export const CROCO_PROBLEM_CODE_REGISTRY = {
       sources: [
         {
           file: "packages/access-core/src/libs/AccessEngine.ts",
-          line: 142,
+          line: 143,
           column: 10,
           kind: "problem-factory",
+        },
+      ],
+    },
+    {
+      code: "access-core/unauthorized",
+      category: "Unauthorized",
+      status: 401,
+      title: "Unauthorized",
+      cookbookPath: "/reference/problem-recovery-cookbook/#access-core-unauthorized",
+      recovery: {
+        cause: "The request did not include valid authentication credentials.",
+        userAction: "Sign in again or provide a valid credential.",
+        operatorAction: "Check authentication configuration, token issuer, and clock skew.",
+        retryability: "not-retryable",
+        redactionPolicy: "safe-message",
+        telemetry: {
+          eventName: "croco.problem.warning",
+          severity: "warning",
+          attributes: ["problem.code", "problem.category", "problem.status"],
+        },
+      },
+      lifecycle: {
+        status: "active",
+      },
+      sources: [
+        {
+          file: "packages/access-core/src/libs/guards/AccessGuard.ts",
+          line: 17,
+          column: 5,
+          kind: "problem-constructor",
         },
       ],
     },
