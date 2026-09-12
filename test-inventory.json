@@ -4443,6 +4443,12 @@
       "owner": "@croco/workflow-core"
     },
     {
+      "path": "packages/workflow-core/src/tests/SagaCompensationOutbox.spec.ts",
+      "lane": "fast",
+      "qualifiers": [],
+      "owner": "@croco/workflow-core"
+    },
+    {
       "path": "packages/workflow-core/src/tests/SagaRunner.spec.ts",
       "lane": "fast",
       "qualifiers": [],

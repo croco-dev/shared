@@ -435,6 +435,8 @@ export class SagaRunner {
       "saga.compensation.failure_count": compensationFailures.length,
     });
 
+    await this.dispatchOutbox(definition, failed.id);
+
     throw new SagaExecutionFailedProblem(definition.name, failed.id, failure, {
       status: failed.status,
       compensationFailures,
@@ -759,6 +761,10 @@ export class SagaRunner {
     ];
 
     for (const { record, phase } of outboxRecords) {
+      if (phase === "step" && execution.status !== "completed") {
+        continue;
+      }
+
       const step = definition.steps.find((candidate) => candidate.id === record.id);
       if (!step) {
         throw new SagaDefinitionProblem(

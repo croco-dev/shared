@@ -235,10 +235,13 @@ describe("SagaRunner", () => {
 
     const [failedExecution] = await runner.listExecutions({ sagaName: definition.name });
 
-    expect(publishedMessages).toEqual([]);
+    expect(publishedMessages).toEqual([
+      "provision-seat:seats.removed:remove-seat:ord_123",
+      "reserve-payment:billing.refunded:refund:ord_123",
+    ]);
     expect(
       failedExecution.steps.flatMap((step) => step.outboxMessages).map((message) => message.status),
-    ).toEqual(["pending", "pending", "pending"]);
+    ).toEqual(["pending", "published", "published"]);
 
     await runner.dispatchOutbox(definition, failedExecution.id);
     const execution = await runner.getExecution(failedExecution.id);
@@ -260,7 +263,6 @@ describe("SagaRunner", () => {
       "refund-payment:ord_123",
     ]);
     expect(publishedMessages).toEqual([
-      "reserve-payment:billing.reserved:outbox:ord_123",
       "provision-seat:seats.removed:remove-seat:ord_123",
       "reserve-payment:billing.refunded:refund:ord_123",
     ]);
@@ -277,7 +279,7 @@ describe("SagaRunner", () => {
             stepId: "reserve-payment",
             idempotencyKey: "outbox:ord_123",
             phase: "step",
-            status: "published",
+            status: "pending",
           }),
           expect.objectContaining({
             topic: "billing.refunded",
@@ -653,8 +655,8 @@ describe("SagaRunner", () => {
     await runner.dispatchOutbox(definition, replayed.id);
 
     expect(replayed.status).toBe("compensated");
-    expect(deliveryIds).toHaveLength(4);
-    expect(new Set(deliveryIds).size).toBe(2);
+    expect(deliveryIds).toHaveLength(2);
+    expect(new Set(deliveryIds).size).toBe(1);
     expect(replayed.steps[0]?.outboxMessages.map((message) => message.deliveryId)).toEqual(
       failed.steps[0]?.outboxMessages.map((message) => message.deliveryId),
     );
