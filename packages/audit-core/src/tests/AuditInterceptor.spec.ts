@@ -18,6 +18,7 @@ type RequestContextStub = {
   user: {
     id: string;
   };
+  impersonation?: unknown;
 };
 
 type MockHttpRequest = {
@@ -73,6 +74,22 @@ function createLogger(): ILogger {
     child: vi.fn(function (this: ILogger) {
       return this;
     }),
+  };
+}
+
+function createActiveImpersonationContext(requestId: string): RequestContextStub {
+  const now = Date.now();
+  return {
+    requestId,
+    tenantId: "tenant-impersonated",
+    user: { id: "target-user-1" },
+    impersonation: {
+      sessionId: "imp-1",
+      impersonatorId: "admin-1",
+      targetUserId: "target-user-1",
+      startedAt: new Date(now - 60_000),
+      expiresAt: new Date(now + 60_000),
+    },
   };
 }
 
@@ -182,6 +199,123 @@ describe("AuditInterceptor", () => {
             path: "/projects/project-1",
             ip: "192.0.2.10",
             body: { name: "croco" },
+          },
+        },
+      }),
+    );
+  });
+
+  it("should attribute an impersonated request to the administrator", async () => {
+    vi.spyOn(Context, "get").mockReturnValue(
+      createActiveImpersonationContext("req-impersonated-success"),
+    );
+
+    class TestController {
+      update() {}
+    }
+
+    const context = createExecutionContext({
+      controller: TestController,
+      handler: "update",
+      method: "PATCH",
+      path: "/users/target-user-1",
+      request: { headers: {} },
+    });
+
+    await interceptor.intercept(context, createCallHandler({ updated: true }));
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: "admin-1",
+        metadata: {
+          impersonation: true,
+          impersonatorId: "admin-1",
+          targetUserId: "target-user-1",
+          http: {
+            method: "PATCH",
+            path: "/users/target-user-1",
+            ip: "unknown",
+          },
+        },
+      }),
+    );
+  });
+
+  it("should attribute a failed impersonated request to the administrator", async () => {
+    vi.spyOn(Context, "get").mockReturnValue(
+      createActiveImpersonationContext("req-impersonated-failure"),
+    );
+
+    class TestController {
+      remove() {}
+    }
+
+    const context = createExecutionContext({
+      controller: TestController,
+      handler: "remove",
+      method: "DELETE",
+      path: "/users/target-user-1",
+      request: { headers: {} },
+    });
+    const handlerError = new Error("removal denied");
+
+    await expect(
+      interceptor.intercept(context, {
+        handle: vi.fn(async () => {
+          throw handlerError;
+        }),
+      } as CallHandler),
+    ).rejects.toBe(handlerError);
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: "admin-1",
+        metadata: {
+          impersonation: true,
+          impersonatorId: "admin-1",
+          targetUserId: "target-user-1",
+          http: {
+            method: "DELETE",
+            path: "/users/target-user-1",
+            ip: "unknown",
+          },
+        },
+      }),
+    );
+  });
+
+  it("should avoid target-user attribution for an invalid impersonation context", async () => {
+    vi.spyOn(Context, "get").mockReturnValue({
+      requestId: "req-invalid-impersonation",
+      tenantId: "tenant-impersonated",
+      user: { id: "target-user-1" },
+      impersonation: { sessionId: "imp-incomplete" },
+    } as RequestContextStub);
+
+    class TestController {
+      read() {}
+    }
+
+    const context = createExecutionContext({
+      controller: TestController,
+      handler: "read",
+      method: "GET",
+      path: "/users/target-user-1",
+      request: { headers: {} },
+    });
+
+    await interceptor.intercept(context, createCallHandler({ id: "target-user-1" }));
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: "unknown",
+        metadata: {
+          impersonation: true,
+          invalidImpersonationContext: true,
+          http: {
+            method: "GET",
+            path: "/users/target-user-1",
+            ip: "unknown",
           },
         },
       }),
