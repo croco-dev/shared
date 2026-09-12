@@ -8,6 +8,7 @@ import {
   runWithAuditCoordination,
 } from "./auditCoordination";
 import { AUDIT_METADATA_KEY } from "./constants";
+import { resolveImpersonationContext } from "./impersonationState";
 import type { AuditExecutionContext, CallHandler, Interceptor } from "./interfaces/Interceptor";
 import { AuditClientIpConfigurationProblem } from "./problems/AuditClientIpConfigurationProblem";
 import type { AuditLogEntry } from "./types";
@@ -277,12 +278,14 @@ function toHttpMetadata(context: AuditExecutionContext, trustedProxyHops: number
 
 function mergeMetadata(
   existing: AuditableMetadata | undefined,
+  impersonation: AuditableMetadata,
   http: HttpMetadata,
 ): AuditableMetadata {
   const safeExisting = existing && typeof existing === "object" ? existing : {};
 
   return {
     ...safeExisting,
+    ...impersonation,
     http,
   };
 }
@@ -345,6 +348,20 @@ export class AuditInterceptor implements Interceptor<AuditExecutionContext> {
     }
 
     const contextData = Context.get();
+    const impersonation = resolveImpersonationContext(contextData);
+    const activeImpersonation = impersonation.status === "active" ? impersonation.state : null;
+    const actorId =
+      activeImpersonation?.impersonatorId ??
+      (impersonation.status === "invalid" ? "unknown" : (contextData?.user?.id ?? "unknown"));
+    const impersonationMetadata: AuditableMetadata = activeImpersonation
+      ? {
+          impersonation: true,
+          impersonatorId: activeImpersonation.impersonatorId,
+          targetUserId: activeImpersonation.targetUserId,
+        }
+      : impersonation.status === "invalid"
+        ? { impersonation: true, invalidImpersonationContext: true }
+        : {};
     const controllerName = target.name || "UnknownController";
     const coordination = isDecoratorMetadata
       ? createAuditCoordinationState(resolveAuditMetadataTarget(target, handler), handler)
@@ -361,7 +378,7 @@ export class AuditInterceptor implements Interceptor<AuditExecutionContext> {
 
       await this.writeAuditLog({
         tenantId: contextData?.tenantId ?? "unknown",
-        actorId: contextData?.user?.id ?? "unknown",
+        actorId,
         action: resolveAction(controllerName, handler),
         resourceType: resolveResourceType(controllerName),
         resourceId: resolveResourceId(http.path),
@@ -369,7 +386,7 @@ export class AuditInterceptor implements Interceptor<AuditExecutionContext> {
           result,
         },
         diff: null,
-        metadata: mergeMetadata(existingMetadata, http),
+        metadata: mergeMetadata(existingMetadata, impersonationMetadata, http),
       });
       if (coordination) {
         markAuditWrite(coordination.target, coordination.propertyKey);
@@ -384,7 +401,7 @@ export class AuditInterceptor implements Interceptor<AuditExecutionContext> {
       try {
         await this.writeAuditLog({
           tenantId: contextData?.tenantId ?? "unknown",
-          actorId: contextData?.user?.id ?? "unknown",
+          actorId,
           action: resolveAction(controllerName, handler),
           resourceType: resolveResourceType(controllerName),
           resourceId: resolveResourceId(http.path),
@@ -392,7 +409,7 @@ export class AuditInterceptor implements Interceptor<AuditExecutionContext> {
             error: error instanceof Error ? error.message : String(error),
           },
           diff: null,
-          metadata: mergeMetadata(existingMetadata, http),
+          metadata: mergeMetadata(existingMetadata, impersonationMetadata, http),
         });
         if (coordination) {
           markAuditWrite(coordination.target, coordination.propertyKey);
