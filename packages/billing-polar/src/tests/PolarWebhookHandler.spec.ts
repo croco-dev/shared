@@ -20,6 +20,7 @@ import { PolarWebhookHandler } from "../libs/PolarWebhookHandler";
 import type { WebhookDependencies } from "../libs/PolarWebhookHandler";
 import { WebhookProcessingProblem } from "../libs/problems/WebhookProcessingProblem";
 import { WebhookValidationProblem } from "../libs/problems/WebhookValidationProblem";
+import { PolarOrderDataSchema } from "../libs/schemas/polarWebhookSchema";
 import type { PolarConfig } from "../types";
 
 function createMockStore(): BillingStore {
@@ -245,6 +246,28 @@ const webhookValidationFailureCases: readonly {
       /Webhook validation failed: Webhook timestamp outside tolerance: signature=\[redacted\]/,
   },
 ];
+
+describe("PolarOrderDataSchema", () => {
+  it("accepts zero amounts and rejects negative amounts", () => {
+    expect(() =>
+      PolarOrderDataSchema.parse({
+        id: "ord-123",
+        amount: 0,
+        currency: "USD",
+        billingReason: "purchase",
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      PolarOrderDataSchema.parse({
+        id: "ord-negative",
+        amount: -1,
+        currency: "USD",
+        billingReason: "purchase",
+      }),
+    ).toThrow();
+  });
+});
 
 describe("PolarWebhookHandler", () => {
   let handler!: PolarWebhookHandler;
@@ -1491,13 +1514,13 @@ describe("PolarWebhookHandler", () => {
       },
     );
 
-    it("order.paid 이벤트 처리 → store 저장 + 이벤트 발행", async () => {
+    it("0원 order.paid 이벤트 처리 → store 저장 + 이벤트 발행", async () => {
       const eventData = {
         id: "evt-456",
         type: "order.paid",
         data: {
           id: "order-123",
-          amount: 9900,
+          amount: 0,
           currency: "USD",
           billing_reason: "subscription_create",
           customer: { externalId: "tenant-123", metadata: {} },
@@ -1517,7 +1540,7 @@ describe("PolarWebhookHandler", () => {
         id: "order-123",
         billingAccountId: "tenant-123",
         externalOrderId: "order-123",
-        amount: 9900,
+        amount: 0,
         currency: "USD",
         reason: "subscription_create",
         paidAt: expect.any(Date),
