@@ -12,6 +12,8 @@ import { toWorkersHandler } from "../libs/adapters/WorkersAdapter";
 describe("WorkersAdapter", () => {
   let app!: CrocoApp;
   let observedAbortSignal: AbortSignal | undefined;
+  let observedExecutionContext: ExecutionContext | undefined;
+  const backgroundTask = Promise.resolve();
 
   type TestExecutionContext = ExecutionContext & {
     TEST_CTX_VALUE?: string;
@@ -83,6 +85,13 @@ describe("WorkersAdapter", () => {
       };
     }
 
+    @Get("/background-task")
+    runBackgroundTask(@Raw() raw: { executionCtx: ExecutionContext }) {
+      observedExecutionContext = raw.executionCtx;
+      raw.executionCtx.waitUntil(backgroundTask);
+      return { scheduled: true };
+    }
+
     @Get("/runtime-context")
     getRuntimeContext() {
       const runtime = FrameworkContext.getRuntimeContext();
@@ -117,6 +126,7 @@ describe("WorkersAdapter", () => {
   beforeEach(() => {
     Container.reset();
     observedAbortSignal = undefined;
+    observedExecutionContext = undefined;
     const logger = {
       info: () => {},
       warn: () => {},
@@ -254,6 +264,35 @@ describe("WorkersAdapter", () => {
       const json = await response.json();
       expect(json).toEqual({ value: "from-worker-ctx" });
     });
+
+    it.each([
+      { label: "omitted", options: undefined, expectedEnvValue: null },
+      { label: "disabled", options: { injectEnv: false }, expectedEnvValue: null },
+      { label: "enabled", options: { injectEnv: true }, expectedEnvValue: "worker-env" },
+    ])(
+      "should support Hono waitUntil with env injection $label",
+      async ({ options, expectedEnvValue }) => {
+        const handler = toWorkersHandler(app, options);
+        const ctx = createExecutionContext({ waitUntil: vi.fn() });
+        const env = { TEST_VALUE: "worker-env" };
+
+        const response = await handler.fetch(
+          new Request("http://localhost/api/background-task"),
+          env,
+          ctx,
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({ scheduled: true });
+        expect(observedExecutionContext).toBe(ctx);
+        expect(ctx.waitUntil).toHaveBeenCalledExactlyOnceWith(backgroundTask);
+
+        const envResponse = await handler.fetch(new Request("http://localhost/api/env"), env, ctx);
+
+        expect(envResponse.status).toBe(200);
+        await expect(envResponse.json()).resolves.toEqual({ value: expectedEnvValue });
+      },
+    );
 
     it("should expose Cloudflare env and waitUntil through RuntimeContext by default", async () => {
       const handler = toWorkersHandler(app);

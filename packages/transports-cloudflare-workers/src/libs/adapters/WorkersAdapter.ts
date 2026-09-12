@@ -16,7 +16,7 @@ export function toWorkersHandler(
         return app.fetch(request, runtimeContext, { env, executionContext: ctx });
       }
 
-      return app.fetch(request, runtimeContext);
+      return app.fetch(request, runtimeContext, { executionContext: ctx });
     },
   };
 }
