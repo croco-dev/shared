@@ -1,9 +1,11 @@
+import { createApp } from "@croco/transports-http";
 import { describe, expect, it, vi } from "vitest";
 import type {
   CloudflareFetchEnv,
   CloudflareHostExecutionContext,
   CloudflareHostRawHonoFetch,
   ExecutionContext,
+  RawHonoFetch,
 } from "../fetch";
 import {
   createCloudflareBuildTarget,
@@ -211,6 +213,59 @@ describe("createWorkerFetchHandler", () => {
     await expect(handler(request, env, ctx)).resolves.toBe(response);
     expect(fetch).toHaveBeenCalledWith(request, env, ctx);
   });
+
+  it("requires explicit raw dispatch for legacy Hono callbacks", async () => {
+    const request = new Request("https://worker.test/legacy");
+    const env = { MY_KV: "users-kv" };
+    const ctx = createExecutionContext();
+    const fetch: RawHonoFetch = vi.fn(async () => new Response("ok"));
+    // @ts-expect-error Legacy raw callbacks must not enter runtime dispatch by default.
+    createWorkerFetchHandler({ fetch });
+    const handler: PreviousCloudflareFetchHandler = createWorkerFetchHandler(
+      { fetch },
+      { mode: "raw-hono" },
+    );
+
+    await expect(handler(request, env, ctx)).resolves.toBeInstanceOf(Response);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(request, env, ctx);
+  });
+
+  it.each(["legacy", "canonical", "helper"] as const)(
+    "preserves real Hono bindings and execution context through the %s raw adapter",
+    async (adapter) => {
+      const app = createApp({ controllers: [], securityValidation: "off", diValidation: "off" });
+      const hono = app.getHono();
+      // @ts-expect-error Current Hono dispatch requires an explicit raw mode.
+      createWorkerFetchHandler(hono);
+      const binding = { value: "users-kv" };
+      const env = Object.freeze({ MY_KV: binding });
+      const pending = Promise.resolve();
+      const ctx = createHostExecutionContext();
+      hono.get("/worker-bindings", (c) => {
+        const bindings = c.env as typeof env;
+        expect(bindings).toBe(env);
+        expect(bindings.MY_KV).toBe(binding);
+        expect(c.executionCtx).toBe(ctx);
+        c.executionCtx.waitUntil(pending);
+        c.executionCtx.passThroughOnException();
+        return c.text(bindings.MY_KV.value);
+      });
+      const handler =
+        adapter === "legacy"
+          ? createWorkerFetchHandler(hono, { mode: "raw-hono" })
+          : adapter === "canonical"
+            ? createCloudflareWorkersHost(hono, { mode: "raw-hono" })
+            : createRawHonoWorkerFetchHandler(hono);
+
+      const response = await handler(new Request("https://worker.test/worker-bindings"), env, ctx);
+
+      expect(response.status).toBe(200);
+      await expect(response.text()).resolves.toBe("users-kv");
+      expect(ctx.waitUntil).toHaveBeenCalledExactlyOnceWith(pending);
+      expect(ctx.passThroughOnException).toHaveBeenCalledOnce();
+      expect(Object.keys(env)).toEqual(["MY_KV"]);
+    },
+  );
 
   it("keeps raw Hono forwarding behind an explicit compatibility helper", async () => {
     const request = new Request("https://example.com/users");

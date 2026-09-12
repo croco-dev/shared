@@ -123,8 +123,16 @@ export function createCloudflareWorkersHost(
 
 /** @deprecated Use `createCloudflareWorkersHost`. */
 export function createWorkerFetchHandler(
+  honoApp: { readonly fetch: RawHonoFetch },
+  options: { readonly mode: "raw-hono" },
+): CloudflareFetchHandler;
+export function createWorkerFetchHandler(
+  honoApp: { readonly fetch: CloudflareHostRawHonoFetch },
+  options: { readonly mode: "raw-hono" },
+): CloudflareHostFetchHandler;
+export function createWorkerFetchHandler(
   honoApp: {
-    readonly fetch: CloudflareAppFetch | RawHonoFetch;
+    readonly fetch: CloudflareAppFetch;
   },
   options?: WorkerFetchHandlerOptions,
 ): CloudflareFetchHandler;
@@ -140,7 +148,11 @@ export function createWorkerFetchHandler(
 ): CloudflareFetchHandler;
 export function createWorkerFetchHandler(
   honoApp: {
-    readonly fetch: CloudflareAppFetch | CloudflareAppFetch<HonoExecutionContext> | RawHonoFetch;
+    readonly fetch:
+      | CloudflareAppFetch
+      | CloudflareAppFetch<HonoExecutionContext>
+      | RawHonoFetch
+      | CloudflareHostRawHonoFetch;
   },
   options: WorkerFetchHandlerOptions = {},
 ): CloudflareFetchHandler {
@@ -163,13 +175,20 @@ export function createWorkerFetchHandler(
 
 export function createRawHonoWorkerFetchHandler(honoApp: {
   readonly fetch: RawHonoFetch;
+}): CloudflareFetchHandler;
+export function createRawHonoWorkerFetchHandler(honoApp: {
+  readonly fetch: CloudflareHostRawHonoFetch;
+}): CloudflareHostFetchHandler;
+export function createRawHonoWorkerFetchHandler(honoApp: {
+  readonly fetch: RawHonoFetch | CloudflareHostRawHonoFetch;
 }): CloudflareFetchHandler {
+  const app = honoApp as { readonly fetch: RawHonoFetch };
   return async (
     request: Request,
     env: CloudflareFetchEnv,
     ctx: ExecutionContext,
   ): Promise<Response> => {
-    return honoApp.fetch(request, env, ctx);
+    return app.fetch(request, env, ctx);
   };
 }
 
